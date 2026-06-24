@@ -28,7 +28,7 @@ const CONFIG: Record<
   },
 }
 
-/** Pastel status pill — icon + label so feedback never relies on color alone. */
+/** Pastel status pill: icon + label so feedback never relies on color alone. */
 export function StatusChip({
   status,
   className,

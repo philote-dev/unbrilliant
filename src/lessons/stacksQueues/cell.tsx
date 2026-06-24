@@ -6,12 +6,14 @@ import type { AnswerState } from "@/components/willow/AnswerCard"
 
 /**
  * One cell inside a Stack bin or Queue tube. Shared by both containers so the
- * card itself looks identical — only the container shape and the entry/exit
+ * card itself looks identical: only the container shape and the entry/exit
  * direction differ (that difference is what teaches LIFO vs FIFO).
  *
  * `enter`/`exit` are the motion offsets the owning container passes in (a stack
  * drops in and lifts out the top; a queue slides in the back and out the front),
- * so the animation never lies about which end an item uses. Honors
+ * so the animation never lies about which end an item uses. A cell "leaves" by
+ * being removed from the container's list: AnimatePresence then runs `exit` while
+ * the surviving cells reflow via `layout`, so the pile settles. Honors
  * `prefers-reduced-motion` by snapping to the resting state.
  */
 const SURFACE: Record<AnswerState, string> = {
@@ -35,9 +37,9 @@ export function StructCell({
   disabled,
   onSelect,
   isAnswer,
-  leaving,
   enter,
   exit,
+  layoutId,
   className,
 }: {
   id: string
@@ -47,28 +49,29 @@ export function StructCell({
   disabled?: boolean
   onSelect?: () => void
   isAnswer?: boolean
-  leaving?: boolean
   /** Motion offset the cell animates IN from (the opening it enters through). */
   enter: Offset
   /** Motion offset the cell animates OUT to (the opening it leaves through). */
   exit: Offset
+  /** Shared-layout id so a loose construct card can morph into this cell. */
+  layoutId?: string
   className?: string
 }) {
   const reduce = useReducedMotion()
-  const resting = { opacity: 1, x: 0, y: 0, scale: 1 }
   const gone = { opacity: 0, x: exit.x ?? 0, y: exit.y ?? 0, scale: 0.9 }
 
   return (
     <motion.button
       type="button"
       layout
+      layoutId={reduce ? undefined : layoutId}
       data-cell={id}
       data-answer={isAnswer && import.meta.env.DEV ? "1" : undefined}
       disabled={!selectable || disabled}
       onClick={selectable ? onSelect : undefined}
       aria-pressed={state === "selected"}
       initial={reduce ? false : { opacity: 0, x: enter.x ?? 0, y: enter.y ?? 0, scale: 0.9 }}
-      animate={leaving ? gone : resting}
+      animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
       exit={gone}
       transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 360, damping: 26 }}
       whileTap={selectable && !disabled ? { scale: 0.97 } : undefined}

@@ -31,7 +31,7 @@ import { HalvingMeter } from "./HalvingMeter"
 /**
  * The hierarchical tree figure: SVG edges under absolute-positioned circular node
  * buttons, scaled to fit (the NodeGraph idiom). Three faces, all driven by the
- * pure engine + layout (jsdom-safe — positions come from `treeLayout`, not from
+ * pure engine + layout (jsdom-safe: positions come from `treeLayout`, not from
  * measuring the DOM):
  *  - **descend** (Locate): only the cursor's two children (and a dashed ghost slot
  *    for each empty side) are tappable; tapping steps down and the opposite
@@ -310,7 +310,7 @@ function DescendFigure({
                 data-tappable="1"
                 data-ghost-side={side}
                 data-answer={answer ? "1" : undefined}
-                aria-label={`empty ${side} slot — tap if ${q.target ?? "the value"} would attach here`}
+                aria-label={`empty ${side} slot. Tap if ${q.target ?? "the value"} would attach here`}
                 onClick={() => dispatch({ type: "select", letter: side === "left" ? "ghost:left" : "ghost:right" })}
                 className={cn(
                   "absolute flex items-center justify-center rounded-full border-2 border-dashed border-lilac-strong/70 bg-lilac-soft/40 text-sm font-semibold text-lilac-strong outline-none",

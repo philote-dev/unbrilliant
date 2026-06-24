@@ -12,7 +12,7 @@ import type { LessonModule } from "@/features/lesson/lessonModule"
 import { LinkedListsStage } from "./linkedLists/Stage"
 
 /**
- * Linked Lists as a LessonModule — the third real lesson on the shared engine
+ * Linked Lists as a LessonModule. The third real lesson on the shared engine
  * seam, the exact mirror of Arrays (access "scales" / rewire "free"). It reuses
  * the feedback machine, cost readout, flame, and durable-progress shape; only
  * the chain engine, the NodeChain figure, and the rewire verdicts are new.

@@ -10,8 +10,8 @@ const SIZES = {
 
 /**
  * A vertical column of A/B/C cards (top → bottom) with a grounded base.
- * Push/pop/enqueue/dequeue animate via Framer Motion `layout` + AnimatePresence
- * — cards slide/lift smoothly so the learner *sees* the rule.
+ * Push/pop/enqueue/dequeue animate via Framer Motion `layout` + AnimatePresence.
+ * Cards slide/lift smoothly so the learner *sees* the rule.
  */
 export function StructureColumn({
   cards,

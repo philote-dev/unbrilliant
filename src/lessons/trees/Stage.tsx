@@ -145,7 +145,7 @@ function DemoPart({
 
       <div className="mt-auto">
         <p className="mb-3 text-center text-sm text-muted-foreground">
-          Each tap compares and steps down — the half you skip drops away.
+          Each tap compares and steps down. The half you skip drops away.
         </p>
         <Button
           variant="tactile"
@@ -190,7 +190,7 @@ function TeachPart({
           </p>
         ) : (
           <p className="mx-auto max-w-xs text-center text-sm text-muted-foreground">
-            Left subtree, then the node, then the right subtree — and it comes out{" "}
+            Left subtree, then the node, then the right subtree, and it comes out{" "}
             <span className="font-semibold text-foreground">sorted</span>.
           </p>
         )}
@@ -316,7 +316,7 @@ function RealWorldPart({
           </p>
           <TreeFigure state={state} dispatch={dispatch} />
           <p className="mt-3 text-center text-xs text-muted-foreground">
-            Lower means go left, higher means go right — each guess halves the range.
+            Lower means go left, higher means go right. Each guess halves the range.
           </p>
         </motion.div>
       </div>
@@ -417,7 +417,7 @@ function ContrastPart({
       <div className="flex flex-1 flex-col items-center justify-center gap-5 py-4">
         <div className="flex flex-col items-center gap-1.5">
           <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Sorted list — walk it
+            Sorted list. Walk it
           </span>
           <SortedChain
             keys={q.chain}
@@ -429,7 +429,7 @@ function ContrastPart({
 
         <div className="flex flex-col items-center gap-1.5">
           <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Balanced tree — descend it
+            Balanced tree. Descend it
           </span>
           <TreeFigure state={state} dispatch={dispatch} lockDescend={!walkDone} />
           {!walkDone && (

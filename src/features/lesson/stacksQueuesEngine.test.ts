@@ -317,6 +317,40 @@ describe("S&Q: classify selection is seed-deterministic", () => {
   })
 })
 
+describe("S&Q: real-world predict skins (browser-back + drive-thru)", () => {
+  it("stack real-world wears the browser theme: 4 pages, answer is the top (newest)", () => {
+    const q = driveTo("stack-realworld").question!
+    if (q.kind !== "predict") throw new Error("expected predict")
+    expect(q.theme).toBe("browser")
+    expect(q.discipline).toBe("stack")
+    expect(q.cells).toHaveLength(4)
+    expect(q.ask).toEqual({ kind: "first-out" })
+    // container order is reverse(arrival); cells[0] = newest visited = the answer
+    expect(q.answer).toBe(q.cells[0].id)
+    expect(q.cells[0].id).toBe(q.arrival[q.arrival.length - 1])
+  })
+
+  it("queue real-world wears the drive-thru theme: 4 cars, answer is the front (oldest)", () => {
+    const q = driveTo("queue-realworld").question!
+    if (q.kind !== "predict") throw new Error("expected predict")
+    expect(q.theme).toBe("drivethru")
+    expect(q.discipline).toBe("queue")
+    expect(q.cells).toHaveLength(4)
+    expect(q.ask).toEqual({ kind: "first-out" })
+    // a queue keeps order; cells[0] = first arrived = the answer
+    expect(q.answer).toBe(q.cells[0].id)
+    expect(q.cells[0].id).toBe(q.arrival[0])
+  })
+
+  it("real-world copy carries no em dash (locked content rule)", () => {
+    for (const part of ["stack-realworld", "queue-realworld"] as const) {
+      const q = driveTo(part).question!
+      const text = [q.prompt, q.hint, q.nudge, q.correct, q.why].join(" ")
+      expect(text).not.toContain("\u2014")
+    }
+  })
+})
+
 describe("S&Q: contrast verdict is the earlier emitter", () => {
   it("the contrast answer is the discipline with the smaller targetEmitStep", () => {
     const contrast = driveTo("compare:contrast").question

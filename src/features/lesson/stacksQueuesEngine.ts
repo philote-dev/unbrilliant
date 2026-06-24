@@ -78,8 +78,13 @@ export type PredictAsk =
   | { kind: "last-out" }
   | { kind: "after-k"; k: number }
 
-/** The showpiece skin a predict beat wears. "letters" stays plain. */
-export type PredictTheme = "letters" | "browser" | "printer"
+/**
+ * The showpiece skin a predict beat wears. "letters" stays plain. "browser" is
+ * the stack real-world (Browser Back), "drivethru" the queue real-world (a
+ * drive-thru / toll lane). "printer" is kept as the queue fallback skin behind
+ * the Stage's REALWORLD_QUEUE_SKIN switch.
+ */
+export type PredictTheme = "letters" | "browser" | "drivethru" | "printer"
 
 export interface PredictQuestion extends Copy {
   kind: "predict"
@@ -332,21 +337,25 @@ function makeGraded(
       }
 
     case "stack-realworld":
-      // Browser Back skin: history is a stack; Back leaves the current page.
+      // Browser Back skin: history is a stack; Back leaves the page on top (the
+      // page you are on). Four pages so the pile reads as a real session. Labels
+      // mirror browserHistory.ts PAGES (first four) for the fallback container;
+      // the skin owns the real page identity. Copy stays generic (no title), so
+      // the engine never couples to the skin's catalog.
       return {
         question: predict(
           "stackRealworld",
           "stack",
           "browser",
-          ["p1", "p2", "p3"],
-          { p1: "Home", p2: "Blog", p3: "Photos" },
+          ["p1", "p2", "p3", "p4"],
+          { p1: "Search", p2: "Recipe", p3: "Map", p4: "Video" },
           { kind: "first-out" },
           {
-            prompt: "You visited these pages, then press Back. Which page do you leave?",
-            hint: "Browser history is a stack: Back returns you from the page you are on.",
+            prompt: "You opened these pages in order, then press Back. Which page leaves the top of the history?",
+            hint: "Browser history is a stack. Back returns you from the page you are on now.",
             nudge: "Which page did you open most recently?",
-            correct: "Right: Photos was your latest page, so Back leaves it first.",
-            why: "History is a stack. The page you are on (Photos) sits on top, so Back leaves it first.",
+            correct: "Right: the page you opened most recently sits on top, so Back leaves it first.",
+            why: "History is a stack. The newest page is on top, so Back leaves it before the older ones.",
           },
         ),
         construct: null,
@@ -388,20 +397,25 @@ function makeGraded(
       }
 
     case "queue-realworld":
+      // Drive-thru / toll lane skin: a queue. Cars roll up to the window in
+      // arrival order and the front car is served first. Four cars so the lane
+      // reads as a real line. Labels mirror driveThruCars.ts CARS (first four)
+      // for the fallback container; the skin owns the real car identity. Copy
+      // stays generic (no name), so the engine never couples to the catalog.
       return {
         question: predict(
           "queueRealworld",
           "queue",
-          "printer",
-          ["j1", "j2", "j3"],
-          { j1: "report", j2: "essay", j3: "photo" },
+          "drivethru",
+          ["c1", "c2", "c3", "c4"],
+          { c1: "Red", c2: "Blue", c3: "Green", c4: "Amber" },
           { kind: "first-out" },
           {
-            prompt: "Three files are sent to the printer in this order. Which prints first?",
-            hint: "A print queue is first in, first out.",
-            nudge: "Which file was sent first?",
-            correct: "Right: the report was sent first, so it prints first.",
-            why: "A printer queue is first in, first out: the report was sent first, so it prints first.",
+            prompt: "Cars pull up to the drive-thru window in this order. Which one is served first?",
+            hint: "A drive-thru lane is a queue: first in, first out.",
+            nudge: "Which car has been waiting at the window the longest?",
+            correct: "Right: the first car to pull up reaches the window first, so it is served first.",
+            why: "A drive-thru is a queue. The car that arrived first is at the front, so it is served before the rest.",
           },
         ),
         construct: null,

@@ -15,7 +15,7 @@ import { HeapsStage } from "./heaps/Stage"
  * Heaps as a LessonModule on the shared engine seam. Reuses the feedback machine
  * + flame (`gradeAnswer`) and the durable LessonProgress shape; only the heap
  * engine, the dual tree+array figure, and the verdicts are lesson-specific. It is
- * tap-only — every commit is a `{ type: "select" }` (an arrangement-card id or a
+ * tap-only, every commit is a `{ type: "select" }` (an arrangement-card id or a
  * `"slot-"+i` id), so it pulls in no rewire/drag surface and ships eager (no
  * heavy layout lib to lazy-load).
  */

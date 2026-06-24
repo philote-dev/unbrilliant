@@ -8,7 +8,7 @@ import type { CostWord } from "@/components/willow/CostReadout"
 
 /**
  * Pure, framework-agnostic Trees (BST) lesson engine. One idea: a BST is an
- * *ordering you descend* — each comparison throws away half the tree (halving),
+ * *ordering you descend*. Each comparison throws away half the tree (halving),
  * and the sorted order is *recovered* by an in-order traversal (left → node →
  * right), not *stored* in a row. Two faces (descend / locate and in-order /
  * sequence) plus a comparison synthesis (same keys → same sorted output →
@@ -19,7 +19,7 @@ import type { CostWord } from "@/components/willow/CostReadout"
  * 4/2/2 gate across three bins (Locate / Sequence / Comparison). Reuses the
  * shared feedback machine + flame (`gradeAnswer`) and the same LessonProgress
  * shape; only the tree model, verdicts, and quotas are Trees-specific. Layout is
- * hand-rolled and PRESENTATIONAL — every verdict here is a pure function of the
+ * hand-rolled and PRESENTATIONAL. Every verdict here is a pure function of the
  * given tree (`descendPath` / `insertSlot` / `inorder`), never of pixels. Tap
  * only: no `rewire` action, no drag, no heavy layout lib. Deterministic (seeded):
  * same state always yields the same question/feedback.
@@ -110,7 +110,7 @@ export function inorder(root: TreeNode | null): string[] {
   return [...inorder(root.left), root.id, ...inorder(root.right)]
 }
 
-/** In-order keys — the unique sorted sequence (BST invariant + no dup keys). */
+/** In-order keys: the unique sorted sequence (BST invariant + no dup keys). */
 export function inorderKeys(root: TreeNode | null): number[] {
   if (!root) return []
   return [...inorderKeys(root.left), root.key, ...inorderKeys(root.right)]
@@ -120,7 +120,7 @@ export function inorderKeys(root: TreeNode | null): number[] {
  * Descend the tree comparing `x` at each node: `x < key ⇒ left`, `x > key ⇒
  * right` (`=` only at a hit, since keys are unique). Returns the unique path, a
  * found flag, the empty slot the search falls into (miss / insert), and the
- * per-step opposite-subtree drop counts. Pure — the verdict for every Locate
+ * per-step opposite-subtree drop counts. Pure: the verdict for every Locate
  * beat is read straight off this.
  */
 export function descendPath(root: TreeNode, x: number): DescendResult {
@@ -248,7 +248,7 @@ export interface TreesQuestion {
   target: number | null
   descend: DescendResult | null
   insertAt: { parentId: string; side: Side } | null
-  /** In-order ids — the unique correct tap order (sequence beats). */
+  /** In-order ids: the unique correct tap order (sequence beats). */
   order: string[]
   options: TreesOption[]
   answer: string
@@ -411,7 +411,7 @@ function makeIntro(part: "demo" | "teach-descend" | "teach-inorder"): TreesQuest
     mode: "intro",
     tree: T_BAL,
     title: "Left, node, right",
-    prompt: "Visit the left subtree, then the node, then the right subtree — it comes out sorted.",
+    prompt: "Visit the left subtree, then the node, then the right subtree. It comes out sorted.",
     order: inorder(T_BAL),
   }
 }
@@ -433,8 +433,8 @@ function makeDescend(part: "find-hit" | "find-miss" | "insert" | "realworld"): T
       cost: comparisonsCost(d.comparisons),
       prompt: "Does 10 exist? Tap the path down to it.",
       hint: "Compare at each node: go left if 10 is smaller, right if larger.",
-      nudge: "Compare 10 with the node, then step toward it — don't skip around.",
-      correct: "Found 10 in 3 comparisons — each step dropped half the tree.",
+      nudge: "Compare 10 with the node, then step toward it. Don't skip around.",
+      correct: "Found 10 in 3 comparisons. Each step dropped half the tree.",
       why: "8 → 12 → 10: at each node you compare and discard the side that can't hold 10. Three steps, even if the tree were huge.",
     }
   }
@@ -451,10 +451,10 @@ function makeDescend(part: "find-hit" | "find-miss" | "insert" | "realworld"): T
       target,
       descend: d,
       cost: comparisonsCost(d.comparisons),
-      prompt: "Does 7 exist? Tap the path — then the empty slot where it would be.",
+      prompt: "Does 7 exist? Tap the path. Then the empty slot where it would be.",
       hint: "Descend as if 7 were there; if you run off the tree, it's absent.",
       nudge: "Keep comparing. If the child you need is empty, 7 isn't here.",
-      correct: "7 would sit right of 6, but that slot is empty — 7 is absent.",
+      correct: "7 would sit right of 6, but that slot is empty, 7 is absent.",
       why: "8 → 4 → 6: 7 > 6 needs a right child, but there is none. The empty slot is the proof 7 isn't in the tree.",
     }
   }
@@ -475,11 +475,11 @@ function makeDescend(part: "find-hit" | "find-miss" | "insert" | "realworld"): T
       prompt: "Where would 5 attach? Descend to the empty slot and tap it.",
       hint: "The search IS the insert: descend until the child you need is empty.",
       nudge: "Compare 5 at each node and step down; tap the empty slot it lands in.",
-      correct: "5 attaches left of 6 — the slot the search falls into.",
+      correct: "5 attaches left of 6. The slot the search falls into.",
       why: "8 → 4 → 6: 5 < 6 needs a left child, which is empty. That empty slot is exactly where 5 belongs.",
     }
   }
-  // realworld — higher/lower number guess (descend X = 2)
+  // realworld. Higher/lower number guess (descend X = 2)
   const target = 2
   const d = descendPath(tree, target)
   return {
@@ -493,10 +493,10 @@ function makeDescend(part: "find-hit" | "find-miss" | "insert" | "realworld"): T
     descend: d,
     realWorld: true,
     cost: comparisonsCost(d.comparisons),
-    prompt: "Guess the secret number. Each guess says higher or lower — find 2.",
-    hint: "‘Lower’ means go left, ‘higher’ means go right — each guess halves what's left.",
+    prompt: "Guess the secret number. Each guess says higher or lower. Find 2.",
+    hint: "‘Lower’ means go left, ‘higher’ means go right. Each guess halves what's left.",
     nudge: "Follow the hints down: lower → left, higher → right.",
-    correct: "Two ‘lower’s land on 2 — three guesses, half the range gone each time.",
+    correct: "Two ‘lower’s land on 2. Three guesses, half the range gone each time.",
     why: "Higher/lower IS a BST descend: 8 → 4 → 2, halving the range at every guess. That's why guessing games end so fast.",
   }
 }
@@ -519,14 +519,14 @@ function makeSequence(part: "sequence-a" | "sequence-b"): TreesQuestion {
       prompt: "Tap every node in in-order order: left subtree, node, right subtree.",
       hint: "Go as far left as you can, visit, then go right. Don't read the picture left-to-right.",
       nudge: "Apply left → node → right. The picture isn't laid out in sorted order.",
-      correct: "That's the in-order traversal — it comes out sorted.",
+      correct: "That's the in-order traversal. It comes out sorted.",
       why: `Left → node → right recovers the sorted order: ${keys.join(", ")}. The order isn't stored in the layout; the rule recovers it.`,
     }
   }
   return {
     ...shared,
     prompt: "Same rule, new shape: tap the nodes in in-order order.",
-    hint: "Left subtree first — all the way down — then the node, then right.",
+    hint: "Left subtree first (all the way down) then the node, then right.",
     nudge: "Run left → node → right; the pixels aren't in sorted order.",
     correct: `In-order again gives sorted: ${keys.join(", ")}.`,
     why: `However the tree is drawn, left → node → right yields the sorted keys: ${keys.join(", ")}.`,
@@ -543,7 +543,7 @@ function makeCompare(seed: number): { question: TreesQuestion; next: number } {
     [
       {
         id: "same-order-diff-cost",
-        label: "Same keys, same in-order order — but the stick walks and the balanced tree halves",
+        label: "Same keys, same in-order order, but the stick walks and the balanced tree halves",
       },
       { id: "same-structure", label: "They're the same structure" },
       { id: "diff-sets", label: "They hold different sets of keys" },
@@ -566,8 +566,8 @@ function makeCompare(seed: number): { question: TreesQuestion; next: number } {
       altCost: stickCost,
       prompt: "Both trees were built from the same keys. Which is true?",
       hint: "Run in-order on each, then picture finding a value in both.",
-      nudge: "Same keys and same sorted order — but does the stick halve, or walk?",
-      correct: "Same set, same in-order order — but the stick walks while the balanced tree halves.",
+      nudge: "Same keys and same sorted order, but does the stick halve, or walk?",
+      correct: "Same set, same in-order order, but the stick walks while the balanced tree halves.",
       why: "Both give 2, 4, 6, 8, 10, 12, 14 in-order, so same keys and same sorted output. But the stick is a linked list in disguise: finding 14 walks all 7, while the balanced tree finds it in 3.",
     },
     next: sh.next,
@@ -597,7 +597,7 @@ function makeContrast(): TreesQuestion {
     hint: "Walk the list hop by hop, then descend the tree by comparing.",
     nudge: "Finish the walk to the value, then descend the tree to it.",
     correct: "The list walks 7 hops; the tree finds 14 in 3 comparisons.",
-    why: "A sorted linked list has no branches — you walk every node (7 hops). The balanced BST drops half each step, finding 14 in 3. Branching is the whole difference.",
+    why: "A sorted linked list has no branches. You walk every node (7 hops). The balanced BST drops half each step, finding 14 in 3. Branching is the whole difference.",
   }
 }
 
@@ -672,7 +672,7 @@ export function currentPartTrees(state: TreesState): TreesPart {
   return TREES_PARTS[state.partIndex]
 }
 
-/** A verdict is terminal once correct or failed — the question locks. */
+/** A verdict is terminal once correct or failed: the question locks. */
 export function isTerminalTrees(state: TreesState): boolean {
   return state.feedback === "correct" || state.feedback === "fail"
 }
@@ -693,7 +693,7 @@ export function partQuotaTrees(state: TreesState): { done: number; total: number
   return bin ? binProgress(state, bin) : null
 }
 
-/** The descend cursor — the last node the learner has stepped to. */
+/** The descend cursor: the last node the learner has stepped to. */
 export function cursorNode(state: TreesState): TreeNode | null {
   const q = state.question
   if (!q || state.tappedPath.length === 0) return null
@@ -704,7 +704,7 @@ export function cursorNode(state: TreesState): TreeNode | null {
  * What the learner can tap from the current descend cursor: each existing child,
  * plus a dashed ghost slot for every empty side (only where falling off is a
  * legal commit, and never once they've landed on the target). The "no jumping"
- * rule — only the current node's two children are reachable.
+ * rule: only the current node's two children are reachable.
  */
 export function tappableChildren(state: TreesState): {
   left: boolean
@@ -747,7 +747,7 @@ export function droppedAlongPath(tree: TreeNode | null, pathIds: string[]): Set<
   return out
 }
 
-/** Node ids dropped (opposite subtrees) along the descend so far — dimmed + SR. */
+/** Node ids dropped (opposite subtrees) along the descend so far: dimmed + SR. */
 export function droppedNodeIds(state: TreesState): Set<string> {
   return state.question ? droppedAlongPath(state.question.tree, state.tappedPath) : new Set<string>()
 }
@@ -766,7 +766,7 @@ export function candidatesRemaining(state: TreesState): number {
 
 /**
  * The single correct next descend step (child or ghost), recomputed from the
- * pure path — drives the DEV `data-answer` hook so the tracer can walk it.
+ * pure path. Drives the DEV `data-answer` hook so the tracer can walk it.
  */
 export function correctNextStep(
   state: TreesState,
@@ -777,7 +777,7 @@ export function correctNextStep(
   if (state.tappedPath.length < d.path.length) {
     return { kind: "node", id: d.path[state.tappedPath.length] }
   }
-  if (d.found) return null // already on the target — just Check
+  if (d.found) return null // already on the target. Just Check
   if (d.missingSide) return { kind: "ghost", side: d.missingSide }
   return null
 }

@@ -1,5 +1,5 @@
 import { useState, type Dispatch } from "react"
-import { ArrowLeft, ArrowRight, Check, RotateCcw, Trophy, X } from "lucide-react"
+import { Ambulance, ArrowLeft, ArrowRight, Check, RotateCcw, X } from "lucide-react"
 import { motion, useReducedMotion } from "motion/react"
 
 import { cn } from "@/lib/utils"
@@ -26,7 +26,8 @@ import {
   type HeapsState,
   type SwapStep,
 } from "@/features/lesson/heapsEngine"
-import { HeapDualView, type SlotTone } from "./HeapDualView"
+import { HeapDualView, type HeapFigureRenderer, type SlotTone } from "./HeapDualView"
+import { ERTriageBoard } from "./ERTriageBoard"
 
 const LETTERS = ["A", "B", "C", "D"]
 const BIN_LABEL: Record<HeapBin, string> = {
@@ -35,6 +36,14 @@ const BIN_LABEL: Record<HeapBin, string> = {
   mapping: "Mapping",
   contrast: "Contrast",
 }
+
+/** The two synced figures the replay/idle views can render through `renderFigure`. */
+const defaultFigure: HeapFigureRenderer = (props) => <HeapDualView {...props} />
+const triageFigure: HeapFigureRenderer = (props) => <ERTriageBoard {...props} />
+
+/** Subtle clinical (teal) full-bleed wash for the ER skin; fades to the page bg.
+ * Teal, not the danger token, so the screen never reads as a FAIL state. */
+const ER_TINT = "linear-gradient(180deg, rgba(13,148,136,0.12), transparent 240px)"
 
 export function HeapsStage({
   state,
@@ -58,7 +67,7 @@ export function HeapsStage({
     case "contrast-samedata":
       return <SlotLocatePart state={state} dispatch={dispatch} />
     case "siftup-skin":
-      return <LeaderboardPart state={state} dispatch={dispatch} />
+      return <TriagePart state={state} dispatch={dispatch} />
     default:
       return <ArrangementPart state={state} dispatch={dispatch} />
   }
@@ -165,20 +174,24 @@ function replayOf(q: HeapsQuestion): { spec: ReplaySpec; intro?: IntroFrame } {
 
 /**
  * The synced why-replay: a local Back/Next/Replay stepper over the engine's
- * precomputed `path`, driving the dual tree+array view so both panels move
+ * precomputed `path`, driving a dual tree+array figure so both panels move
  * together. For extract beats an `intro` frame is PREPENDED (the top leaving + the
  * last item rising to fill it) before the sift-down begins. The step index is
  * transient UI state and never touches the verdict. No timers (manual stepper).
  * Reduced motion snaps to the end-state (no lift) but still lets the learner walk.
+ * `renderFigure` lets a skin (the ER triage board) swap the figure while keeping
+ * the identical step math and sync contract; it defaults to the HeapDualView.
  */
 function StepReplay({
   spec,
   intro,
   reduced,
+  renderFigure = defaultFigure,
 }: {
   spec: ReplaySpec
   intro?: IntroFrame
   reduced: boolean
+  renderFigure?: HeapFigureRenderer
 }) {
   const swaps = spec.path.length
   const introCount = intro ? 1 : 0
@@ -205,13 +218,13 @@ function StepReplay({
 
   return (
     <div className="flex flex-col items-center gap-3">
-      <HeapDualView
-        heap={heap}
-        highlightSlots={highlight}
-        liftPair={reduced || inIntro ? null : pair}
-        reducedMotion={reduced}
-        srLabel={intro && idx === 0 ? intro.caption : siftSentence(spec)}
-      />
+      {renderFigure({
+        heap,
+        highlightSlots: highlight,
+        liftPair: reduced || inIntro ? null : pair,
+        reducedMotion: reduced,
+        srLabel: intro && idx === 0 ? intro.caption : siftSentence(spec),
+      })}
       <p className="max-w-xs text-center text-xs text-muted-foreground">{caption}</p>
       {lastIdx > 0 && (
         <div className="flex flex-wrap items-center justify-center gap-2">
@@ -296,6 +309,7 @@ function ArrangementCard({
   answerMarker?: boolean
   onSelect?: () => void
 }) {
+  const reduced = useReducedMotion() ?? false
   return (
     <motion.button
       type="button"
@@ -304,9 +318,9 @@ function ArrangementCard({
       disabled={disabled}
       onClick={onSelect}
       aria-pressed={state === "selected"}
-      whileTap={disabled ? undefined : { scale: 0.985 }}
-      animate={state === "nudge" ? { x: [0, -7, 7, -4, 4, 0] } : { x: 0 }}
-      transition={{ duration: 0.4, ease: "easeInOut" }}
+      whileTap={disabled || reduced ? undefined : { scale: 0.985 }}
+      animate={state === "nudge" && !reduced ? { x: [0, -7, 7, -4, 4, 0] } : { x: 0 }}
+      transition={reduced ? { duration: 0 } : { duration: 0.4, ease: "easeInOut" }}
       className={cn(
         "relative flex w-full items-center gap-3 rounded-2xl border-2 p-3 text-left outline-none transition-colors",
         "focus-visible:ring-2 focus-visible:ring-lilac-strong/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
@@ -357,9 +371,15 @@ function DeCue({ q }: { q: HeapsQuestion }) {
 function ArrangementBody({
   state,
   dispatch,
+  renderFigure = defaultFigure,
+  skin = false,
 }: {
   state: HeapsState
   dispatch: Dispatch<LessonAction>
+  /** The synced figure (defaults to HeapDualView; the ER skin passes the board). */
+  renderFigure?: HeapFigureRenderer
+  /** ER-skin flavour: swaps the abstract de-cue for the patient-admission cue. */
+  skin?: boolean
 }) {
   const q = state.question
   const reduced = useReducedMotion() ?? false
@@ -387,11 +407,16 @@ function ArrangementBody({
 
       <div className="flex flex-col items-center gap-3 py-4">
         {reveal ? (
-          <StepReplay spec={replay.spec} intro={replay.intro} reduced={reduced} />
+          <StepReplay
+            spec={replay.spec}
+            intro={replay.intro}
+            reduced={reduced}
+            renderFigure={renderFigure}
+          />
         ) : (
           <>
-            <HeapDualView heap={q.heap} reducedMotion={reduced} srLabel={givenSentence(q)} />
-            <DeCue q={q} />
+            {renderFigure({ heap: q.heap, reducedMotion: reduced, srLabel: givenSentence(q) })}
+            {skin ? <TriageCue q={q} /> : <DeCue q={q} />}
           </>
         )}
       </div>
@@ -443,23 +468,64 @@ function ArrangementPart({
   )
 }
 
-/** Beat 5 — the high-score leaderboard skin: a light token-scoped wrapper. */
-function LeaderboardPart({
+/** The shared ER triage header (the skin's chrome). Teal reads "hospital", and
+ * keeps the danger token free for the FAIL state. No em dashes in learner copy. */
+function TriageHeader() {
+  return (
+    <div className="mt-1 flex items-center gap-2.5 rounded-2xl border border-border bg-card px-4 py-2.5 shadow-soft">
+      <span
+        className="flex size-8 shrink-0 items-center justify-center rounded-full text-white"
+        style={{ backgroundColor: "#0d9488" }}
+      >
+        <Ambulance className="size-4" />
+      </span>
+      <div className="min-w-0">
+        <p className="text-sm font-bold leading-tight text-foreground">ER Triage Board</p>
+        <p className="text-[11px] leading-tight text-muted-foreground">
+          The most urgent patient is always seen first.
+        </p>
+      </div>
+    </div>
+  )
+}
+
+/** The ER admission cue (the skin's swap for the abstract "Insert K" de-cue). */
+function TriageCue({ q }: { q: HeapsQuestion }) {
+  if (q.insertKey == null) return null
+  return (
+    <span className="rounded-full bg-lilac-soft px-3 py-1 text-sm font-semibold text-lilac-strong">
+      New patient · severity {q.insertKey}
+    </span>
+  )
+}
+
+/**
+ * Beat 5. The ER triage real-life skin of the sift-up beat. A full-bleed clinical
+ * wrapper (the PlaylistQueue pattern) hosts the same predict-the-arrangement
+ * mechanic, but the figure is the ERTriageBoard: a new patient is admitted and
+ * climbs to their rank, the most urgent always on top. Determinism is untouched,
+ * the cards still carry the dev `answer-card` / `data-answer` hooks, and the skin
+ * never computes correctness (severities are the distinct keys).
+ */
+function TriagePart({
   state,
   dispatch,
 }: {
   state: HeapsState
   dispatch: Dispatch<LessonAction>
 }) {
+  const reduced = useReducedMotion() ?? false
   return (
-    <div className="flex flex-1 flex-col">
-      <div className="mt-6 flex items-center justify-center gap-2 rounded-2xl border border-border bg-card px-4 py-2 shadow-soft">
-        <Trophy className="size-4 text-lilac-strong" />
-        <span className="text-sm font-bold text-foreground">High Scores</span>
-        <span className="text-xs text-muted-foreground">— a new score is climbing the board</span>
-      </div>
-      <ArrangementBody state={state} dispatch={dispatch} />
-    </div>
+    <motion.div
+      initial={reduced ? false : { opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={reduced ? { duration: 0 } : { duration: 0.4, ease: "easeOut" }}
+      className="-mx-5 -mb-6 flex flex-1 flex-col px-5 pb-6 pt-6"
+      style={{ background: ER_TINT }}
+    >
+      <TriageHeader />
+      <ArrangementBody state={state} dispatch={dispatch} renderFigure={triageFigure} skin />
+    </motion.div>
   )
 }
 
@@ -473,6 +539,20 @@ function mapSentence(q: HeapsQuestion): string {
       q.slotIndex ?? 0,
     )}; the larger is slot ${q.correctSlot}.`
   return `Tree node ${q.slotIndex} is the same data as array cell ${q.slotIndex}.`
+}
+
+/**
+ * The screen-reader label BEFORE the verdict: it restates the subject and the
+ * task WITHOUT naming the target slot, so it never leaks the answer to a
+ * non-sighted learner. The mapped slot is only voiced on reveal (mapSentence).
+ */
+function neutralSentence(q: HeapsQuestion): string {
+  const subject = q.heap[q.slotIndex ?? 0]
+  if (q.dir === "parent")
+    return `Slot ${q.slotIndex} holds ${subject}. Tap the array cell you think is its parent.`
+  if (q.dir === "largerChild")
+    return `Slot ${q.slotIndex} holds ${subject}. Tap the array cell you think is its larger child.`
+  return `A highlighted tree node holds ${subject}. Tap the array cell that stores the same data.`
 }
 
 function SlotLocatePart({
@@ -509,10 +589,10 @@ function SlotLocatePart({
           correctSlot={q.correctSlot}
           onTapSlot={terminal ? undefined : (i) => dispatch({ type: "select", letter: slotId(i) })}
           reducedMotion={reduced}
-          srLabel={mapSentence(q)}
+          srLabel={reveal ? mapSentence(q) : neutralSentence(q)}
         />
         <p className="max-w-xs text-center text-xs text-muted-foreground">
-          Tap the array slot — the matching tree node lights up.
+          Tap the array slot. The matching tree node lights up.
         </p>
       </div>
 
@@ -633,7 +713,7 @@ function TeachArrayPart({
         <p className="max-w-xs text-center text-sm text-muted-foreground">
           Tap any slot: its children are <span className="font-semibold text-foreground">2·i+1</span>{" "}
           and <span className="font-semibold text-foreground">2·i+2</span>; its parent is{" "}
-          <span className="font-semibold text-foreground">(i−1)/2</span>. No pointers — just
+          <span className="font-semibold text-foreground">(i−1)/2</span>. No pointers. Just
           arithmetic.
         </p>
       </div>
@@ -673,7 +753,7 @@ function TeachRulePart({
         />
         <p className="max-w-xs text-center text-sm text-muted-foreground">
           Each parent beats <span className="font-semibold text-foreground">both</span> its
-          children — and that's the only promise. Two siblings can sit in any order: a heap is{" "}
+          children, and that's the only promise. Two siblings can sit in any order: a heap is{" "}
           <span className="font-semibold text-foreground">not</span> sorted, and{" "}
           <span className="font-semibold text-foreground">not</span> a BST.
         </p>
@@ -699,18 +779,25 @@ function TeachExtractPart({
   const { spec, intro } = replayOf(q)
 
   return (
-    <div className="flex flex-1 flex-col">
-      <div className="mt-7 text-center">
-        <h2 className="text-xl font-bold text-foreground">Taking the top out</h2>
+    <motion.div
+      initial={reduced ? false : { opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={reduced ? { duration: 0 } : { duration: 0.4, ease: "easeOut" }}
+      className="-mx-5 -mb-6 flex flex-1 flex-col px-5 pb-6 pt-6"
+      style={{ background: ER_TINT }}
+    >
+      <TriageHeader />
+      <div className="mt-5 text-center">
+        <h2 className="text-xl font-bold text-foreground">Discharging the top patient</h2>
         <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground">{q.prompt}</p>
       </div>
 
       <div className="flex flex-1 flex-col items-center justify-center gap-4 py-6">
-        <StepReplay spec={spec} intro={intro} reduced={reduced} />
+        <StepReplay spec={spec} intro={intro} reduced={reduced} renderFigure={triageFigure} />
         {q.cost && q.sortCost && (
           <div className="flex flex-wrap justify-center gap-2">
-            <LabeledCost label="Peek the top" cost={q.cost} />
-            <LabeledCost label="Sort to find it" cost={q.sortCost} />
+            <LabeledCost label="See who's next" cost={q.cost} />
+            <LabeledCost label="Sort the whole board" cost={q.sortCost} />
           </div>
         )}
       </div>
@@ -718,6 +805,6 @@ function TeachExtractPart({
       <div className="mt-auto">
         <ContinueButton dispatch={dispatch} />
       </div>
-    </div>
+    </motion.div>
   )
 }

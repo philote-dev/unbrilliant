@@ -9,7 +9,7 @@ import type { PathNode } from "@/components/willow/CoursePath"
 
 /**
  * The deep drill-down: per-lesson mastery and accuracy derived from real
- * progress — the detail to the dashboard's summary and distinct from the
+ * progress: the detail to the dashboard's summary and distinct from the
  * course path (no node map here, just the breakdown).
  */
 export function Progress() {
@@ -53,7 +53,7 @@ function LessonStatCard({
   stats: LessonStats
 }) {
   const locked = node.state === "locked"
-  // "Started" only counts once there's a correct answer (or completion) — entering
+  // "Started" only counts once there's a correct answer (or completion). Entering
   // a lesson without answering yet still reads "Not started", so the chip and the
   // body never contradict.
   const engaged = stats.completed || stats.correct > 0
@@ -113,7 +113,7 @@ function LessonStatCard({
         </>
       ) : (
         <p className="mt-3 text-xs text-muted-foreground">
-          Not started yet — give it a go.
+          Not started yet. Give it a go.
         </p>
       )}
     </div>

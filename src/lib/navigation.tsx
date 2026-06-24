@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from "react"
 
-/** Every screen Willow can show. A tiny client-side router — no dep needed. */
+/** Every screen Willow can show. A tiny client-side router: no dep needed. */
 export type Screen =
   | { name: "home" }
   | { name: "courses" }

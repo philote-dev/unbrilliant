@@ -2,7 +2,7 @@ import { SCENARIO_POOL, type Scenario } from "@/features/lesson/scenarios"
 
 /**
  * Pure, framework-agnostic Stacks & Queues lesson engine. No React, no
- * Firebase, no animation lib — same state always yields the same feedback
+ * Firebase, no animation lib. Same state always yields the same feedback
  * (the deterministic, no-AI guarantee). See docs/prototype.md.
  */
 
@@ -229,7 +229,7 @@ export function lessonReducer(
       return { ...state, showWhy: true }
 
     case "reattempt": {
-      // fresh instance — new arrangement for predictions; same scenario to retry
+      // fresh instance. New arrangement for predictions; same scenario to retry
       if (part === "stack-pop") {
         const { question, next } = makePrediction("pop", state.rngState)
         return { ...state, ...FRESH, question, rngState: next }
@@ -307,7 +307,7 @@ export function answerOf(question: Question): string {
   return question.kind === "scenario" ? question.scenario.answer : question.answer
 }
 
-/** A verdict is terminal once correct or failed — the question locks. */
+/** A verdict is terminal once correct or failed: the question locks. */
 export function isTerminal(state: LessonState): boolean {
   return state.feedback === "correct" || state.feedback === "fail"
 }
@@ -420,7 +420,7 @@ export function isComplete(state: LessonState): boolean {
  */
 export interface ResumeProgress {
   counters: Record<string, number>
-  // A lesson-shaped part id (S&Q PartId, Arrays part, ...) — kept as `string` so
+  // A lesson-shaped part id (S&Q PartId, Arrays part, ...). Kept as `string` so
   // the durable shape is lesson-agnostic across the shared persistence boundary.
   currentPart: string
 }
@@ -436,7 +436,7 @@ export interface LessonProgress extends ResumeProgress {
 
 /**
  * Rebuild a lesson at a persisted part with persisted correct-counts. Resume is
- * "same part", not "same instance" — predictions/scenarios get a fresh draw. The
+ * "same part", not "same instance". Predictions/scenarios get a fresh draw. The
  * combo/flame is transient by design and starts cold on resume.
  */
 export function resumeLesson(
@@ -499,7 +499,7 @@ export type ReconcilePlan<S = LessonState> =
 
 /**
  * Pure sign-in reconciliation: compare the local in-memory run against the
- * server's saved progress and decide what to do. No React, no Firebase — the
+ * server's saved progress and decide what to do. No React, no Firebase. The
  * effect just performs the I/O the plan implies.
  */
 export function reconcile(

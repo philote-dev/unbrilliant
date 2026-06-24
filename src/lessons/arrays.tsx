@@ -11,7 +11,7 @@ import {
 import type { LessonModule } from "@/features/lesson/lessonModule"
 import { ArraysStage } from "./arrays/Stage"
 
-/** Arrays as a LessonModule — a real second lesson on the shared engine seam. */
+/** Arrays as a LessonModule: a real second lesson on the shared engine seam. */
 export const arraysModule: LessonModule<ArraysState> = {
   id: "arrays",
   create: (seed) => createArrays(seed),

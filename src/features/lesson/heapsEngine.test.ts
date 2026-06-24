@@ -11,6 +11,7 @@ import {
   currentPartHeaps,
   extractIntroFrame,
   hasDistinctKeys,
+  heapId,
   heapsReducer,
   isCompleteHeaps,
   isIntroPart,
@@ -234,6 +235,21 @@ describe("siftUp bin (predict-next-state, de-cued)", () => {
     expect(s.question!.leaderboard).toBe(true)
     expect(s.question!.bin).toBe("siftUp")
     const ok = pick(s, s.question!.answer)
+    expect(ok.feedback).toBe("correct")
+    expect(ok.siftUpCorrect).toBe(2)
+  })
+
+  it("siftup-skin (ER triage skin) still grades on the engine's answer id", () => {
+    // The skin only re-dresses the figure; the verdict id must be untouched so the
+    // e2e tracer's data-answer pick keeps grading the same winning arrangement.
+    const s = atPart("siftup-skin")
+    const q = s.question!
+    expect(q.bin).toBe("siftUp")
+    expect(q.leaderboard).toBe(true)
+    expect(q.answer).toBe(heapId(q.resultHeap)) // the post-sift arrangement id
+    const wrongId = q.options.find((o) => o.id !== q.answer)!.id
+    expect(pick(s, wrongId).feedback).toBe("nudge") // skin never alters the verdict
+    const ok = pick(s, q.answer)
     expect(ok.feedback).toBe("correct")
     expect(ok.siftUpCorrect).toBe(2)
   })

@@ -6,9 +6,9 @@ import { cn } from "@/lib/utils"
 /**
  * A read-only sorted linked list, walked **tap-to-advance** (the T5 contrast).
  * This is the L3 "walk, no jump" felt in the hands: the cursor starts at the head
- * and the only legal move is the next node — each tap is one hop, and the hop
+ * and the only legal move is the next node. Each tap is one hop, and the hop
  * count is the cost (`scales`). It is deliberately the same picture as the
- * degenerate stick. NOT the rewire infra — imports nothing from
+ * degenerate stick. NOT the rewire infra. Imports nothing from
  * `@/components/rewire/*`; it only ever advances a cursor.
  */
 const DEV = import.meta.env.DEV
@@ -22,7 +22,7 @@ export function SortedChain({
   keys: number[]
   /** How far the walk has reached (index of the last examined node). */
   cursor: number
-  /** The index being searched for — the walk ends here. */
+  /** The index being searched for: the walk ends here. */
   targetIndex: number
   onAdvance?: () => void
 }) {
@@ -82,7 +82,7 @@ export function SortedChain({
         })}
       </div>
       <p className="sr-only" role="status">
-        Walked {cursor + 1} of {keys.length} nodes{done ? " — reached the value." : "."}
+        Walked {cursor + 1} of {keys.length} nodes{done ? ". Reached the value." : "."}
       </p>
     </div>
   )

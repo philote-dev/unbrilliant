@@ -10,9 +10,10 @@ import { LessonRunProvider } from "@/features/lesson/useLessonRun"
 import { CourseProgressProvider } from "@/features/progress/CourseProgressProvider"
 
 /**
- * Dev-only design gallery for visual + animation review, reachable at
- * `/?gallery`. Lazy-loaded so it never ships in the production bundle; normal
- * navigation (no query param) renders the real app unchanged.
+ * The Dev Gallery (visual + animation review), reachable at `/?gallery`.
+ * Lazy-loaded so it never ships in the production bundle; normal navigation
+ * (no query param) renders the real app unchanged. The dedicated `gallery.html`
+ * entry renders the same gallery without these app providers.
  */
 const showGallery =
   import.meta.env.DEV &&

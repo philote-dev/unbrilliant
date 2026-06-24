@@ -8,13 +8,13 @@ import { BucketChain } from "./BucketChain"
 type HashTableMode = "drag" | "tap" | "display"
 
 /**
- * The bucket array — a vertical stack of `bucketCount` indexed buckets, each
+ * The bucket array. A vertical stack of `bucketCount` indexed buckets, each
  * holding its collision chain. Styled to the L2 `ArrayRow` indexed-strip tokens
  * (index ruler + bordered cell), but vertical and a *container* (which `ArrayRow`
  * is not). Three modes:
- * - `drag`  — each bucket is a `RewireTarget` (key→bucket drop; highlight only).
- * - `tap`   — each bucket is a button (locate by tapping); the pick highlights.
- * - `display` — static (collision predict shows the colliding bucket).
+ * - `drag`: each bucket is a `RewireTarget` (key→bucket drop; highlight only).
+ * - `tap`: each bucket is a button (locate by tapping); the pick highlights.
+ * - `display`: static (collision predict shows the colliding bucket).
  */
 export function HashTable({
   bucketCount,
@@ -37,7 +37,7 @@ export function HashTable({
   mode: HashTableMode
   /** The tapped bucket target id (tap mode). */
   selected?: string | null
-  /** A bucket to emphasize (display mode — e.g. the colliding bucket). */
+  /** A bucket to emphasize (display mode: e.g. the colliding bucket). */
   highlightBucket?: number
   /** A bucket whose chain tail just grew (highlights the newest key). */
   newestBucket?: number

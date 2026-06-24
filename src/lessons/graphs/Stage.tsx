@@ -1,4 +1,5 @@
 import { useState, type Dispatch } from "react"
+import { useReducedMotion } from "motion/react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -23,6 +24,7 @@ import {
 import { AdjacencyPanel } from "./AdjacencyPanel"
 import { GraphCanvas } from "./GraphCanvas"
 import { SameGraphView } from "./SameGraphView"
+import { SubwayMap, type SubwayVariant } from "./SubwayMap"
 
 /**
  * The Graphs stage. Routes the 12 beats: the drag-a-node + teach intros, four
@@ -126,7 +128,7 @@ function DemoPart({ state, dispatch }: PartProps) {
 
       <div className="mt-auto">
         <p className="mb-3 text-center text-sm text-muted-foreground">
-          Drag a node anywhere — the connections (and the list) never change.
+          Drag a node anywhere. The connections (and the list) never change.
         </p>
         <Button variant="tactile" size="lg" className="w-full" onClick={() => dispatch({ type: "continue" })}>
           Continue
@@ -174,8 +176,8 @@ function TeachPart({ state, dispatch }: PartProps) {
             picture is decoration. Every question reads from the list.
           </p>
           <p>
-            A graph has <span className="font-semibold text-foreground">no root and may have cycles</span> —
-            that's how it differs from a tree. (Some connections only go one way — a later idea.)
+            A graph has <span className="font-semibold text-foreground">no root and may have cycles</span>:
+            that's how it differs from a tree. (Some connections only go one way, a later idea.)
           </p>
         </div>
       </div>
@@ -389,7 +391,7 @@ function AdjOptionCard({
           <div key={n} className="flex gap-1.5">
             <span className="font-bold text-foreground">{n}:</span>
             <span className="text-muted-foreground">
-              {neighbors(option.adj ?? {}, n).join(", ") || "—"}
+              {neighbors(option.adj ?? {}, n).join(", ") || "(none)"}
             </span>
           </div>
         ))}
@@ -467,16 +469,28 @@ function DrawPart({ state, dispatch }: PartProps) {
           }
           className="flex w-full justify-center"
         >
-          <GraphCanvas
-            mode="draw"
-            nodes={q.nodes}
-            adj={state.workingAdj}
-            layout={q.layout}
-            pendingEdge={drawn}
-            missingEdge={q.missingEdge}
-            transit={q.transit}
-            terminal={terminal}
-          />
+          {q.transit ? (
+            <SubwayMap
+              mode="draw"
+              nodes={q.nodes}
+              adj={state.workingAdj}
+              layout={q.layout}
+              variant="geographic"
+              pendingEdge={drawn}
+              missingEdge={q.missingEdge}
+              terminal={terminal}
+            />
+          ) : (
+            <GraphCanvas
+              mode="draw"
+              nodes={q.nodes}
+              adj={state.workingAdj}
+              layout={q.layout}
+              pendingEdge={drawn}
+              missingEdge={q.missingEdge}
+              terminal={terminal}
+            />
+          )}
         </RewireSurface>
         <AdjacencyPanel
           nodes={q.nodes}
@@ -512,33 +526,39 @@ function DrawPart({ state, dispatch }: PartProps) {
 
 function RedrawDemoPart({ state, dispatch }: PartProps) {
   const q = state.question
-  // Both layouts at once over the SAME data; "Show the data" reveals each
-  // picture's (identical) adjacency to make "the data doesn't move" concrete.
-  const [showData, setShowData] = useState(false)
+  // One map that MORPHS between the geographic and diagrammatic layouts over the
+  // SAME network. The route list underneath stays byte-identical through the
+  // morph, making "the drawing changed, the data did not" concrete.
+  const [variant, setVariant] = useState<SubwayVariant>("geographic")
+  const reduced = useReducedMotion() ?? false
   if (!q) return null
+  const layout = variant === "geographic" ? q.layout : (q.layoutB ?? q.layout)
 
   return (
     <div className="flex flex-1 flex-col">
       <div className="mt-7 text-center">
-        <h2 className="text-xl font-bold text-foreground">Same graph, new layout</h2>
+        <h2 className="text-xl font-bold text-foreground">Same network, new picture</h2>
         <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground">{q.prompt}</p>
       </div>
 
       <div className="flex flex-1 flex-col items-center justify-center gap-3 py-3">
-        <SameGraphView
-          before={{ nodes: q.nodes, adj: q.adj, layout: q.layout }}
-          after={{ nodes: q.nodes, adj: q.adj, layout: q.layoutB ?? q.layout }}
-          showData={showData}
+        <SubwayMap
+          mode="display"
+          nodes={q.nodes}
+          adj={q.adj}
+          layout={layout}
+          variant={variant}
+          reducedMotion={reduced}
         />
         <Button
           variant="soft"
           size="sm"
-          aria-pressed={showData}
-          onClick={() => setShowData((v) => !v)}
+          aria-pressed={variant === "diagrammatic"}
+          onClick={() => setVariant((v) => (v === "geographic" ? "diagrammatic" : "geographic"))}
         >
-          {showData ? "Hide the data" : "Show the data"}
+          {variant === "geographic" ? "Straighten to diagram" : "Back to street map"}
         </Button>
-        {!showData && <AdjacencyPanel nodes={q.nodes} adj={q.adj} />}
+        <AdjacencyPanel nodes={q.nodes} adj={q.adj} transit />
       </div>
 
       <div className="mt-auto">
@@ -554,6 +574,7 @@ function RedrawDemoPart({ state, dispatch }: PartProps) {
 
 function ClassifyPart({ state, dispatch }: PartProps) {
   const q = state.question
+  const reduced = useReducedMotion() ?? false
   if (!q) return null
   const { feedback, selected, showWhy } = state
   const terminal = isTerminalGraphs(state)
@@ -562,23 +583,18 @@ function ClassifyPart({ state, dispatch }: PartProps) {
 
   return (
     <div className="flex flex-1 flex-col">
-      <BinHeader state={state} />
+      <BinHeader state={state} transit={q.transit} />
 
       <div className="flex flex-col items-center gap-3 py-3">
         {isSame ? (
           <SameGraphView
             before={{ nodes: q.nodes, adj: q.adj, layout: q.layout }}
             after={{ nodes: q.nodes, adj: q.adjB ?? q.adj, layout: q.layoutB ?? q.layout }}
+            reducedMotion={reduced}
+            revealLists={reveal}
           />
         ) : (
           <GraphCanvas mode="display" nodes={q.nodes} adj={q.adj} layout={q.layout} />
-        )}
-
-        {isSame && reveal && (
-          <div className="flex w-full flex-wrap justify-center gap-2">
-            <AdjacencyPanel nodes={q.nodes} adj={q.adj} title="First — data" />
-            <AdjacencyPanel nodes={q.nodes} adj={q.adjB ?? q.adj} title="Second — data" />
-          </div>
         )}
       </div>
 

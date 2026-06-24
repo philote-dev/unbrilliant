@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react"
+import { render, screen, fireEvent, within } from "@testing-library/react"
 import { describe, it, expect, vi } from "vitest"
 
 import { HeapDualView } from "./HeapDualView"
@@ -67,6 +67,32 @@ describe("HeapDualView", () => {
       .filter((c) => c.getAttribute("data-lit") === "1")
     expect(litNodes.map((n) => n.getAttribute("data-slot")).sort()).toEqual(["1", "3"])
     expect(litCells.map((c) => c.getAttribute("data-slot")).sort()).toEqual(["1", "3"])
+  })
+
+  it("overlays a verdict icon on selected / correct / fail cells (never colour alone)", () => {
+    const { rerender } = render(
+      <HeapDualView heap={HEAP} selectedSlot={2} selectedTone="selected" />,
+    )
+    // the learner's selected cell carries a (non-colour) badge...
+    expect(
+      within(screen.getByLabelText("slot 2, value 6")).getByTestId("heap-cell-icon"),
+    ).toBeInTheDocument()
+    // ...and an unselected, unlit cell does not.
+    expect(
+      within(screen.getByLabelText("slot 0, value 9")).queryByTestId("heap-cell-icon"),
+    ).toBeNull()
+
+    // a revealed-correct cell shows the check badge.
+    rerender(<HeapDualView heap={HEAP} revealSlot={1} />)
+    expect(
+      within(screen.getByLabelText("slot 1, value 7")).getByTestId("heap-cell-icon"),
+    ).toBeInTheDocument()
+
+    // a failed pick shows a badge too (icon + the figure's tone, not tone alone).
+    rerender(<HeapDualView heap={HEAP} selectedSlot={3} selectedTone="fail" />)
+    expect(
+      within(screen.getByLabelText("slot 3, value 3")).getByTestId("heap-cell-icon"),
+    ).toBeInTheDocument()
   })
 
   it("liftPair lifts BOTH nodes and BOTH cells together, snapping under reduced motion", () => {

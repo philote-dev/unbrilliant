@@ -1,7 +1,7 @@
 # Willow
 
 A mobile-first, **deterministic, no-AI** "learn data structures by doing" web app.
-Grading is pure functions — the same state always yields the same feedback. Play
+Grading is pure functions. The same state always yields the same feedback. Play
 signed-out (a transient in-memory run) or sign in to save durable progress.
 
 ## Stack
@@ -18,7 +18,7 @@ npm run dev   # Vite dev server, backed by the local Firebase emulators
 
 Dev and tests **always** talk to the Firebase emulators via a `demo-` project, so
 they can never reach a real Firebase project. Production builds read real config
-from `VITE_*` env — see [`.env.example`](./.env.example).
+from `VITE_*` env. See [`.env.example`](./.env.example).
 
 ## Scripts
 
@@ -33,5 +33,7 @@ from `VITE_*` env — see [`.env.example`](./.env.example).
 
 ## Docs
 
-- [`docs/architecture.md`](./docs/architecture.md) — codebase flow & layers
-- [`CONTEXT.md`](./CONTEXT.md) — domain vocabulary (run vs. progress, reconcile, …)
+- [`docs/architecture.md`](./docs/architecture.md): codebase flow & layers
+- [`CONTEXT.md`](./CONTEXT.md): domain vocabulary (run vs. progress, reconcile, …)
+
+<!-- TEMP_EMDASH_GUARD_CHECK — remove me -->

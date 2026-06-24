@@ -9,7 +9,7 @@ import type { CostWord } from "@/components/willow/CostReadout"
 /**
  * Pure, framework-agnostic Hash Tables lesson engine. One idea: a hash turns a
  * key *into its location*, so you jump straight to the value instead of
- * searching — until two keys collide, which is resolved by chaining (a little
+ * searching, until two keys collide, which is resolved by chaining (a little
  * linked list living in a bucket). The learner runs a toy-but-real rule
  * (sum the letter values, then `mod` the bucket count) and places the key, so
  * the squash is *felt*: different sums land in the same bucket.
@@ -95,7 +95,7 @@ export interface HashTablesState {
   lookupCorrect: number // 0..3
   attempts: number
   question: HashQuestion | null
-  /** Bucket id a key was dropped on (drag beats) — transient, not persisted. */
+  /** Bucket id a key was dropped on (drag beats): transient, not persisted. */
   placement: string | null
   /** MCQ option id or tapped bucket id (tap beats). */
   selected: string | null
@@ -227,7 +227,7 @@ interface BeatSpec {
   table: Record<number, string[]>
 }
 
-/** The worked-values fixture — the ground truth the build (and tests) grade on. */
+/** The worked-values fixture: the ground truth the build (and tests) grade on. */
 const BEATS: Partial<Record<HashPart, BeatSpec>> = {
   "hash-cat": { key: "cat", table: {} },
   "hash-cat-again": { key: "cat", table: { 4: ["cat"] } },
@@ -250,7 +250,7 @@ function makeIntro(kind: "demo" | "teach-hash" | "teach-collision"): HashQuestio
       ? "Run the box on a key and watch it fly to its bucket."
       : kind === "teach-hash"
         ? "A hash turns a key into a location: add the letters, then mod the buckets."
-        : "Two keys, one bucket — that's a collision. A bucket chains them in a little list."
+        : "Two keys, one bucket. That's a collision. A bucket chains them in a little list."
   return {
     kind,
     bin: null,
@@ -285,10 +285,10 @@ function makeHash(part: "hash-cat" | "hash-cat-again" | "hash-dog"): HashQuestio
     bin: "hash",
     mode: drag ? "drag" : "tap",
     prompt: again
-      ? `Hash ${key} again — which bucket does it land in?`
+      ? `Hash ${key} again. Which bucket does it land in?`
       : drag
         ? `Run the hash on ${key}, then drop it in its bucket.`
-        : `Run the hash on ${key} — which bucket?`,
+        : `Run the hash on ${key}. Which bucket?`,
     key,
     bucketCount: BUCKET_COUNT,
     sum: keySum(key),
@@ -301,12 +301,12 @@ function makeHash(part: "hash-cat" | "hash-cat-again" | "hash-dog"): HashQuestio
     cost: null,
     scanCost: null,
     hint: again
-      ? "Same key, same letters, same sum — so the same bucket."
+      ? "Same key, same letters, same sum, so the same bucket."
       : `Add the letters of ${key}, then take the remainder mod ${BUCKET_COUNT}.`,
     nudge: `Re-add the letter values, then take the remainder when you divide by ${BUCKET_COUNT}.`,
     correct: again
       ? `Same key → same bucket. ${key} always lands in bucket ${bucket}.`
-      : `${keySum(key)} mod ${BUCKET_COUNT} = ${bucket} — ${key} lives in bucket ${bucket}.`,
+      : `${keySum(key)} mod ${BUCKET_COUNT} = ${bucket}, ${key} lives in bucket ${bucket}.`,
     why: again
       ? `A hash is deterministic: ${key}'s letters always sum to ${keySum(key)}, and ${keySum(key)} mod ${BUCKET_COUNT} is always ${bucket}. That's why a lookup can jump straight there.`
       : `${[...key].map((c) => letterValue(c)).join(" + ")} = ${keySum(key)}; ${keySum(key)} mod ${BUCKET_COUNT} = ${bucket}.`,
@@ -348,10 +348,10 @@ function makeCollision(
       contacts: false,
       cost: null,
       scanCost: null,
-      hint: "A bucket doesn't overwrite — it keeps both, in a little chain.",
+      hint: "A bucket doesn't overwrite. It keeps both, in a little chain.",
       nudge: "The old key stays. The new one links onto the end of the chain.",
-      correct: `Right — ${key} chains onto the end: ${chainText(appended)}.`,
-      why: `A collision doesn't replace or reject — the bucket holds a mini linked list, so ${key} is appended: ${chainText(appended)}. (Jumping to another bucket is a different scheme we're not using.)`,
+      correct: `Right, ${key} chains onto the end: ${chainText(appended)}.`,
+      why: `A collision doesn't replace or reject. The bucket holds a mini linked list, so ${key} is appended: ${chainText(appended)}. (Jumping to another bucket is a different scheme we're not using.)`,
     },
     next: sh.next,
   }
@@ -386,14 +386,14 @@ function makeLookup(part: "lookup-found" | "lookup-absent"): HashQuestion {
       count: scanLen,
       unit: scanLen === 1 ? "item scanned" : "items scanned",
     },
-    hint: `Hash ${key} first — that's the bucket to check.`,
+    hint: `Hash ${key} first. That's the bucket to check.`,
     nudge: `Run the rule on ${key}; the remainder is the only bucket to look in.`,
     correct: isPresent
-      ? `Found ${key} in bucket ${bucket} — one jump, no scan.`
-      : `${key} isn't in bucket ${bucket} — absent in one jump, no scan.`,
+      ? `Found ${key} in bucket ${bucket}. One jump, no scan.`
+      : `${key} isn't in bucket ${bucket}. Absent in one jump, no scan.`,
     why: isPresent
-      ? `Hashing ${key} jumps straight to bucket ${bucket}; you check only its short chain — free, never the whole table.`
-      : `Hashing ${key} jumps to bucket ${bucket}; ${key} isn't in that chain, so it's absent — known in one jump, not a scan of everything.`,
+      ? `Hashing ${key} jumps straight to bucket ${bucket}; you check only its short chain. Free, never the whole table.`
+      : `Hashing ${key} jumps to bucket ${bucket}; ${key} isn't in that chain, so it's absent. Known in one jump, not a scan of everything.`,
   }
 }
 
@@ -405,7 +405,7 @@ function makeRealworld(): HashQuestion {
     kind: "realworld",
     bin: "lookup",
     mode: "drag",
-    prompt: `Add ${key} to the contacts — drop the name in its slot.`,
+    prompt: `Add ${key} to the contacts. Drop the name in its slot.`,
     key,
     bucketCount: BUCKET_COUNT,
     sum: keySum(key),
@@ -419,8 +419,8 @@ function makeRealworld(): HashQuestion {
     scanCost: null,
     hint: `Contacts route a name the same way: sum the letters, mod ${BUCKET_COUNT}.`,
     nudge: `Run the rule on ${key}; the remainder is the slot.`,
-    correct: `${keySum(key)} mod ${BUCKET_COUNT} = ${bucket} — ${key} files in slot ${bucket}, and looks up in one jump.`,
-    why: `A contacts app hashes the name to a slot, so adding and finding a contact are both one jump — no scanning the whole address book.`,
+    correct: `${keySum(key)} mod ${BUCKET_COUNT} = ${bucket}, ${key} files in slot ${bucket}, and looks up in one jump.`,
+    why: `A contacts app hashes the name to a slot, so adding and finding a contact are both one jump. No scanning the whole address book.`,
   }
 }
 
@@ -485,7 +485,7 @@ export function currentPartHash(state: HashTablesState): HashPart {
   return HASH_PARTS[state.partIndex]
 }
 
-/** A verdict is terminal once correct or failed — the question locks. */
+/** A verdict is terminal once correct or failed: the question locks. */
 export function isTerminalHash(state: HashTablesState): boolean {
   return state.feedback === "correct" || state.feedback === "fail"
 }
@@ -573,7 +573,7 @@ export function hashTablesReducer(
     case "rewire": {
       if (!isDragPart(part) || isTerminalHash(state)) return state
       // Record the drop; the engine grades on Check. Every bucket is legal to
-      // drop on (highlight only) — landing on the wrong one is the learner's pick.
+      // drop on (highlight only). Landing on the wrong one is the learner's pick.
       return { ...state, placement: action.to, feedback: "idle" }
     }
 

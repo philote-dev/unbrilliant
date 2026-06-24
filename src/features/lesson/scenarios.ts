@@ -1,5 +1,5 @@
 /**
- * Part 5 scenario pool — hand-authored, deterministic. Each reframes
+ * Part 5 scenario pool. Hand-authored, deterministic. Each reframes
  * "stack or queue?" as "who is served first?", so the learner applies
  * LIFO/FIFO instead of guessing a label. Pool of 8; a run draws 4.
  */

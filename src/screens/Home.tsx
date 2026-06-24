@@ -24,7 +24,7 @@ export function Home() {
 /**
  * First-time arrival: a calm branded load-in (the mark settles in, "learn by
  * doing" + the line stagger up), then a single tactile call to pick a course.
- * No interactive panel here — that lives inside the first lesson now.
+ * No interactive panel here. That lives inside the first lesson now.
  */
 function VisionHome() {
   const { navigate } = useNavigation()
@@ -61,7 +61,7 @@ function VisionHome() {
         transition={{ delay: 0.45 }}
         className="mt-3 max-w-xs text-[15px] text-muted-foreground"
       >
-        Tap, predict, and watch each rule unfold — one interactive lesson at a time.
+        Tap, predict, and watch each rule unfold. One interactive lesson at a time.
       </motion.p>
 
       <motion.div
@@ -89,7 +89,7 @@ function VisionHome() {
 /**
  * Returning learners land on their active course: the next lesson + a single
  * Continue, with a quiet link to the full path. No marketing, no interactive
- * panel — just resume.
+ * panel: just resume.
  */
 function DashboardHome({ courseId }: { courseId: string }) {
   const { navigate } = useNavigation()

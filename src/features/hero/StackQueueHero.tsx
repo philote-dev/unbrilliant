@@ -9,10 +9,10 @@ type Mode = "stack" | "queue"
 const LETTERS = ["A", "B", "C", "D", "E", "F"]
 
 /**
- * The interactive Stack/Queue panel — push & pop / enqueue & dequeue, animated
+ * The interactive Stack/Queue panel. Push & pop / enqueue & dequeue, animated
  * via Framer Motion so the rule is *seen*. Standalone it toggles Stack (LIFO) vs
  * Queue (FIFO); pass a `mode` to lock it to one structure (used inside the lesson
- * as the per-section play step — it starts empty so the learner builds it up).
+ * as the per-section play step. It starts empty so the learner builds it up).
  */
 export function StackQueueHero({
   className,
@@ -65,7 +65,7 @@ export function StackQueueHero({
         className,
       )}
     >
-      {/* segmented toggle — hidden when the structure is locked (lesson use) */}
+      {/* segmented toggle. Hidden when the structure is locked (lesson use) */}
       {!locked && (
         <div className="mx-auto mb-2 flex w-full max-w-xs rounded-full bg-muted p-1">
           {(["stack", "queue"] as Mode[]).map((m) => (
@@ -86,7 +86,7 @@ export function StackQueueHero({
         </div>
       )}
 
-      {/* stage — column is grounded at the bottom; arrows hint where ops happen */}
+      {/* stage. Column is grounded at the bottom; arrows hint where ops happen */}
       <div className="relative flex min-h-[300px] flex-col items-center justify-end pb-2">
         <ArrowHint
           className="left-3 top-3"

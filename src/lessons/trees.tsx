@@ -12,7 +12,7 @@ import type { LessonModule } from "@/features/lesson/lessonModule"
 import { TreesStage } from "./trees/Stage"
 
 /**
- * Trees (BST) as a LessonModule — the fifth real lesson on the shared engine
+ * Trees (BST) as a LessonModule. The fifth real lesson on the shared engine
  * seam. Reuses the feedback machine + flame, the cost readout (house words
  * `barely grows` / `scales`), and the durable LessonProgress shape; only the tree
  * engine, figures, and verdicts are lesson-specific. Tap-only: no rewire infra,

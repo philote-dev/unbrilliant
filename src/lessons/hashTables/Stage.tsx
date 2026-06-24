@@ -297,8 +297,8 @@ function LocatePart({
         {correct && (
           <p className="text-center text-sm font-medium text-foreground">
             {q.present
-              ? `${q.key} is here — bucket ${q.bucket}.`
-              : `${q.key} is not in bucket ${q.bucket} — absent.`}
+              ? `${q.key} is here. Bucket ${q.bucket}.`
+              : `${q.key} is not in bucket ${q.bucket}. Absent.`}
           </p>
         )}
       </div>

@@ -10,7 +10,7 @@ import { letterSteps, type HashQuestion } from "@/features/lesson/hashTablesEngi
 /**
  * The learner-runnable hash function box. A Step control walks the key
  * letter-by-letter (each letter lights with its value, the running sum ticks
- * up); the box scaffolds the *sum* but never the `mod` — the learner supplies
+ * up); the box scaffolds the *sum* but never the `mod`: the learner supplies
  * the bucket by dragging the key in (drag beats, via `dragSourceId`) or tapping
  * a bucket (tap beats). It never pre-lights the answer bucket.
  *

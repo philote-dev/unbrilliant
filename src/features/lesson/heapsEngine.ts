@@ -8,7 +8,7 @@ import type { CostWord } from "@/components/willow/CostReadout"
 
 /**
  * Pure, framework-agnostic Heaps lesson engine. One idea: a heap guarantees only
- * the *top* element — exactly enough to grab the best item cheaply — and it
+ * the *top* element (exactly enough to grab the best item cheaply) and it
  * secretly lives in an *array*, addressed by index arithmetic (children of slot
  * `i` are `2i+1` / `2i+2`, parent is `(i-1)/2`). Two mechanics, one idea:
  * predict the post-sift arrangement (insert sifts up; extract moves last→root
@@ -21,21 +21,21 @@ import type { CostWord } from "@/components/willow/CostReadout"
  * Reuses the shared feedback machine + flame (`gradeAnswer`) and the same
  * LessonProgress shape; only the heap model, verdicts, and quotas are specific.
  * Deterministic (seeded): same state always yields the same question/feedback.
- * Tap-only — every commit is a `{ type: "select" }` (an arrangement-card id or a
+ * Tap-only, every commit is a `{ type: "select" }` (an arrangement-card id or a
  * `"slot-"+i` id); it consumes no rewire/drag surface.
  */
 
 export const HEAPS_PARTS = [
   "demo", // 1  intro free-play: tap-insert; lands at next slot+leaf, sifts up; both panels sync
-  "teach-array", // 2  teach: it secretly lives in an array — 2i+1 / 2i+2 / (i-1)/2 drawn in both
-  "teach-rule", // 3  teach: the heap rule — parent beats both children, and that's ALL (not a BST)
+  "teach-array", // 2  teach: it secretly lives in an array, 2i+1 / 2i+2 / (i-1)/2 drawn in both
+  "teach-rule", // 3  teach: the heap rule. Parent beats both children, and that's ALL (not a BST)
   "siftup-1", // 4  H1 insert K → arrangement after sift-up (de-cued)        siftUp     ✓
-  "siftup-skin", // 5  H1 leaderboard: a new score rises to its rank          siftUp     ✓
-  "teach-extract", // 6  teach/demo: extract top — last→root, sift DOWN, larger child first
+  "siftup-skin", // 5  H1 ER triage skin: a patient is admitted to their rank  siftUp     ✓
+  "teach-extract", // 6  teach/demo: extract top. Last→root, sift DOWN, larger child first
   "siftdown-1", // 7  H2 extract top → arrangement after sift-down (de-cued)  siftDown   ✓
   "siftdown-2", // 8  H2 extract top → arrangement after sift-down (deeper)   siftDown   ✓
   "map-child", // 9  H3 slot i's larger child lives at which slot? (tap)      mapping    ✓
-  "map-parent", // 10 H3 slot j — who's its parent slot? (tap, reverse)       mapping    ✓
+  "map-parent", // 10 H3 slot j. Who's its parent slot? (tap, reverse)       mapping    ✓
   "contrast-place", // 11a H4 where does K go in a HEAP vs a BST?             contrast   ✓
   "contrast-samedata", // 11b H4 tree node i ⇔ array cell i ("same data")     contrast   ✓
 ] as const
@@ -123,7 +123,7 @@ export function siftDownExtract(heap: number[]): {
   return { extracted, result: out, path, start }
 }
 
-/** The smaller-child-first twin of extract — a wrong but tempting sift-down path. */
+/** The smaller-child-first twin of extract: a wrong but tempting sift-down path. */
 export function siftDownSmallerChild(heap: number[]): { result: number[]; path: SwapStep[] } {
   const out = heap.slice()
   const path: SwapStep[] = []
@@ -185,7 +185,7 @@ export const isMaxHeap = (h: number[]): boolean =>
 
 /* ------------------------------ id helpers ------------------------------ */
 
-/** An arrangement card's id is the heap serialized — distinct arrangements ⇒ distinct ids. */
+/** An arrangement card's id is the heap serialized: distinct arrangements ⇒ distinct ids. */
 export const heapId = (h: number[]): string => h.join(",")
 /** The select id for a tapped slot, and its inverse. */
 export const slotId = (i: number): string => `slot-${i}`
@@ -252,7 +252,7 @@ export interface HeapsState {
   contrastCorrect: number // 0..2
   attempts: number
   question: HeapsQuestion | null
-  /** Option id (arrangement) OR "slot-"+i (slot) — the only working field. */
+  /** Option id (arrangement) OR "slot-"+i (slot): the only working field. */
   selected: string | null
   wrongCount: number
   feedback: Feedback
@@ -320,7 +320,7 @@ function binOf(part: HeapsPart): HeapBin | null {
 /* ------------------------------ curated beat data ------------------------------ */
 
 /**
- * The worked-values fixture — the ground truth the build (and tests) grade on.
+ * The worked-values fixture. The ground truth the build (and tests) grade on.
  * Every `heap` is a complete, max-heap with distinct integer keys; every sift
  * path is therefore unique.
  */
@@ -381,7 +381,7 @@ function makeIntro(part: "demo" | "teach-array" | "teach-rule" | "teach-extract"
       bin: null,
       mode: "intro",
       prompt:
-        "Take the top out: the LAST item jumps to the root, then sinks — always trading with the bigger child.",
+        "Discharge the most urgent patient: the last one on the board moves up to the top spot, then sinks past anyone more urgent.",
       heap,
       startHeap: start,
       resultHeap: result,
@@ -399,10 +399,10 @@ function makeIntro(part: "demo" | "teach-array" | "teach-rule" | "teach-extract"
   }
   const prompt =
     part === "demo"
-      ? "Insert a key and watch it sift up — the tree and the array move together."
+      ? "Insert a key and watch it sift up. The tree and the array move together."
       : part === "teach-array"
         ? "It secretly lives in an array: a slot's children are 2·i+1 and 2·i+2; its parent is (i−1)/2."
-        : "The heap rule: each parent beats BOTH its children — and that's the only promise. It is NOT sorted, NOT a BST."
+        : "The heap rule: each parent beats BOTH its children, and that's the only promise. It is NOT sorted, NOT a BST."
   return {
     ...BLANK,
     kind: part,
@@ -442,9 +442,9 @@ function makeSiftUpArrange(
   const contrast = part === "contrast-place"
 
   const prompt = contrast
-    ? `Insert ${key} into this HEAP (not a BST) — which arrangement is right?`
+    ? `Insert ${key} into this HEAP (not a BST). Which arrangement is right?`
     : leaderboard
-      ? `A new score of ${key} arrives — where does it settle on the board?`
+      ? `A patient arrives at severity ${key}. Where do they land on the triage board?`
       : `Insert ${key}, then let it sift up. What's the arrangement after?`
 
   return {
@@ -465,15 +465,15 @@ function makeSiftUpArrange(
       cost: { word: "barely grows", count: path.length, unit: swapWord(path.length) },
       sortCost: { word: "scales", count: result.length, unit: "items sorted" },
       hint: leaderboard
-        ? "Drop the score at the next open seat, then let it climb past any score it beats."
+        ? "Admit the patient at the next open spot, then let them climb past anyone less urgent."
         : "Append at the next open slot, then swap up while the new key beats its parent.",
-      nudge: "It rises only while it beats its parent — and it never reshuffles the whole tree.",
+      nudge: "It rises only while it beats its parent, and it never reshuffles the whole tree.",
       correct: contrast
         ? `A heap places by shape-then-sift, not by value: ${arrowChain(result)}.`
-        : `${path.length} ${swapWord(path.length)} — it settles at ${arrowChain(result)}.`,
+        : `${path.length} ${swapWord(path.length)}, it settles at ${arrowChain(result)}.`,
       why: contrast
-        ? `A BST would order everything by value (the sorted card). A heap only appends at the next open slot and swaps up while it beats its parent — so ${key} lands at ${arrowChain(result)}, not in sorted order.`
-        : `${key} appends at the end, then swaps up past each smaller parent — ${path.length} ${swapWord(
+        ? `A BST would order everything by value (the sorted card). A heap only appends at the next open slot and swaps up while it beats its parent, so ${key} lands at ${arrowChain(result)}, not in sorted order.`
+        : `${key} appends at the end, then swaps up past each smaller parent, ${path.length} ${swapWord(
             path.length,
           )}, no full reshuffle: ${arrowChain(result)}.`,
     },
@@ -501,7 +501,7 @@ function makeSiftDownArrange(
       kind: part,
       bin: "siftDown",
       mode: "arrangement",
-      prompt: `Extract the top (${extracted}) — what's the arrangement after it sifts down?`,
+      prompt: `Extract the top (${extracted}), what's the arrangement after it sifts down?`,
       heap,
       startHeap: start,
       resultHeap: result,
@@ -511,9 +511,9 @@ function makeSiftDownArrange(
       answer: heapId(result),
       cost: { word: "barely grows", count: path.length, unit: swapWord(path.length) },
       sortCost: { word: "scales", count: result.length, unit: "items sorted" },
-      hint: "The LAST item moves to the root, then sinks — always trade with the BIGGER child.",
+      hint: "The LAST item moves to the root, then sinks. Always trade with the BIGGER child.",
       nudge: "Compare the larger child first; keep sinking only while a child beats the node.",
-      correct: `${path.length} ${swapWord(path.length)} — it settles at ${arrowChain(result)}.`,
+      correct: `${path.length} ${swapWord(path.length)}, it settles at ${arrowChain(result)}.`,
       why: `Taking the top moves the last item (${start[0]}) to the root, then it trades with the larger child while that child beats it: ${arrowChain(
         result,
       )}. Trading the smaller child would break the rule.`,
@@ -550,7 +550,7 @@ function makeMapping(part: "map-child" | "map-parent"): HeapsQuestion {
     hint:
       dir === "parent"
         ? "Parent of slot i is (i−1)/2, rounded down."
-        : "Children of slot i are 2·i+1 and 2·i+2 — tap whichever holds the bigger key.",
+        : "Children of slot i are 2·i+1 and 2·i+2. Tap whichever holds the bigger key.",
     nudge:
       dir === "parent"
         ? "Take (i−1), then halve it and round down."
@@ -561,7 +561,7 @@ function makeMapping(part: "map-child" | "map-parent"): HeapsQuestion {
         : `The larger child of slot ${slot} is slot ${answerSlot} (${heap[answerSlot]}).`,
     why:
       dir === "parent"
-        ? `(${slot}−1)/2 = ${answerSlot}, so slot ${slot}'s parent is slot ${answerSlot} — pure arithmetic, no pointers.`
+        ? `(${slot}−1)/2 = ${answerSlot}, so slot ${slot}'s parent is slot ${answerSlot}. Pure arithmetic, no pointers.`
         : `Slot ${slot}'s children are slots ${leftIndex(slot)} (${heap[leftIndex(slot)]}) and ${rightIndex(
             slot,
           )} (${heap[rightIndex(slot)]}); the larger is slot ${answerSlot}.`,
@@ -588,10 +588,10 @@ function makeSameData(): HeapsQuestion {
     options: [],
     answer: slotId(slot),
     correctSlot: slot,
-    hint: "The tree IS the array — a node and its cell share the same index.",
+    hint: "The tree IS the array. A node and its cell share the same index.",
     nudge: "It isn't placed by value; the cell index matches the node's index exactly.",
     correct: `Same data, same index: the node is array cell ${slot} (${heap[slot]}).`,
-    why: `The tree is just a view of the array — node ${slot} and cell ${slot} are the same ${heap[slot]}. A BST might sort by value, but a heap's array packing follows the tree position, not the value.`,
+    why: `The tree is just a view of the array. Node ${slot} and cell ${slot} are the same ${heap[slot]}. A BST might sort by value, but a heap's array packing follows the tree position, not the value.`,
   }
 }
 
@@ -655,7 +655,7 @@ export function currentPartHeaps(state: HeapsState): HeapsPart {
   return HEAPS_PARTS[state.partIndex]
 }
 
-/** A verdict is terminal once correct or failed — the question locks. */
+/** A verdict is terminal once correct or failed: the question locks. */
 export function isTerminalHeaps(state: HeapsState): boolean {
   return state.feedback === "correct" || state.feedback === "fail"
 }

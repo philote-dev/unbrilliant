@@ -26,8 +26,24 @@ import {
 import { StackBin } from "./StackBin"
 import { QueueTube } from "./QueueTube"
 import { ContrastReplay } from "./ContrastReplay"
+import { ClassifyReplay } from "./ClassifyReplay"
 import { BrowserShowpiece } from "./BrowserShowpiece"
+import { DriveThruLane } from "./DriveThruLane"
 import { PrinterShowpiece } from "./PrinterShowpiece"
+
+/**
+ * Which skin the queue real-world beat wears. "drivethru" is the primary,
+ * locked skin; flip to "printer" to fall back to the print-queue showpiece. The
+ * engine still tags the beat theme "drivethru"; this switch picks the component.
+ */
+const REALWORLD_QUEUE_SKIN: "drivethru" | "printer" = "drivethru"
+
+/**
+ * How long the resolved "correct" state (green + check) is held before the
+ * leaving replay runs, so the verdict reads first and the pop never flickers on
+ * top of it. Reduced motion never advances to the leaving phase (see PredictPart).
+ */
+const LEAVE_BEAT_MS = 700
 
 export function StacksQueuesStage({
   state,
@@ -332,11 +348,35 @@ function PredictPart({
     return () => clearTimeout(id)
   }, [isAfterK, playing, revealing, previewStep, k])
 
+  // First-out leave replay: hold the resolved "correct" state, then a beat later
+  // let the exit cell actually leave (it is removed from the figure, so it
+  // animates out the exit while the rest reflow). Reduced motion never advances
+  // to the leaving phase: it rests on the verdict (green + check), the
+  // meaningful end-state, with no motion. This is the fix for the old flicker
+  // where the answer cell was greened AND faded at the same instant.
+  const [popping, setPopping] = useState(false)
+  useEffect(() => {
+    if (isAfterK || !revealing || reduce) {
+      setPopping(false)
+      return
+    }
+    setPopping(false)
+    const id = setTimeout(() => setPopping(true), LEAVE_BEAT_MS)
+    return () => clearTimeout(id)
+  }, [isAfterK, revealing, reduce])
+
+  // after-k: the answer turns green only once the pops finish, so it is never
+  // styled correct while still buried under the cells leaving above it.
+  const afterKResolved = reduce || previewStep >= k
+
   const cellState = (id: string): AnswerState => {
-    if (feedback === "correct") return id === q.answer ? "correct" : "default"
+    if (feedback === "correct") {
+      if (isAfterK) return id === q.answer && afterKResolved ? "correct" : "default"
+      return id === q.answer ? "correct" : "default"
+    }
     if (feedback === "nudge") return id === selected ? "nudge" : "default"
     if (feedback === "fail") {
-      if (showWhy && id === q.answer) return "correct"
+      if (showWhy && id === q.answer && (!isAfterK || afterKResolved)) return "correct"
       if (id === selected) return "fail"
       return "default"
     }
@@ -344,8 +384,11 @@ function PredictPart({
   }
 
   const onSelectCell = (id: string) => dispatch({ type: "select", letter: id })
-  // The Why-replay for first-out asks: the leaving card animates out the exit.
-  const leavingId = revealing ? q.answer : undefined
+  // Once the leaving phase begins, drop the exit cell from the plain container
+  // so AnimatePresence runs its exit and the survivors reflow (settle).
+  const containerCells = popping
+    ? builtCells.filter((c) => c.id !== q.answer)
+    : builtCells
 
   let figure: ReactNode
   if (isAfterK) {
@@ -387,15 +430,29 @@ function PredictPart({
     figure = (
       <BrowserShowpiece
         cells={builtCells}
+        arrival={q.arrival}
         selectable={!terminal && ready}
         cellState={cellState}
         onSelectCell={onSelectCell}
         answerId={q.answer}
-        leavingId={leavingId}
+        popping={popping}
         reducedMotion={reduce}
       />
     )
-  } else if (q.theme === "printer") {
+  } else if (q.theme === "drivethru" && REALWORLD_QUEUE_SKIN === "drivethru") {
+    figure = (
+      <DriveThruLane
+        cells={builtCells}
+        arrival={q.arrival}
+        selectable={!terminal && ready}
+        cellState={cellState}
+        onSelectCell={onSelectCell}
+        answerId={q.answer}
+        popping={popping}
+        reducedMotion={reduce}
+      />
+    )
+  } else if (q.theme === "drivethru" || q.theme === "printer") {
     figure = (
       <PrinterShowpiece
         cells={builtCells}
@@ -403,7 +460,7 @@ function PredictPart({
         cellState={cellState}
         onSelectCell={onSelectCell}
         answerId={q.answer}
-        leavingId={leavingId}
+        popping={popping}
         reducedMotion={reduce}
       />
     )
@@ -411,12 +468,11 @@ function PredictPart({
     figure = (
       <Container
         discipline={q.discipline}
-        cells={builtCells}
+        cells={containerCells}
         selectable={!terminal && ready}
         cellState={cellState}
         onSelectCell={onSelectCell}
         answerId={q.answer}
-        leavingId={leavingId}
       />
     )
   }
@@ -481,6 +537,7 @@ function DraggableCard({
   onActive,
   onPush,
   ariaLabel,
+  layoutId,
 }: {
   id: string
   label: string
@@ -491,6 +548,8 @@ function DraggableCard({
   onActive: (dragging: boolean, over: boolean) => void
   onPush: () => void
   ariaLabel: string
+  /** Shared-layout id so this card morphs into its bin cell on a push (handoff). */
+  layoutId?: string
 }) {
   const [fading, setFading] = useState(false)
   // Bumping the key remounts the button, resetting the drag offset to origin so
@@ -498,10 +557,13 @@ function DraggableCard({
   const [respawn, setRespawn] = useState(0)
   const draggedRef = useRef(false)
 
+  // The wrapper carries `layout` so the loose row reflows smoothly when a
+  // sibling is pushed (instead of the remaining cards jumping to fill the gap).
   return (
-    <div data-push-order={import.meta.env.DEV ? order : undefined}>
+    <motion.div layout={!reduce} data-push-order={import.meta.env.DEV ? order : undefined}>
       <motion.button
         key={respawn}
+        layoutId={fading ? undefined : layoutId}
         type="button"
         data-construct-card={id}
         aria-label={ariaLabel}
@@ -547,7 +609,7 @@ function DraggableCard({
       >
         {label}
       </motion.button>
-    </div>
+    </motion.div>
   )
 }
 
@@ -648,6 +710,7 @@ function ConstructPart({
         <Container
           discipline={q.discipline}
           cells={shownCells}
+          layoutIdFor={(id) => (reduce ? undefined : `construct-${id}`)}
           dropRef={building ? dropRef : undefined}
           dropActive={canDrop && dragging}
           dropOver={canDrop && over}
@@ -668,6 +731,7 @@ function ConstructPart({
                   onActive={onActive}
                   onPush={() => dispatch({ type: "rewire", from: id, to: "mouth" })}
                   ariaLabel={`Add ${labels[id]} to ${zoneLabel}`}
+                  layoutId={reduce ? undefined : `construct-${id}`}
                 />
               ))}
             </div>
@@ -740,11 +804,14 @@ function ComparePart({
 
       <div className="flex justify-center py-5">
         {q.kind === "classify" ? (
-          <div className="flex items-center gap-3">
-            <ChipRow label="In" cells={q.inOrder} />
-            <ArrowRight className="size-4 text-faint" strokeWidth={2.5} />
-            <ChipRow label="Out" cells={q.outOrder} />
-          </div>
+          <ClassifyReplay
+            inOrder={q.inOrder}
+            outOrder={q.outOrder}
+            verdict={q.answer as "stack" | "queue" | "neither"}
+            replay={revealing}
+            reducedMotion={reduce}
+            srLabel={revealing ? classifySrLabel(q) : undefined}
+          />
         ) : (
           <ContrastReplay
             arrival={q.arrival}
@@ -783,22 +850,13 @@ function ComparePart({
   )
 }
 
-function ChipRow({ label, cells }: { label: string; cells: string[] }) {
-  return (
-    <div className="flex flex-col items-center gap-1.5">
-      <span className="text-[10px] font-bold uppercase tracking-wider text-faint">{label}</span>
-      <div className="flex gap-1.5">
-        {cells.map((c, i) => (
-          <span
-            key={`${c}-${i}`}
-            className="flex size-8 items-center justify-center rounded-md border border-border bg-card text-sm font-bold text-foreground"
-          >
-            {c}
-          </span>
-        ))}
-      </div>
-    </div>
-  )
+/** The SR-only verdict for the classify replay (shown only once revealed). */
+function classifySrLabel(q: ClassifyQuestion): string {
+  if (q.answer === "stack")
+    return "Out is the exact reverse of in, which is last in, first out. A stack."
+  if (q.answer === "queue")
+    return "Out keeps the same order as in, which is first in, first out. A queue."
+  return "Out is neither a clean reverse nor the same order, so no single structure produces it."
 }
 
 function nth(n: number): string {
