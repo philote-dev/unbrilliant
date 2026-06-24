@@ -1,10 +1,11 @@
 import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react"
-import { useReducedMotion } from "motion/react"
+import { motion, useReducedMotion } from "motion/react"
 
 import { cn } from "@/lib/utils"
 import { RewireContext } from "@/components/rewire/RewireContext"
 import { useRewireNode } from "@/components/rewire/useRewireNode"
 import { NIL, pointerId, sourceNode, type RewirePair } from "@/features/lesson/linkedListsEngine"
+import { elbowLane } from "./graphLayout"
 import { songFor, type Song } from "./playlistSongs"
 
 const ROW_H = 48
@@ -94,14 +95,17 @@ export function PlaylistQueue({
     return () => window.removeEventListener("pointermove", onMove)
   }, [armedSource])
 
-  // Order arrows live in the right gutter: out of a track's bottom-right, down the
-  // rail, then back into the next track's top-right.
+  // Order arrows live in the right gutter: out of a track's bottom-right, down a
+  // rail, then back into the next track's top-right. Each source gets its OWN lane
+  // (rail x + entry height) so two pointers landing on the same track (the save-
+  // first state: both prev→at and X→at) don't stack their arrowheads at one point.
   const rowRightX = Math.max(120, width - GUTTER)
-  const railX = Math.max(rowRightX + 12, width - 18)
+  const baseRailX = Math.max(rowRightX + 12, width - 18)
   const arrows: {
     key: string
     start: { x: number; y: number }
     end: { x: number; y: number }
+    railX: number
     faint: boolean
   }[] = []
   for (const node of order) {
@@ -109,10 +113,12 @@ export function PlaylistQueue({
     const tgt = live[pointerId(node)]
     if (!tgt || tgt === NIL || !rowIndex.has(tgt)) continue
     const faint = orphanSet.has(node) || orphanSet.has(tgt)
+    const lane = elbowLane(baseRailX, rowIndex.get(node) ?? 0)
     arrows.push({
       key: node,
       start: { x: rowRightX, y: topY(node) + ROW_H - 12 },
-      end: { x: rowRightX, y: topY(tgt) + 12 },
+      end: { x: rowRightX, y: topY(tgt) + 12 + lane.entryDy },
+      railX: lane.railX,
       faint,
     })
   }
@@ -123,9 +129,9 @@ export function PlaylistQueue({
     <div ref={containerRef} className="relative w-full" style={{ height: totalH }}>
       <svg className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden>
         {arrows.map((a) => (
-          <QueueElbow key={a.key} start={a.start} end={a.end} railX={railX} faint={a.faint} />
+          <QueueElbow key={a.key} start={a.start} end={a.end} railX={a.railX} faint={a.faint} />
         ))}
-        {armedNode && rowIndex.has(armedNode) && cursor && (
+        {armedNode && rowIndex.has(armedNode) && (
           <LiveQueueStretch
             from={{ x: rowRightX, y: topY(armedNode) + ROW_H / 2 }}
             cursor={cursor}
@@ -239,14 +245,21 @@ function SongRow({
   )
 }
 
+/**
+ * A track that just fell out of the queue. It mounts in its row and drifts right
+ * as it fades + greys, so the "rest of the queue floated off" reads as a moment
+ * (the bug: it used to mount already at the end-state, so the drift never played).
+ * Reduced motion snaps straight to the dropped state via `initial={false}`.
+ */
 function OrphanSongRow({ song, y, reduced }: { song: Song; y: number; reduced: boolean }) {
   return (
-    <div
-      className={cn(
-        "absolute flex items-center gap-3 rounded-lg px-2 opacity-40 grayscale",
-        reduced ? "" : "transition-all duration-500",
-      )}
-      style={{ left: 4, right: GUTTER, top: y, height: ROW_H, transform: "translateX(14px)" }}
+    <motion.div
+      data-reduced-motion={reduced ? "1" : undefined}
+      className="absolute flex items-center gap-3 rounded-lg px-2 grayscale"
+      style={{ left: 4, right: GUTTER, top: y, height: ROW_H }}
+      initial={reduced ? false : { x: 0, opacity: 1 }}
+      animate={{ x: 14, opacity: 0.4 }}
+      transition={reduced ? { duration: 0 } : { duration: 0.5, ease: "easeOut" }}
       aria-label={`${song.title}, dropped from the queue`}
     >
       <AlbumArt song={song} />
@@ -254,7 +267,7 @@ function OrphanSongRow({ song, y, reduced }: { song: Song; y: number; reduced: b
         <span className="block truncate text-[15px] font-semibold text-white/70">{song.title}</span>
         <span className="mt-0.5 block truncate text-[13px] text-white/40">{song.artist}</span>
       </span>
-    </div>
+    </motion.div>
   )
 }
 
@@ -360,22 +373,25 @@ function LiveQueueStretch({
   cursor,
 }: {
   from: { x: number; y: number }
-  cursor: { x: number; y: number }
+  cursor: { x: number; y: number } | null
 }) {
-  const angle = (Math.atan2(cursor.y - from.y, cursor.x - from.x) * 180) / Math.PI
+  // No cursor yet (just grabbed, or keyboard-armed before a drop is chosen): draw
+  // a short "lifted" stub into the gutter so the grabbed arrow stays visible.
+  const target = cursor ?? { x: from.x + 34, y: from.y }
+  const angle = (Math.atan2(target.y - from.y, target.x - from.x) * 180) / Math.PI
   return (
-    <g className="text-[#1db954]">
+    <g data-testid="armed-arrow" className="text-[#1db954]">
       <line
         x1={from.x}
         y1={from.y}
-        x2={cursor.x}
-        y2={cursor.y}
+        x2={target.x}
+        y2={target.y}
         stroke="currentColor"
         strokeWidth={2.4}
         strokeLinecap="round"
         strokeDasharray="1 6"
       />
-      <g transform={`translate(${cursor.x} ${cursor.y}) rotate(${angle})`}>
+      <g transform={`translate(${target.x} ${target.y}) rotate(${angle})`}>
         <path d="M0 0 L-9 -5 L-9 5 Z" fill="currentColor" />
       </g>
     </g>

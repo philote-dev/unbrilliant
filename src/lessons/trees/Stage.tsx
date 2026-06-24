@@ -1,5 +1,4 @@
 import type { Dispatch } from "react"
-import { motion } from "motion/react"
 
 import { Button } from "@/components/ui/button"
 import { AnswerCard, type AnswerState } from "@/components/willow/AnswerCard"
@@ -23,6 +22,7 @@ import {
 import { DisplayTree, TreeFigure } from "./TreeFigure"
 import { SortedChain } from "./SortedChain"
 import { ContrastRace } from "./ContrastRace"
+import { GuessNumber } from "./GuessNumber"
 
 /**
  * The Trees stage routes the eleven beats across the two faces (descend / locate
@@ -182,7 +182,11 @@ function TeachPart({
       </div>
 
       <div className="flex flex-1 flex-col items-center justify-center gap-5 py-6">
-        <DisplayTree tree={q.tree} highlightIds={highlight} />
+        <DisplayTree
+          tree={q.tree}
+          highlightIds={highlight}
+          orderRanks={isDescend ? undefined : q.order}
+        />
         {isDescend ? (
           <p className="mx-auto max-w-xs text-center text-sm text-muted-foreground">
             Compare, go left if smaller or right if larger, and throw away the half you
@@ -190,7 +194,8 @@ function TeachPart({
           </p>
         ) : (
           <p className="mx-auto max-w-xs text-center text-sm text-muted-foreground">
-            Left subtree, then the node, then the right subtree, and it comes out{" "}
+            The badges count the visit order: left subtree, then the node, then the right
+            subtree, and it comes out{" "}
             <span className="font-semibold text-foreground">sorted</span>.
           </p>
         )}
@@ -287,7 +292,7 @@ function SequencePart({
   )
 }
 
-/* ----------------------- real-world skin (higher/lower) ------------------- */
+/* ------------------- real-world skin ("guess my number") ------------------ */
 
 function RealWorldPart({
   state,
@@ -305,20 +310,7 @@ function RealWorldPart({
       <BinHeader state={state} />
 
       <div className="flex flex-1 flex-col items-center justify-center gap-4 py-5">
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, ease: "easeOut" }}
-          className="w-full rounded-3xl border border-lilac-strong/30 bg-gradient-to-b from-lilac-soft/60 to-card p-4"
-        >
-          <p className="mb-3 text-center text-xs font-semibold uppercase tracking-wide text-lilac-strong">
-            Higher or Lower
-          </p>
-          <TreeFigure state={state} dispatch={dispatch} />
-          <p className="mt-3 text-center text-xs text-muted-foreground">
-            Lower means go left, higher means go right. Each guess halves the range.
-          </p>
-        </motion.div>
+        <GuessNumber state={state} dispatch={dispatch} />
       </div>
 
       {correct && q.cost && (
@@ -414,34 +406,39 @@ function ContrastPart({
     <div className="flex flex-1 flex-col">
       <BinHeader state={state} />
 
-      <div className="flex flex-1 flex-col items-center justify-center gap-5 py-4">
-        <div className="flex flex-col items-center gap-1.5">
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Sorted list. Walk it
-          </span>
-          <SortedChain
-            keys={q.chain}
-            cursor={state.chainCursor}
-            targetIndex={q.chainTargetIndex}
-            onAdvance={walkDone ? undefined : () => dispatch({ type: "select", letter: "chain" })}
-          />
-        </div>
+      {/* Until correct, the learner does the graded walk-then-descend. Once
+          correct, those figures give way to the ContrastRace replay so the page
+          never stacks a duplicate chain + tree (mobile overflow). */}
+      {!correct && (
+        <div className="flex flex-1 flex-col items-center justify-center gap-5 py-4">
+          <div className="flex flex-col items-center gap-1.5">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Sorted list. Walk it
+            </span>
+            <SortedChain
+              keys={q.chain}
+              cursor={state.chainCursor}
+              targetIndex={q.chainTargetIndex}
+              onAdvance={walkDone ? undefined : () => dispatch({ type: "select", letter: "chain" })}
+            />
+          </div>
 
-        <div className="flex flex-col items-center gap-1.5">
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Balanced tree. Descend it
-          </span>
-          <TreeFigure state={state} dispatch={dispatch} lockDescend={!walkDone} />
-          {!walkDone && (
-            <p className="max-w-xs text-center text-xs text-faint">
-              Finish the walk first, then descend the tree.
-            </p>
-          )}
+          <div className="flex flex-col items-center gap-1.5">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Balanced tree. Descend it
+            </span>
+            <TreeFigure state={state} dispatch={dispatch} lockDescend={!walkDone} />
+            {!walkDone && (
+              <p className="max-w-xs text-center text-xs text-faint">
+                Finish the walk first, then descend the tree.
+              </p>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {correct && (
-        <div className="mb-4 flex justify-center">
+        <div className="mb-4 flex flex-1 items-center justify-center">
           <ContrastRace
             chain={q.chain}
             chainTargetIndex={q.chainTargetIndex}

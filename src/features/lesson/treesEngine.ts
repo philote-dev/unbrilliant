@@ -92,6 +92,29 @@ export function subtreeSize(node: TreeNode | null): number {
   return 1 + subtreeSize(node.left) + subtreeSize(node.right)
 }
 
+/**
+ * The closed key interval `[min, max]` a subtree spans (its leftmost and
+ * rightmost in-order keys). Pure over the tree, so the "guess my number" range
+ * band is derived from the same source as the verdict and can never disagree
+ * with it: the lit band is always exactly the cursor subtree's reachable keys,
+ * which halves as the descend discards the opposite side. Returns null for an
+ * empty subtree.
+ */
+export function subtreeKeyRange(node: TreeNode | null): [number, number] | null {
+  if (!node) return null
+  let min = node.key
+  let max = node.key
+  const walk = (n: TreeNode | null) => {
+    if (!n) return
+    if (n.key < min) min = n.key
+    if (n.key > max) max = n.key
+    walk(n.left)
+    walk(n.right)
+  }
+  walk(node)
+  return [min, max]
+}
+
 /** The subtree height in edges: a leaf is 0, the degenerate stick is n − 1. */
 export function depth(node: TreeNode | null): number {
   if (!node) return -1
@@ -479,8 +502,9 @@ function makeDescend(part: "find-hit" | "find-miss" | "insert" | "realworld"): T
       why: "8 → 4 → 6: 5 < 6 needs a left child, which is empty. That empty slot is exactly where 5 belongs.",
     }
   }
-  // realworld. Higher/lower number guess (descend X = 2)
-  const target = 2
+  // realworld: the "guess my number" game show. Target 6 takes a MIXED path
+  // (lower to 4, then higher to 6), so the host says both "Lower!" and "Higher!".
+  const target = 6
   const d = descendPath(tree, target)
   return {
     ...BASE,
@@ -488,16 +512,16 @@ function makeDescend(part: "find-hit" | "find-miss" | "insert" | "realworld"): T
     bin: "locate",
     mode: "descend",
     tree,
-    title: "Higher or lower?",
+    title: "Guess my number",
     target,
     descend: d,
     realWorld: true,
     cost: comparisonsCost(d.comparisons),
-    prompt: "Guess the secret number. Each guess says higher or lower. Find 2.",
-    hint: "‘Lower’ means go left, ‘higher’ means go right. Each guess halves what's left.",
-    nudge: "Follow the hints down: lower → left, higher → right.",
-    correct: "Two ‘lower’s land on 2. Three guesses, half the range gone each time.",
-    why: "Higher/lower IS a BST descend: 8 → 4 → 2, halving the range at every guess. That's why guessing games end so fast.",
+    prompt: "I'm thinking of a number from 2 to 14. Each guess tells you higher or lower.",
+    hint: "Use the clue: lower means the secret sits below your guess, higher means above. Each guess halves the range.",
+    nudge: "Follow the clue: if it says lower, guess lower; if it says higher, guess higher.",
+    correct: "Lower then higher pins it to 6 in three guesses, halving the range each time.",
+    why: "Higher or lower is just a BST descend: 8 → 4 → 6, halving the range at every guess. That's why guessing games end so fast.",
   }
 }
 

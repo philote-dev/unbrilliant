@@ -7,6 +7,7 @@ import {
   arrowGeom,
   center,
   directArrow,
+  elbowLane,
   isAdjacentRow,
   looseBox,
   radius,
@@ -118,5 +119,26 @@ describe("graphLayout — directArrow (freely placed nodes)", () => {
     const g = directArrow(box, { ...box })
     expect(Number.isNaN(g.tip.x)).toBe(false)
     expect(Number.isNaN(g.angleDeg)).toBe(false)
+  })
+})
+
+describe("graphLayout: playlist elbow lanes", () => {
+  it("gives each source row its own rail x + entry height (no stacked heads)", () => {
+    const lanes = [0, 1, 2, 3].map((i) => elbowLane(300, i))
+    const railXs = lanes.map((l) => l.railX)
+    // Distinct rail per source so the vertical runs don't overlap…
+    expect(new Set(railXs).size).toBe(railXs.length)
+    // …and adjacent sources also enter the target at distinct heights, so two
+    // pointers to the same track (prev→at and X→at) never stack their arrowheads.
+    expect(lanes[0].entryDy).not.toBe(lanes[1].entryDy)
+    expect(lanes[1].entryDy).not.toBe(lanes[2].entryDy)
+  })
+
+  it("is finite / non-NaN for every lane (and stable for odd inputs)", () => {
+    for (const i of [0, 1, 5, 12, -3, 2.7]) {
+      const { railX, entryDy } = elbowLane(300, i)
+      expect(Number.isFinite(railX)).toBe(true)
+      expect(Number.isFinite(entryDy)).toBe(true)
+    }
   })
 })

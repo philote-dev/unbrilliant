@@ -23,6 +23,7 @@ import {
   isCompleteTrees,
   nodeById,
   resumeTrees,
+  subtreeKeyRange,
   subtreeSize,
   toProgressTrees,
   treesReducer,
@@ -153,6 +154,15 @@ describe("tree helpers (pure)", () => {
     expect(descendPath(T_BAL, 14).comparisons).toBe(3) // halves
     expect(descendPath(T_STICK, 14).comparisons).toBe(7) // walks every node
   })
+
+  it("subtreeKeyRange spans a subtree's keys and halves down each side (the guess band)", () => {
+    expect(subtreeKeyRange(T_BAL)).toEqual([2, 14]) // root: the whole range
+    expect(subtreeKeyRange(T_BAL.left)).toEqual([2, 6]) // left-of-8: the lower half
+    expect(subtreeKeyRange(T_BAL.right)).toEqual([10, 14]) // right-of-8: the upper half
+    expect(subtreeKeyRange(nodeById(T_BAL, "n6"))).toEqual([6, 6]) // a leaf is a point
+    expect(subtreeKeyRange(T_ZIG)).toEqual([3, 15])
+    expect(subtreeKeyRange(null)).toBeNull()
+  })
 })
 
 describe("halving / search space (candidatesRemaining + droppedAlongPath)", () => {
@@ -276,6 +286,19 @@ describe("locate bin (descend)", () => {
     const ok = run(descendCorrect(s, true), { type: "check" })
     expect(ok.feedback).toBe("correct")
     expect(ok.locateCorrect).toBe(3) // find-hit + find-miss + insert
+  })
+
+  it("real-world guess-my-number descends a mixed lower-then-higher path to 6", () => {
+    const s = atPart("realworld")
+    expect(s.question?.target).toBe(6) // a MIXED path, so the host says both
+    expect(s.question?.descend?.path).toEqual(["n8", "n4", "n6"])
+    // lower (6 < 8) then higher (6 > 4): the drama the skin shows.
+    expect(s.question!.descend!.steps.map((st) => st.goLeft)).toEqual([true, false])
+    expect(s.question?.cost?.word).toBe("barely grows") // the locked house word
+    expect(s.question?.cost?.count).toBe(3)
+    const done = run(descendCorrect(s, false), { type: "check" })
+    expect(done.feedback).toBe("correct")
+    expect(done.locateCorrect).toBe(4) // find-hit + find-miss + insert + realworld
   })
 })
 

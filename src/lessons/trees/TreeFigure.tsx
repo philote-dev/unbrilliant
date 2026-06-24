@@ -99,11 +99,15 @@ function FitBox({
   figW,
   figH,
   reduced,
+  straightened,
   children,
 }: {
   figW: number
   figH: number
   reduced: boolean
+  /** Sequence only: whether the compact layout has straightened into in-order.
+   * Surfaced as `data-straightened` so jsdom can assert the teaching payoff. */
+  straightened?: boolean
   children: ReactNode
 }) {
   const outerRef = useRef<HTMLDivElement>(null)
@@ -136,6 +140,7 @@ function FitBox({
         <div
           data-testid="tree-figure"
           data-reduced-motion={reduced ? "1" : undefined}
+          data-straightened={straightened === undefined ? undefined : straightened ? "1" : "0"}
           className="absolute left-0 top-0"
           style={{ width: figW, height: figH, transform: `scale(${scale})`, transformOrigin: "top left" }}
         >
@@ -298,8 +303,11 @@ function DescendFigure({
           )
         })}
 
-        {/* dashed ghost slots for empty sides at the cursor (tap = "it falls here") */}
+        {/* dashed ghost slots for empty sides at the cursor (tap = "it falls here").
+            Once a slot is committed they vanish: the filled slot stands in its
+            place (no same-side overlap) and no opposite-side ghost lingers. */}
         {interactive &&
+          state.tappedSlot == null &&
           tc.ghostSides.map((side) => {
             const p = slotPos(side)
             const answer = next?.kind === "ghost" && next.side === side
@@ -386,8 +394,10 @@ function SequenceFigure({
   const tree = q.tree
   const compact = compactLayout(tree)
   const tidy = tidyLayout(tree)
-  // On Why (or once correct), straighten the compact layout into sorted order.
-  const straightened = state.showWhy
+  // The teaching payoff: straighten the compact layout into sorted order on a
+  // correct in-order tap (the row assembles itself), and also on Why after a
+  // fail so the answer is shown. Either path fires the same straighten.
+  const straightened = state.showWhy || state.feedback === "correct"
   const layout: TreeLayout = straightened ? tidy : compact
 
   const order = q.order
@@ -400,7 +410,7 @@ function SequenceFigure({
   const transition = reduced ? { duration: 0 } : { type: "spring" as const, stiffness: 220, damping: 26 }
 
   return (
-    <FitBox figW={figW} figH={figH} reduced={reduced}>
+    <FitBox figW={figW} figH={figH} reduced={reduced} straightened={straightened}>
       <Edges tree={tree} pos={layout.pos} tone={() => "muted"} reduced={reduced} />
 
       {[...layout.pos.entries()].map(([id, p]) => {
@@ -469,6 +479,7 @@ export function DisplayTree({
   tree,
   highlightIds,
   droppedIds,
+  orderRanks,
   dim = false,
   caption,
 }: {
@@ -476,6 +487,9 @@ export function DisplayTree({
   highlightIds?: string[]
   /** Discarded subtrees to grey out read-only (the BST-vs-list race). */
   droppedIds?: string[]
+  /** Node ids in traversal order; each gets a 1..n badge so the order is visible
+   * (teach-inorder: lighting the whole tree alone hides left → node → right). */
+  orderRanks?: string[]
   /** Dim the whole figure (background / context). */
   dim?: boolean
   caption?: string
@@ -485,6 +499,7 @@ export function DisplayTree({
   const layout = tidyLayout(tree)
   const lit = new Set(highlightIds ?? [])
   const dropped = new Set(droppedIds ?? [])
+  const rankOf = new Map((orderRanks ?? []).map((id, i) => [id, i + 1]))
 
   const edgeTone = (from: string, to: string): EdgeTone => {
     if (dropped.has(from) || dropped.has(to)) return "dropped"
@@ -498,12 +513,14 @@ export function DisplayTree({
         {[...layout.pos.entries()].map(([id, p]) => {
           const node = nodeById(tree, id)!
           const isDropped = dropped.has(id)
+          const rank = rankOf.get(id)
           return (
             <div
               key={id}
               data-node-id={id}
               data-dropped={isDropped ? "1" : undefined}
-              aria-label={`node ${node.key}${isDropped ? ", discarded" : ""}`}
+              data-order-rank={rank}
+              aria-label={`node ${node.key}${rank ? `, visited ${rank}` : ""}${isDropped ? ", discarded" : ""}`}
               className={cn(
                 "absolute flex items-center justify-center rounded-full border-2 text-base font-bold transition-colors",
                 isDropped
@@ -515,6 +532,11 @@ export function DisplayTree({
               style={{ left: p.x - NODE_R, top: p.y - NODE_R, width: NODE_W, height: NODE_H }}
             >
               {node.key}
+              {rank != null && (
+                <span className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-lilac text-[11px] font-bold text-lilac-foreground">
+                  {rank}
+                </span>
+              )}
             </div>
           )
         })}
