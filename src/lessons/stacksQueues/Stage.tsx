@@ -114,7 +114,6 @@ function BuildingContainer({
   cellState,
   onSelectCell,
   answerId,
-  leavingId,
 }: {
   discipline: Discipline
   cells: Cell[]
@@ -123,7 +122,6 @@ function BuildingContainer({
   cellState?: (id: string) => AnswerState
   onSelectCell?: (id: string) => void
   answerId?: string
-  leavingId?: string
 }) {
   const built = useBuildIn(arrival)
   const visible = new Set(arrival.slice(0, built))
@@ -137,7 +135,6 @@ function BuildingContainer({
       cellState={cellState}
       onSelectCell={onSelectCell}
       answerId={answerId}
-      leavingId={leavingId}
     />
   )
 }

@@ -35,5 +35,3 @@ from `VITE_*` env. See [`.env.example`](./.env.example).
 
 - [`docs/architecture.md`](./docs/architecture.md): codebase flow & layers
 - [`CONTEXT.md`](./CONTEXT.md): domain vocabulary (run vs. progress, reconcile, …)
-
-<!-- TEMP_EMDASH_GUARD_CHECK — remove me -->
