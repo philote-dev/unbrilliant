@@ -1,0 +1,288 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
+
+@custom-variant dark (&:is(.dark *));
+
+/* =========================================================================
+   Willow design tokens — cool-neutral base + one faded-lilac accent +
+   muted Nord pastel feedback. All components author against these tokens
+   so light + dark come for free. See docs/design/design-brief.md §4–7.
+   ========================================================================= */
+
+:root {
+  /* base palette — light (default) */
+  --background: #f2f4f7;
+  --foreground: #0f1115;
+  --card: #ffffff;
+  --card-foreground: #0f1115;
+  --popover: #ffffff;
+  --popover-foreground: #0f1115;
+  --muted: #eef1f6;
+  --muted-foreground: #6b7280;
+  --faint: #9aa3af;
+  --border: #e3e7ee;
+  --input: #e3e7ee;
+  --ring: #8b7fd6;
+
+  /* lilac accent */
+  --lilac: #d6d2f1; /* pale FILL only — dark text on it */
+  --lilac-foreground: #2a2540; /* text on the pale fill */
+  --lilac-strong: #8b7fd6; /* text / links / active / outlines */
+  --lilac-soft: #eef0fb; /* faint tint for hovers + selected fill */
+
+  /* shadcn primary = the solid tactile CTA */
+  --primary: #8b7fd6;
+  --primary-foreground: #ffffff;
+  --primary-edge: #6e61c0; /* darker bottom edge for the tactile pill */
+
+  --secondary: #ffffff;
+  --secondary-foreground: #0f1115;
+  --accent: #eef0fb;
+  --accent-foreground: #2a2540;
+
+  /* feedback — muted Nord pastels */
+  --success: #a7c5a1;
+  --success-foreground: #2c3a2a;
+  --success-soft: #eaf2e8;
+  --warning: #e6d28b;
+  --warning-foreground: #4a4220;
+  --warning-soft: #f7f1dd;
+  --danger: #d99a9a; /* FAIL state only — never decorative */
+  --danger-foreground: #4a2626;
+  --danger-soft: #f7e8e8;
+  --destructive: #d99a9a;
+
+  /* elevation (subtle) */
+  --shadow-soft: 0 6px 22px -10px rgba(40, 50, 80, 0.18);
+  --shadow-card: 0 1px 2px rgba(16, 18, 24, 0.04),
+    0 10px 30px -18px rgba(40, 50, 80, 0.22);
+  --shadow-pop: 0 12px 40px -12px rgba(40, 50, 80, 0.28);
+
+  --radius: 1rem;
+}
+
+.dark {
+  --background: #0b0d12;
+  --foreground: #e6e8ec;
+  --card: #11151c;
+  --card-foreground: #e6e8ec;
+  --popover: #11151c;
+  --popover-foreground: #e6e8ec;
+  --muted: #171c24;
+  --muted-foreground: #8b93a3;
+  --faint: #6b7280;
+  --border: #232831;
+  --input: #232831;
+  --ring: #8b7fd6;
+
+  --lilac: #b4a7e7; /* a touch more present than light's fill */
+  --lilac-foreground: #171326;
+  --lilac-strong: #b4a7e7; /* brighter for contrast on near-black */
+  --lilac-soft: #1a1830;
+
+  --primary: #b4a7e7;
+  --primary-foreground: #15121f; /* dark text on the present-lilac CTA */
+  --primary-edge: #8b7fd6;
+
+  --secondary: #171c24;
+  --secondary-foreground: #e6e8ec;
+  --accent: #1a1f2b;
+  --accent-foreground: #e6e8ec;
+
+  --success: #a3c59f;
+  --success-foreground: #d7ecd3;
+  --success-soft: #16241a;
+  --warning: #e5c07b;
+  --warning-foreground: #f3e4c0;
+  --warning-soft: #261f12;
+  --danger: #bf616a;
+  --danger-foreground: #f6dadd;
+  --danger-soft: #2a181b;
+  --destructive: #bf616a;
+
+  --shadow-soft: 0 10px 34px -14px rgba(0, 0, 0, 0.65);
+  --shadow-card: 0 0 0 1px rgba(180, 167, 231, 0.05),
+    0 12px 44px -22px rgba(0, 0, 0, 0.8);
+  --shadow-pop: 0 18px 50px -16px rgba(0, 0, 0, 0.85);
+}
+
+/* Expose Willow tokens as Tailwind v4 utilities (bg-lilac, text-lilac-strong, …) */
+@theme inline {
+  --font-heading: var(--font-sans);
+  --font-sans: "Geist Variable", system-ui, sans-serif;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-faint: var(--faint);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+
+  --color-lilac: var(--lilac);
+  --color-lilac-foreground: var(--lilac-foreground);
+  --color-lilac-strong: var(--lilac-strong);
+  --color-lilac-soft: var(--lilac-soft);
+
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-foreground: var(--danger-foreground);
+  --color-danger-soft: var(--danger-soft);
+
+  /* iOS-style large continuous corners */
+  --radius-sm: calc(var(--radius) * 0.5); /* 8px  — tags */
+  --radius-md: calc(var(--radius) * 0.75); /* 12px */
+  --radius-lg: var(--radius); /* 16px — inputs */
+  --radius-xl: calc(var(--radius) * 1.25); /* 20px — cards */
+  --radius-2xl: calc(var(--radius) * 1.5); /* 24px — grouped */
+  --radius-3xl: calc(var(--radius) * 1.75); /* 28px — containers */
+  --radius-4xl: calc(var(--radius) * 2.25); /* 36px */
+
+  --shadow-soft: var(--shadow-soft);
+  --shadow-card: var(--shadow-card);
+  --shadow-pop: var(--shadow-pop);
+
+  /* motion primitives */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-slide-up: slide-up 0.36s var(--ease-out-soft) both;
+  --animate-fade-in: fade-in 0.3s ease-out both;
+  --animate-flame-flicker: flame-flicker 2.6s ease-in-out infinite;
+  --animate-glow-pulse: glow-pulse 2.4s ease-in-out infinite;
+  --animate-pop-in: pop-in 0.32s var(--ease-out-soft) both;
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pop-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.03);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes flame-flicker {
+  0%,
+  100% {
+    transform: scale(1) translateY(0) rotate(-0.5deg);
+  }
+  25% {
+    transform: scale(1.04, 0.98) translateY(-0.5px) rotate(0.5deg);
+  }
+  50% {
+    transform: scale(0.97, 1.05) translateY(-1px) rotate(-0.5deg);
+  }
+  75% {
+    transform: scale(1.03, 0.99) translateY(-0.3px) rotate(0.4deg);
+  }
+}
+
+@keyframes glow-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.12);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    @apply font-sans;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    margin: 0;
+    font-synthesis-weight: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  #root {
+    min-height: 100svh;
+  }
+
+  h1,
+  h2,
+  h3 {
+    @apply font-heading tracking-tight;
+    text-wrap: balance;
+  }
+}
+
+@layer utilities {
+  /* hide scrollbars on the scrollable course path (shadow-* and animate-*
+     utilities are generated automatically from the @theme tokens above) */
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Respect reduced-motion everywhere — including the flame. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
