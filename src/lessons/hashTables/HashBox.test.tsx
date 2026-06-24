@@ -48,7 +48,7 @@ function tapQuestion(key: string): HashQuestion {
     options: [],
     answer: `bucket-${bucketOf(key)}`,
     present: true,
-    contacts: false,
+    skin: "abstract",
     cost: null,
     scanCost: null,
     hint: "",
@@ -84,7 +84,7 @@ describe("HashBox", () => {
   })
 
   it("the DEMO beat reveals the bucket arithmetic and flies the key once summed", () => {
-    render(<HashBox question={tapQuestion("cat")} revealBucket />)
+    render(<HashBox question={tapQuestion("cat")} reveal />)
 
     // Before stepping, the bucket is still withheld (the mod isn't done yet).
     expect(screen.getByText("?")).toBeInTheDocument()

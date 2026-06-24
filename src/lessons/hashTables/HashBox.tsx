@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { ArrowRight } from "lucide-react"
 import { motion, useReducedMotion } from "motion/react"
 
@@ -14,20 +14,24 @@ import { letterSteps, type HashQuestion } from "@/features/lesson/hashTablesEngi
  * the bucket by dragging the key in (drag beats, via `dragSourceId`) or tapping
  * a bucket (tap beats). It never pre-lights the answer bucket.
  *
- * On the ungraded DEMO beat only (`revealBucket`), the box finishes the arithmetic
- * itself: once every letter is added it shows `sum mod B = bucket` and flies the
- * key tile into its bucket. Graded beats keep withholding the bucket as "?".
+ * On the ungraded DEMO beat only (`reveal`), the box finishes the arithmetic
+ * itself: once every letter is added it shows `sum mod B = bucket` and flags the
+ * result via `onResolved` so an owner (HashFlight) can fly the key into its
+ * bucket. Graded beats keep withholding the bucket as "?".
  */
 export function HashBox({
   question,
   dragSourceId,
-  revealBucket,
+  reveal,
+  onResolved,
 }: {
   question: HashQuestion
   /** When set (drag beats), the key tile is a draggable RewireSource. */
   dragSourceId?: string
-  /** DEMO beat only: finish the `mod` and animate the key into its bucket. */
-  revealBucket?: boolean
+  /** DEMO beat only: finish the `mod` and reveal the bucket once every letter is in. */
+  reveal?: boolean
+  /** Fires once the bucket is resolved (reveal beats), so an owner can react. */
+  onResolved?: () => void
 }) {
   const reduced = useReducedMotion() ?? false
   const key = question.key ?? ""
@@ -36,7 +40,14 @@ export function HashBox({
   const [revealed, setRevealed] = useState(0)
   const allRevealed = revealed >= steps.length
   const runningSum = revealed > 0 ? steps[revealed - 1].runningSum : 0
-  const showBucket = Boolean(revealBucket) && allRevealed
+  const showBucket = Boolean(reveal) && allRevealed
+
+  // Tell the owner the moment the box resolves the bucket, so a demo can launch
+  // the key's flight to that bucket. Purely a notification: the verdict is still
+  // the pure `question.bucket`.
+  useEffect(() => {
+    if (showBucket) onResolved?.()
+  }, [showBucket, onResolved])
 
   return (
     <div className="flex w-full max-w-[280px] flex-col items-center gap-3 rounded-2xl border border-border bg-card p-4 shadow-soft">
@@ -120,9 +131,9 @@ export function HashBox({
             {key}
           </RewireSource>
         </div>
-      ) : revealBucket ? null : (
+      ) : reveal ? null : (
         <p className="text-center text-xs text-muted-foreground">
-          Tap the {question.contacts ? "slot" : "bucket"} it lands in.
+          Tap the bucket it lands in.
         </p>
       )}
 

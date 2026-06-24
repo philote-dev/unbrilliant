@@ -105,6 +105,7 @@ export function SubwayMap({
       <div
         ref={innerRef}
         data-testid="subway-map"
+        data-variant={variant}
         data-reduced-motion={reduced ? "1" : undefined}
         className="relative mx-auto"
         style={{ width: W, height: H }}

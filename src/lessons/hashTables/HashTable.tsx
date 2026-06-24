@@ -8,6 +8,17 @@ import { BucketChain } from "./BucketChain"
 type HashTableMode = "drag" | "tap" | "display"
 
 /**
+ * The geometry every bucket container shares, regardless of mode. Keeping the
+ * padding / min-height / radius / border-width identical across drag, tap, and
+ * display means a bucket that flips from a drop target to a static cell (on a
+ * correct drop) never shifts the table; only the interactivity and border colour
+ * change. (RewireTarget brings `px-4 py-3 min-h-11`; tailwind-merge lets this
+ * win, so the drag bucket matches the others exactly.)
+ */
+const BUCKET_BOX =
+  "flex min-h-12 flex-1 items-center justify-start rounded-2xl border-2 px-4 py-2"
+
+/**
  * The bucket array. A vertical stack of `bucketCount` indexed buckets, each
  * holding its collision chain. Styled to the L2 `ArrayRow` indexed-strip tokens
  * (index ruler + bordered cell), but vertical and a *container* (which `ArrayRow`
@@ -24,11 +35,12 @@ export function HashTable({
   highlightBucket,
   newestBucket,
   correctTarget,
-  contacts,
   searchBucket,
   searchActiveIndex,
   foundIndex,
   appendingBucket,
+  appendEnterOffset,
+  reducedMotion,
   onTap,
   className,
 }: {
@@ -43,8 +55,6 @@ export function HashTable({
   newestBucket?: number
   /** DEV-only: the correct bucket target id, marked for the e2e tracer (tap mode). */
   correctTarget?: string
-  /** Label buckets as "slot" (contacts skin) instead of "bucket". */
-  contacts?: boolean
   /** The bucket a lookup trace walks (its chain gets active/found highlights). */
   searchBucket?: number
   /** The chain index the trace is currently checking, within `searchBucket`. */
@@ -53,11 +63,15 @@ export function HashTable({
   foundIndex?: number
   /** A bucket whose tail key should play the join (append) animation. */
   appendingBucket?: number
+  /** Where the appending tail flies in FROM (the demo drops it down from the box). */
+  appendEnterOffset?: { x?: number; y?: number }
+  /** Force reduced motion (else falls back to the user's OS preference). */
+  reducedMotion?: boolean
   onTap?: (bucketId: string) => void
   className?: string
 }) {
-  const reduced = useReducedMotion() ?? false
-  const noun = contacts ? "slot" : "bucket"
+  const prefersReduced = useReducedMotion()
+  const reduced = reducedMotion ?? prefersReduced ?? false
 
   return (
     <div
@@ -76,6 +90,7 @@ export function HashTable({
               activeIndex={isSearch ? searchActiveIndex : undefined}
               foundIndex={isSearch ? foundIndex : undefined}
               enterTail={appendingBucket === i}
+              enterOffset={appendingBucket === i ? appendEnterOffset : undefined}
               reducedMotion={reduced}
             />
           ) : (
@@ -89,11 +104,7 @@ export function HashTable({
             </span>
 
             {mode === "drag" ? (
-              <RewireTarget
-                id={targetId}
-                label={`${noun} ${i}`}
-                className="min-h-12 flex-1 justify-start"
-              >
+              <RewireTarget id={targetId} label={`bucket ${i}`} className={BUCKET_BOX}>
                 {inner}
               </RewireTarget>
             ) : mode === "tap" ? (
@@ -105,7 +116,8 @@ export function HashTable({
                 aria-pressed={selected === targetId}
                 onClick={() => onTap?.(targetId)}
                 className={cn(
-                  "flex min-h-12 flex-1 items-center justify-start rounded-2xl border-2 px-4 py-2 text-left outline-none transition-colors",
+                  BUCKET_BOX,
+                  "text-left outline-none transition-colors",
                   "focus-visible:ring-2 focus-visible:ring-lilac-strong/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                   selected === targetId
                     ? "border-lilac-strong bg-lilac-soft ring-4 ring-lilac-strong/15"
@@ -117,7 +129,7 @@ export function HashTable({
             ) : (
               <div
                 className={cn(
-                  "flex min-h-12 flex-1 items-center justify-start rounded-2xl border-2 px-4 py-2",
+                  BUCKET_BOX,
                   highlightBucket === i
                     ? "border-lilac-strong bg-lilac-soft"
                     : "border-border bg-card",

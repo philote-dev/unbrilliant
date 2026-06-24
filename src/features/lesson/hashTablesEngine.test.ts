@@ -271,6 +271,44 @@ describe("lookup bin (locate + cost)", () => {
   })
 })
 
+describe("real-world beat (cloakroom skin)", () => {
+  function atRealworld(): HashTablesState {
+    let s = createHashTables(SEED)
+    while (currentPartHash(s) !== "realworld") {
+      const part = currentPartHash(s)
+      s =
+        part === "demo" || part === "teach-hash" || part === "teach-collision"
+          ? next(s)
+          : clearBeat(s)
+    }
+    return s
+  }
+
+  it("wears the coatcheck skin but still hashes purely (bucket, answer, free cost)", () => {
+    const q = atRealworld().question!
+    expect(q.skin).toBe("coatcheck")
+    expect(q.mode).toBe("drag")
+    // The skin never touches the math: the hook is the pure bucket.
+    expect(q.bucket).toBe(bucketOf(q.key!))
+    expect(q.answer).toBe(bucketTargetId(q.bucket))
+    expect(q.cost?.word).toBe("free")
+  })
+
+  it("hanging the coat on its true hook clears the last lookup slot", () => {
+    const s = atRealworld()
+    const ok = place(s, s.question!.bucket)
+    expect(ok.feedback).toBe("correct")
+    expect(ok.lookupCorrect).toBe(BIN_QUOTA)
+  })
+
+  it("hanging it on the wrong hook does not clear (the skin doesn't grade)", () => {
+    const s = atRealworld()
+    const wrong = (s.question!.bucket + 1) % BUCKET_COUNT
+    const r = place(s, wrong)
+    expect(r.feedback).toBe("nudge")
+  })
+})
+
 describe("gate, completion, determinism, persistence", () => {
   it("clears all 12 beats to a 3/3/3 gate with combo 9", () => {
     const s = playToEnd()

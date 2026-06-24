@@ -33,7 +33,7 @@ export const HASH_PARTS = [
   "collide-pig", // 9  H3 pig → bucket 2 (bee→pig, squash)               Collision ✓
   "lookup-found", // 10 H4 find fox: free (1 jump) vs scales              Lookup    ✓
   "lookup-absent", // 11 H4 is bat here? absent in one jump (free)         Lookup    ✓
-  "realworld", // 12 H5 contacts: route a name to its slot               Lookup    ✓
+  "realworld", // 12 H5 cloakroom: hang a coat on its hook               Lookup    ✓
 ] as const
 export type HashPart = (typeof HASH_PARTS)[number]
 export const HASH_TOTAL_PARTS = HASH_PARTS.length
@@ -46,6 +46,12 @@ export const BIN_QUOTA = 3
 export type HashBin = "hash" | "collision" | "lookup"
 /** How the learner answers a beat. */
 export type HashMode = "intro" | "drag" | "tap" | "mcq"
+/**
+ * The figure dressing for a beat: the bare bucket array, or the cloakroom
+ * real-world skin (numbered hooks, hung coats). Purely presentational; the
+ * bucket math is identical for both.
+ */
+export type HashSkin = "abstract" | "coatcheck"
 
 export interface HashOption {
   id: string
@@ -75,8 +81,8 @@ export interface HashQuestion {
   answer: string
   /** H4 membership: is `key` present in its bucket's chain? */
   present: boolean
-  /** H5 contacts skin flag. */
-  contacts: boolean
+  /** The figure dressing: bare buckets, or the cloakroom (coat-check) skin. */
+  skin: HashSkin
   cost: HashCost | null
   /** The "scales" scan a plain list would run, shown paired against `free`. */
   scanCost: HashCost | null
@@ -264,7 +270,7 @@ function makeIntro(kind: "demo" | "teach-hash" | "teach-collision"): HashQuestio
     options: [],
     answer: "",
     present: false,
-    contacts: false,
+    skin: "abstract",
     cost: null,
     scanCost: null,
     hint: "",
@@ -297,7 +303,7 @@ function makeHash(part: "hash-cat" | "hash-cat-again" | "hash-dog"): HashQuestio
     options: [],
     answer: bucketTargetId(bucket),
     present: false,
-    contacts: false,
+    skin: "abstract",
     cost: null,
     scanCost: null,
     hint: again
@@ -345,7 +351,7 @@ function makeCollision(
       options: sh.result,
       answer: "append",
       present: false,
-      contacts: false,
+      skin: "abstract",
       cost: null,
       scanCost: null,
       hint: "A bucket doesn't overwrite. It keeps both, in a little chain.",
@@ -379,7 +385,7 @@ function makeLookup(part: "lookup-found" | "lookup-absent"): HashQuestion {
     options: [],
     answer: bucketTargetId(bucket),
     present: isPresent,
-    contacts: false,
+    skin: "abstract",
     cost: { word: "free", count: 1, unit: "jump to the bucket" },
     scanCost: {
       word: "scales",
@@ -397,7 +403,7 @@ function makeLookup(part: "lookup-found" | "lookup-absent"): HashQuestion {
   }
 }
 
-/** Real-world skin (contacts): route a name to its slot via the same rule. */
+/** Real-world skin (cloakroom): hang a coat on the hook the name hashes to. */
 function makeRealworld(): HashQuestion {
   const { key, table } = BEATS["realworld"]!
   const bucket = bucketOf(key)
@@ -405,7 +411,7 @@ function makeRealworld(): HashQuestion {
     kind: "realworld",
     bin: "lookup",
     mode: "drag",
-    prompt: `Add ${key} to the contacts. Drop the name in its slot.`,
+    prompt: `Hang ${key}'s coat on its hook.`,
     key,
     bucketCount: BUCKET_COUNT,
     sum: keySum(key),
@@ -414,13 +420,13 @@ function makeRealworld(): HashQuestion {
     options: [],
     answer: bucketTargetId(bucket),
     present: false,
-    contacts: true,
-    cost: { word: "free", count: 1, unit: "jump to the slot" },
+    skin: "coatcheck",
+    cost: { word: "free", count: 1, unit: "jump to the hook" },
     scanCost: null,
-    hint: `Contacts route a name the same way: sum the letters, mod ${BUCKET_COUNT}.`,
-    nudge: `Run the rule on ${key}; the remainder is the slot.`,
-    correct: `${keySum(key)} mod ${BUCKET_COUNT} = ${bucket}, ${key} files in slot ${bucket}, and looks up in one jump.`,
-    why: `A contacts app hashes the name to a slot, so adding and finding a contact are both one jump. No scanning the whole address book.`,
+    hint: `A cloakroom routes a coat the same way: sum the letters of ${key}, then mod ${BUCKET_COUNT}.`,
+    nudge: `Run the rule on ${key}; the remainder is the hook number.`,
+    correct: `${keySum(key)} mod ${BUCKET_COUNT} = ${bucket}: ${key}'s coat hangs on hook ${bucket}, fetched in one jump.`,
+    why: `A cloakroom hashes the name to a hook, so checking a coat in and fetching it are both one jump, never a walk down the whole rail.`,
   }
 }
 

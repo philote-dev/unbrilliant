@@ -8,6 +8,7 @@ import { FeedbackFooter } from "@/components/willow/FeedbackFooter"
 import { RewireSurface } from "@/components/rewire/RewireSurface"
 import type { LessonAction } from "@/features/lesson/engine"
 import {
+  bucketIndexOf,
   canCheckHash,
   chainAfter,
   currentPartHash,
@@ -23,6 +24,8 @@ import {
 } from "@/features/lesson/hashTablesEngine"
 import { HashBox } from "./HashBox"
 import { HashTable } from "./HashTable"
+import { HashFlight } from "./HashFlight"
+import { CoatCheckCounter } from "./CoatCheckCounter"
 
 /** The id of the draggable key tile on drag beats. */
 const KEY_SOURCE = "hash-key"
@@ -40,6 +43,8 @@ export function HashTablesStage({
   if (part === "demo" || part === "teach-hash" || part === "teach-collision") {
     return <IntroPart key={part} state={state} dispatch={dispatch} />
   }
+  // The real-world beat wears the cloakroom skin (its own drag figure).
+  if (part === "realworld") return <RealworldPart key={part} state={state} dispatch={dispatch} />
   if (isDragPart(part)) return <DragPart key={part} state={state} dispatch={dispatch} />
   if (isTapPart(part)) return <LocatePart key={part} state={state} dispatch={dispatch} />
   return <CollisionPart key={part} state={state} dispatch={dispatch} />
@@ -103,9 +108,11 @@ function IntroPart({
               </Button>
             )}
           </>
+        ) : q.kind === "demo" ? (
+          <HashFlight question={q} />
         ) : (
           <>
-            {q.key && <HashBox question={q} revealBucket={q.kind === "demo"} />}
+            {q.key && <HashBox question={q} />}
             <HashTable bucketCount={q.bucketCount} table={q.table} mode="display" />
           </>
         )}
@@ -177,7 +184,7 @@ function DragPart({
         <RewireSurface
           legalTargets={legalBuckets(state)}
           onRewire={(from, to) => dispatch({ type: "rewire", from, to })}
-          label={`Run the hash, then drag ${q.key} into its ${q.contacts ? "slot" : "bucket"}`}
+          label={`Run the hash, then drag ${q.key} into its bucket`}
           className="flex flex-col items-center gap-5"
         >
           <HashBox question={q} dragSourceId={KEY_SOURCE} />
@@ -188,7 +195,6 @@ function DragPart({
             highlightBucket={correct ? q.bucket : undefined}
             newestBucket={correct ? q.bucket : undefined}
             appendingBucket={correct ? q.bucket : undefined}
-            contacts={q.contacts}
           />
         </RewireSurface>
       </div>
@@ -198,6 +204,57 @@ function DragPart({
           <CostReadout word={q.cost.word} count={q.cost.count} unit={q.cost.unit} />
         </div>
       )}
+
+      <FeedbackFooter
+        feedback={feedback}
+        selected={null}
+        canCheck={canCheckHash(state)}
+        showWhy={showWhy}
+        hideFailHint
+        copy={feedbackCopy(q)}
+        dispatch={dispatch}
+      />
+    </div>
+  )
+}
+
+/* --------------------- real-world beat (cloakroom skin) -------------------- */
+
+function RealworldPart({
+  state,
+  dispatch,
+}: {
+  state: HashTablesState
+  dispatch: Dispatch<LessonAction>
+}) {
+  const q = state.question
+  if (!q || q.key == null) return null
+  const { feedback, showWhy } = state
+  const correct = feedback === "correct"
+  // The coat hangs on the hook the learner chose (placement), not the right one.
+  const placedBucket = state.placement != null ? bucketIndexOf(state.placement) : null
+
+  return (
+    <div className="flex flex-1 flex-col">
+      <BinHeader state={state} />
+
+      <div className="flex flex-1 flex-col justify-center py-5">
+        <RewireSurface
+          legalTargets={legalBuckets(state)}
+          onRewire={(from, to) => dispatch({ type: "rewire", from, to })}
+          label={`Hash ${q.key}, then hang the coat on its hook`}
+          className="flex flex-col items-center"
+        >
+          <CoatCheckCounter question={q} placedBucket={placedBucket} confirmed={correct} />
+        </RewireSurface>
+      </div>
+
+      {/* Reserve the cost row so the verdict's readout slots in without a jump. */}
+      <div className="mb-4 flex min-h-[96px] items-start justify-center">
+        {correct && q.cost && (
+          <CostReadout word={q.cost.word} count={q.cost.count} unit={q.cost.unit} />
+        )}
+      </div>
 
       <FeedbackFooter
         feedback={feedback}
@@ -297,18 +354,22 @@ function LocatePart({
         {correct && (
           <p className="text-center text-sm font-medium text-foreground">
             {q.present
-              ? `${q.key} is here. Bucket ${q.bucket}.`
-              : `${q.key} is not in bucket ${q.bucket}. Absent.`}
+              ? `${q.key} is here, in bucket ${q.bucket}.`
+              : `${q.key} is not in bucket ${q.bucket}: absent.`}
           </p>
         )}
       </div>
 
-      {correct && q.cost && (
-        <div className="mb-4 flex flex-wrap justify-center gap-2">
-          <LabeledCost label="Hash lookup" cost={q.cost} />
-          {q.scanCost && <LabeledCost label="List scan" cost={q.scanCost} />}
-        </div>
-      )}
+      {/* Reserve the cost row's height so the verdict's paired readouts slot in
+          without shoving the figure (free vs scales appear only once correct). */}
+      <div className="mb-4 flex min-h-[112px] flex-wrap items-start justify-center gap-2">
+        {correct && q.cost && (
+          <>
+            <LabeledCost label="Hash lookup" cost={q.cost} />
+            {q.scanCost && <LabeledCost label="List scan" cost={q.scanCost} />}
+          </>
+        )}
+      </div>
 
       <FeedbackFooter
         feedback={feedback}
