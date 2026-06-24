@@ -50,7 +50,9 @@ export interface ArrayResize {
 export interface ArraysQuestion {
   kind: ArraysPart
   prompt: string
-  array: string[] // the structure under consideration ([] for resize)
+  // The structure under consideration. For access/shift/cost it's the row of
+  // values; for resize it's the `size` filled cars of a `capacity`-sized block.
+  array: string[]
   highlight: number // index the op touches (-1 = none)
   options: ArraysOption[]
   answer: string // winning option id
@@ -121,12 +123,17 @@ function splice<T>(arr: T[], start: number, deleteCount: number, ...items: T[]):
 const join = (a: string[]) => a.join(" · ")
 const plural = (n: number) => (n === 1 ? "" : "s")
 
+/** Labels for `n` parked cars (A, B, C, …) so the resize block has a concrete,
+ * structured fill for the skin to render with no prompt-parsing required. */
+const fillCars = (n: number): string[] =>
+  Array.from({ length: n }, (_, i) => String.fromCharCode(65 + i))
+
 /* ------------------------------ question makers ------------------------------ */
 
 function makeAccess(): ArraysQuestion {
   return {
     kind: "access",
-    prompt: "Reading by index is direct. Tap any cell to read it.",
+    prompt: "Reading by index is direct. Tap any bay to read it.",
     array: LETTERS.slice(0, 5),
     highlight: -1,
     options: [],
@@ -311,7 +318,9 @@ function makeResize(seed: number): { question: ArraysQuestion; next: number } {
     question: {
       kind: "resize",
       prompt: `An array holds ${size} item${plural(size)} in a block sized for ${capacity}. Insert one more at the end. Does it trigger a resize?`,
-      array: [],
+      // The block is structured (size cars filling a capacity-sized lot) so the
+      // skin can render it directly without parsing the prompt.
+      array: fillCars(size),
       highlight: -1,
       options: sh.result,
       answer: resizes ? "yes" : "no",

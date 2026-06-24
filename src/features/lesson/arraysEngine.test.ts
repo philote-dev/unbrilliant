@@ -285,3 +285,27 @@ describe("Arrays — resize cost chip uses the locked house word", () => {
     expect(s.question!.cost.word).toBe("free")
   })
 })
+
+/* ----------------- resize block is structured for the skin ----------------- */
+
+describe("Arrays — resize question carries a structured capacity/size block", () => {
+  it("a triggered resize fills the block to capacity (size === capacity)", () => {
+    const q = atResizeAnswer("yes").question!
+    expect(q.resize).toBeDefined()
+    expect(q.resize!.resizes).toBe(true)
+    expect(q.resize!.size).toBe(q.resize!.capacity)
+    // the array is filled to `size` (concrete cars), not left empty for the skin.
+    expect(q.array).toHaveLength(q.resize!.size)
+    expect(q.array.length).toBeGreaterThan(0)
+    expect(q.cost.count).toBe(q.resize!.size) // copied items == the full block
+  })
+
+  it("a room-left insert leaves headroom (size < capacity) and fills to size", () => {
+    const q = atResizeAnswer("no").question!
+    expect(q.resize).toBeDefined()
+    expect(q.resize!.resizes).toBe(false)
+    expect(q.resize!.size).toBeLessThan(q.resize!.capacity)
+    expect(q.array).toHaveLength(q.resize!.size)
+    expect(q.cost.word).toBe("free")
+  })
+})

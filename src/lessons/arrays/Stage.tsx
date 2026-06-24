@@ -1,27 +1,27 @@
-import { useMemo, type Dispatch } from "react"
+import { type Dispatch } from "react"
 import { Shuffle } from "lucide-react"
-import { motion, useReducedMotion } from "motion/react"
 
-import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { AnswerCard, type AnswerState } from "@/components/willow/AnswerCard"
 import { CostReadout } from "@/components/willow/CostReadout"
 import { FeedbackFooter } from "@/components/willow/FeedbackFooter"
-import { StepTransport } from "@/components/willow/StepTransport"
-import { useStepPlayer } from "@/components/willow/useStepPlayer"
 import type { LessonAction } from "@/features/lesson/engine"
 import {
   currentPartArrays,
   isTerminalA,
   partQuotaArrays,
-  resizeFrames,
-  shiftFrames,
-  type ArrayOp,
-  type ArrayResize,
   type ArraysState,
 } from "@/features/lesson/arraysEngine"
-import { ArrayRow } from "./ArrayRow"
+import { ParkingLot, type ParkingScene } from "./ParkingLot"
 
+/**
+ * The Arrays stage, skinned end-to-end as a vivid parking lot: the bay number is
+ * the index, a parked car is the value, and the cost of an op is felt as cars
+ * rolling between bays (the ParkingLot owns that choreography). The lot is the
+ * live structure across all four beats; the verdict UX still flows through the
+ * shared AnswerCard / FeedbackFooter / CostReadout, and the cost chip is rendered
+ * from the engine's `q.cost` verbatim so the locked house words never drift.
+ */
 export function ArraysStage({
   state,
   dispatch,
@@ -56,24 +56,31 @@ function AccessPart({
         <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground">
           {q.prompt}
         </p>
+        <p className="mx-auto mt-1 max-w-xs text-xs text-faint">
+          Each bay is an index; the car parked in it is the value.
+        </p>
       </div>
 
       <div className="flex flex-1 flex-col items-center justify-center gap-5 py-6">
-        <ArrayRow
-          cells={q.array}
-          highlight={accessed ?? -1}
-          onTap={(i) => dispatch({ type: "select", letter: String(i) })}
+        <ParkingLot
+          scene={{
+            kind: "access",
+            cars: q.array,
+            pinned: accessed,
+            onPark: (i) => dispatch({ type: "select", letter: String(i) }),
+            cost: q.cost,
+          }}
         />
         {accessed != null && (
-          <CostReadout word="free" count={1} unit="step" />
+          <CostReadout word={q.cost.word} count={q.cost.count} unit={q.cost.unit} />
         )}
       </div>
 
       <div className="mt-auto">
         {accessed != null && (
           <p className="mb-3 text-center text-sm text-muted-foreground">
-            Index {accessed} → {q.array[accessed]}. A direct hit: one step, no
-            matter how big the array grows.
+            Bay {accessed} holds {q.array[accessed]}. A direct hit: pull straight
+            in, no matter how big the lot grows.
           </p>
         )}
         <Button
@@ -97,13 +104,12 @@ function PredictPart({
   dispatch: Dispatch<LessonAction>
 }) {
   const q = state.question
-  const reduced = useReducedMotion() ?? false
   if (!q) return null
   const { feedback, selected, showWhy } = state
   const quota = partQuotaArrays(state)
   const terminal = isTerminalA(state)
-  // The op/cost replay reveals the resulting arrangement, so it mounts only AFTER
-  // the verdict: on a correct answer, or on a fail once the learner taps Why.
+  // The lot's wave reveals the resulting arrangement, so it fires only AFTER the
+  // verdict: on a correct answer, or on a fail once the learner taps Why.
   const reveal = feedback === "correct" || (feedback === "fail" && showWhy)
 
   const cardState = (id: string): AnswerState => {
@@ -118,6 +124,12 @@ function PredictPart({
     }
     return id === selected ? "selected" : "default"
   }
+
+  const scene: ParkingScene | null = q.resize
+    ? { kind: "resize", cars: q.array, resize: q.resize, reveal, cost: q.cost }
+    : q.op
+      ? { kind: "shift", cars: q.array, op: q.op, reveal, cost: q.cost }
+      : null
 
   return (
     <div className="flex flex-1 flex-col">
@@ -146,15 +158,11 @@ function PredictPart({
         )}
       </div>
 
-      <div className="mt-5 flex min-h-[72px] justify-center">
-        {reveal && q.op ? (
-          <ShiftWavePlayer array={q.array} op={q.op} reduced={reduced} />
-        ) : reveal && q.resize ? (
-          <ResizeViz resize={q.resize} reduced={reduced} />
-        ) : q.array.length > 0 ? (
-          <ArrayRow cells={q.array} highlight={q.highlight} />
-        ) : null}
-      </div>
+      {scene && (
+        <div className="mt-6 flex justify-center">
+          <ParkingLot scene={scene} />
+        </div>
+      )}
 
       <div className="flex flex-1 flex-col justify-center gap-3 py-6">
         {q.options.map((opt, i) => (
@@ -194,131 +202,5 @@ function PredictPart({
         dispatch={dispatch}
       />
     </div>
-  )
-}
-
-/* ------------------------------ post-verdict viz ----------------------------- */
-
-/** Shared opt-in transport wiring so the wave and the resize viz behave alike. */
-function PlaybackTransport({
-  player,
-  caption,
-  label,
-}: {
-  player: ReturnType<typeof useStepPlayer>
-  caption: string
-  label: string
-}) {
-  return (
-    <StepTransport
-      index={player.index}
-      total={player.total}
-      playing={player.playing}
-      onPlayToggle={player.toggle}
-      onPrev={player.prev}
-      onNext={player.next}
-      onReplay={player.replay}
-      onFirst={player.first}
-      onLast={player.last}
-      onScrub={player.goTo}
-      speed={player.speed}
-      onSpeedChange={player.setSpeed}
-      keyboard
-      liveLabel={caption}
-      label={label}
-    />
-  )
-}
-
-/**
- * The mid-insert/delete wave-of-shifts replay: a play/step/scrub walk over the
- * pure `shiftFrames`. View-state only (a frame index), mounted post-verdict, so
- * it never leaks or skips the graded answer. Reduced motion starts on the snapped
- * end-state.
- */
-function ShiftWavePlayer({
-  array,
-  op,
-  reduced,
-}: {
-  array: string[]
-  op: ArrayOp
-  reduced: boolean
-}) {
-  const frames = useMemo(() => shiftFrames(array, op), [array, op])
-  const player = useStepPlayer(frames.length, { reduced, autoPlay: true })
-  const frame = frames[Math.min(player.index, frames.length - 1)]
-  return (
-    <div className="flex flex-col items-center gap-3">
-      <ArrayRow frame={frame} opIndex={op.index} reduced={reduced} />
-      <p className="min-h-8 max-w-xs text-center text-xs text-muted-foreground">
-        {frame.caption}
-      </p>
-      <PlaybackTransport player={player} caption={frame.caption} label="Shift playback" />
-    </div>
-  )
-}
-
-/**
- * The dynamic-array doubling visualization: when the block is full, allocate a
- * block twice the size and copy everything over (the occasional big reshuffle),
- * then drop the new item in. Same view-only step player as the wave.
- */
-function ResizeViz({
-  resize,
-  reduced,
-}: {
-  resize: ArrayResize
-  reduced: boolean
-}) {
-  const frames = useMemo(() => resizeFrames(resize), [resize])
-  const player = useStepPlayer(frames.length, { reduced, autoPlay: true })
-  const frame = frames[Math.min(player.index, frames.length - 1)]
-  return (
-    <div className="flex flex-col items-center gap-3">
-      <ResizeBlock frame={frame} reduced={reduced} />
-      <p className="min-h-8 max-w-xs text-center text-xs text-muted-foreground">
-        {frame.caption}
-      </p>
-      <PlaybackTransport player={player} caption={frame.caption} label="Resize playback" />
-    </div>
-  )
-}
-
-function ResizeBlock({
-  frame,
-  reduced,
-}: {
-  frame: ReturnType<typeof resizeFrames>[number]
-  reduced: boolean
-}) {
-  return (
-    <motion.div
-      layout={!reduced}
-      data-testid="resize-block"
-      data-capacity={frame.capacity}
-      data-filled={frame.filled}
-      className="flex max-w-[18rem] flex-wrap justify-center gap-1.5"
-    >
-      {Array.from({ length: frame.capacity }).map((_, i) => {
-        const filled = i < frame.filled
-        const copying = frame.copying === i
-        return (
-          <div
-            key={i}
-            className={cn(
-              "flex h-9 w-6 items-center justify-center rounded-md border-2 text-[10px] font-bold transition-colors",
-              copying
-                ? "border-lilac-strong bg-lilac-soft text-lilac-strong"
-                : filled
-                  ? "border-border bg-card text-foreground"
-                  : "border-dashed border-border/60 text-faint",
-            )}
-          >
-            {filled ? "•" : ""}
-          </div>
-        )
-      })}
-    </motion.div>
   )
 }

@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from "motion/react"
+import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 
 import { cn } from "@/lib/utils"
 import type { ShiftFrame } from "@/features/lesson/arraysEngine"
@@ -40,44 +40,60 @@ export function ArrayRow({
   /** Snap (no animation) for prefers-reduced-motion. */
   reduced?: boolean
 }) {
+  // Honor the prop when given, else fall back to the OS setting. The hook runs
+  // before any branch so the rules of hooks hold for the frame early-return.
+  const prefersReduced = useReducedMotion()
+  const isReduced = reduced || (prefersReduced ?? false)
+
   if (frame) {
-    return <ShiftWaveRow frame={frame} opIndex={opIndex} reduced={reduced} className={className} />
+    return <ShiftWaveRow frame={frame} opIndex={opIndex} reduced={isReduced} className={className} />
   }
 
   return (
     <div className={cn("flex gap-1.5", className)}>
-      {(cells ?? []).map((c, i) => (
-        <div key={`${i}-${c}`} className="flex flex-col items-center gap-1">
-          <motion.button
-            type="button"
-            layout
-            disabled={!onTap}
-            onClick={() => onTap?.(i)}
-            initial={{ opacity: 0, y: -8 }}
+      {/* Cells are keyed by stable value identity (not index) so an insert/delete
+          slides the SAME box between slots instead of remounting it; exits fade
+          out through AnimatePresence. Reduced motion snaps straight to rest. */}
+      <AnimatePresence initial={false}>
+        {(cells ?? []).map((c, i) => (
+          <motion.div
+            key={c}
+            layout={!isReduced}
+            className="flex flex-col items-center gap-1"
+            initial={isReduced ? false : { opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ type: "spring", stiffness: 360, damping: 26 }}
-            className={cn(
-              "flex h-12 w-10 items-center justify-center rounded-lg border-2 font-bold text-foreground transition-colors",
-              i === highlight
-                ? "border-lilac-strong bg-lilac-soft"
-                : "border-border bg-card",
-              onTap ? "cursor-pointer" : "cursor-default",
-            )}
+            exit={isReduced ? { opacity: 0, transition: { duration: 0 } } : { opacity: 0, scale: 0.6 }}
+            transition={isReduced ? { duration: 0 } : { type: "spring", stiffness: 360, damping: 26 }}
           >
-            {c}
-          </motion.button>
-          <span
-            className={cn(
-              "text-[10px]",
-              i === highlight
-                ? "font-semibold text-lilac-strong"
-                : "text-faint",
-            )}
-          >
-            {i}
-          </span>
-        </div>
-      ))}
+            <button
+              type="button"
+              disabled={!onTap}
+              onClick={() => onTap?.(i)}
+              aria-label={onTap ? `Index ${i}, value ${c}` : undefined}
+              className={cn(
+                "flex h-12 min-w-11 items-center justify-center rounded-lg border-2 px-1 font-bold text-foreground outline-none transition-colors",
+                "focus-visible:ring-2 focus-visible:ring-lilac-strong/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                i === highlight
+                  ? "border-lilac-strong bg-lilac-soft"
+                  : "border-border bg-card",
+                onTap ? "cursor-pointer" : "cursor-default",
+              )}
+            >
+              {c}
+            </button>
+            <span
+              className={cn(
+                "text-[10px]",
+                i === highlight
+                  ? "font-semibold text-lilac-strong"
+                  : "text-faint",
+              )}
+            >
+              {i}
+            </span>
+          </motion.div>
+        ))}
+      </AnimatePresence>
     </div>
   )
 }
