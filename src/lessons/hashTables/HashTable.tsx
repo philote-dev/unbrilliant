@@ -1,3 +1,5 @@
+import { useReducedMotion } from "motion/react"
+
 import { cn } from "@/lib/utils"
 import { RewireTarget } from "@/components/rewire/RewireTarget"
 import { bucketTargetId } from "@/features/lesson/hashTablesEngine"
@@ -23,6 +25,10 @@ export function HashTable({
   newestBucket,
   correctTarget,
   contacts,
+  searchBucket,
+  searchActiveIndex,
+  foundIndex,
+  appendingBucket,
   onTap,
   className,
 }: {
@@ -39,19 +45,39 @@ export function HashTable({
   correctTarget?: string
   /** Label buckets as "slot" (contacts skin) instead of "bucket". */
   contacts?: boolean
+  /** The bucket a lookup trace walks (its chain gets active/found highlights). */
+  searchBucket?: number
+  /** The chain index the trace is currently checking, within `searchBucket`. */
+  searchActiveIndex?: number
+  /** The matched chain index on a hit, within `searchBucket`. */
+  foundIndex?: number
+  /** A bucket whose tail key should play the join (append) animation. */
+  appendingBucket?: number
   onTap?: (bucketId: string) => void
   className?: string
 }) {
+  const reduced = useReducedMotion() ?? false
   const noun = contacts ? "slot" : "bucket"
 
   return (
-    <div className={cn("flex w-full max-w-[260px] flex-col gap-1.5", className)}>
+    <div
+      data-reduced-motion={reduced ? "1" : undefined}
+      className={cn("flex w-full max-w-[260px] flex-col gap-1.5", className)}
+    >
       {Array.from({ length: bucketCount }).map((_, i) => {
         const chain = table[i] ?? []
         const targetId = bucketTargetId(i)
+        const isSearch = searchBucket === i
         const inner =
           chain.length > 0 ? (
-            <BucketChain chain={chain} highlightLast={newestBucket === i} />
+            <BucketChain
+              chain={chain}
+              highlightLast={newestBucket === i}
+              activeIndex={isSearch ? searchActiveIndex : undefined}
+              foundIndex={isSearch ? foundIndex : undefined}
+              enterTail={appendingBucket === i}
+              reducedMotion={reduced}
+            />
           ) : (
             <span className="text-xs text-faint">empty</span>
           )

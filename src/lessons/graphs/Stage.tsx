@@ -140,6 +140,9 @@ function DemoPart({ state, dispatch }: PartProps) {
 
 function TeachPart({ state, dispatch }: PartProps) {
   const q = state.question
+  // Default ON: hide the picture so the list carries the weight (the lesson's
+  // whole point). Purely visual: no dispatch, teach beat only.
+  const [hidePicture, setHidePicture] = useState(true)
   if (!q) return null
   return (
     <div className="flex flex-1 flex-col">
@@ -148,8 +151,23 @@ function TeachPart({ state, dispatch }: PartProps) {
       </div>
 
       <div className="flex flex-1 flex-col items-center justify-center gap-5 py-5">
-        <GraphCanvas mode="display" nodes={q.nodes} adj={q.adj} layout={q.layout} />
+        {!hidePicture && (
+          <GraphCanvas mode="display" nodes={q.nodes} adj={q.adj} layout={q.layout} />
+        )}
         <AdjacencyPanel nodes={q.nodes} adj={q.adj} />
+        <Button
+          variant="soft"
+          size="sm"
+          aria-pressed={hidePicture}
+          onClick={() => setHidePicture((v) => !v)}
+        >
+          {hidePicture ? "Show the picture" : "Hide the picture"}
+        </Button>
+        {hidePicture && (
+          <p className="text-center text-sm font-medium text-foreground">
+            Everything the questions need is right here.
+          </p>
+        )}
         <div className="mx-auto max-w-xs space-y-3 text-sm text-muted-foreground">
           <p>
             The <span className="font-semibold text-foreground">adjacency list is the data</span>; the
@@ -494,9 +512,10 @@ function DrawPart({ state, dispatch }: PartProps) {
 
 function RedrawDemoPart({ state, dispatch }: PartProps) {
   const q = state.question
-  const [alt, setAlt] = useState(false)
+  // Both layouts at once over the SAME data; "Show the data" reveals each
+  // picture's (identical) adjacency to make "the data doesn't move" concrete.
+  const [showData, setShowData] = useState(false)
   if (!q) return null
-  const layout = alt && q.layoutB ? q.layoutB : q.layout
 
   return (
     <div className="flex flex-1 flex-col">
@@ -506,11 +525,20 @@ function RedrawDemoPart({ state, dispatch }: PartProps) {
       </div>
 
       <div className="flex flex-1 flex-col items-center justify-center gap-3 py-3">
-        <GraphCanvas mode="display" nodes={q.nodes} adj={q.adj} layout={layout} />
-        <Button variant="soft" size="sm" onClick={() => setAlt((a) => !a)}>
-          Rearrange the picture
+        <SameGraphView
+          before={{ nodes: q.nodes, adj: q.adj, layout: q.layout }}
+          after={{ nodes: q.nodes, adj: q.adj, layout: q.layoutB ?? q.layout }}
+          showData={showData}
+        />
+        <Button
+          variant="soft"
+          size="sm"
+          aria-pressed={showData}
+          onClick={() => setShowData((v) => !v)}
+        >
+          {showData ? "Hide the data" : "Show the data"}
         </Button>
-        <AdjacencyPanel nodes={q.nodes} adj={q.adj} />
+        {!showData && <AdjacencyPanel nodes={q.nodes} adj={q.adj} />}
       </div>
 
       <div className="mt-auto">

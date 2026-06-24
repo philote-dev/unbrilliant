@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState, type Dispatch } from "react"
-import { ArrowRight, Printer, Undo2 } from "lucide-react"
+import { useEffect, useRef, useState, type Dispatch, type ReactNode } from "react"
+import { ArrowRight } from "lucide-react"
 import { motion, useReducedMotion, type PanInfo } from "motion/react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { AnswerCard, type AnswerState } from "@/components/willow/AnswerCard"
 import { FeedbackFooter } from "@/components/willow/FeedbackFooter"
+import { StepTransport } from "@/components/willow/StepTransport"
 import type { LessonAction } from "@/features/lesson/engine"
 import {
   constructReady,
@@ -13,6 +14,7 @@ import {
   isTerminal,
   legalTargets,
   partQuota,
+  targetEmitStep,
   type Cell,
   type ClassifyQuestion,
   type ConstructQuestion,
@@ -23,6 +25,9 @@ import {
 } from "@/features/lesson/stacksQueuesEngine"
 import { StackBin } from "./StackBin"
 import { QueueTube } from "./QueueTube"
+import { ContrastReplay } from "./ContrastReplay"
+import { BrowserShowpiece } from "./BrowserShowpiece"
+import { PrinterShowpiece } from "./PrinterShowpiece"
 
 export function StacksQueuesStage({
   state,
@@ -167,7 +172,7 @@ function DemoPart({
         </h2>
         <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground">
           {isStack
-            ? "Push cards on, pop them off. They go in and out the same end — the top."
+            ? "Push cards on, pop them off. They go in and out the same end, the top."
             : "Add at the back, remove from the front. The oldest one always leaves first."}
         </p>
       </div>
@@ -239,12 +244,12 @@ function TeachPart({
           {isStack ? (
             <>
               <span className="font-semibold text-foreground">Last in, first out.</span>{" "}
-              One opening — cards go in and come out the same end, the top.
+              One opening: cards go in and come out the same end, the top.
             </>
           ) : (
             <>
               <span className="font-semibold text-foreground">First in, first out.</span>{" "}
-              Two ends — items enter the back and leave from the front.
+              Two ends: items enter the back and leave from the front.
             </>
           )}
         </p>
@@ -272,12 +277,6 @@ function TeachPart({
 
 /* ------------------------------- predict beats ------------------------------ */
 
-const THEME_HEADER: Record<PredictQuestion["theme"], { icon: typeof Printer; label: string } | null> = {
-  letters: null,
-  undo: { icon: Undo2, label: "Text editor" },
-  printer: { icon: Printer, label: "Print queue" },
-}
-
 function PredictPart({
   state,
   dispatch,
@@ -288,7 +287,50 @@ function PredictPart({
   const q = state.question as PredictQuestion
   const { feedback, selected, showWhy } = state
   const terminal = isTerminal(state)
-  const header = THEME_HEADER[q.theme]
+  const reduce = !!useReducedMotion()
+  const revealing = feedback === "correct" || (feedback === "fail" && showWhy)
+
+  const isAfterK = q.ask.kind === "after-k"
+  const k = q.ask.kind === "after-k" ? q.ask.k : 0
+
+  // First-out themes build in over arrival order; after-k drives its own preview.
+  const built = useBuildIn(q.arrival)
+  const ready = built >= q.arrival.length
+  const visible = new Set(q.arrival.slice(0, built))
+  const builtCells = q.cells.filter((c) => visible.has(c.id))
+
+  // after-k: a LOCAL pop-preview scrubbed via the shared StepTransport (the
+  // engine is untouched). While answering, the scrub caps at k-1 so the learner
+  // predicts the k-th; on reveal it replays all k pops (snapping if reduced).
+  const [previewStep, setPreviewStep] = useState(0)
+  const [playing, setPlaying] = useState(false)
+
+  useEffect(() => {
+    if (!isAfterK || !revealing) return
+    if (reduce) {
+      setPlaying(false)
+      setPreviewStep(k)
+      return
+    }
+    setPreviewStep(0)
+    let step = 0
+    const id = setInterval(() => {
+      step += 1
+      setPreviewStep(step)
+      if (step >= k) clearInterval(id)
+    }, 560)
+    return () => clearInterval(id)
+  }, [isAfterK, revealing, reduce, k])
+
+  useEffect(() => {
+    if (!isAfterK || !playing || revealing) return
+    if (previewStep >= k - 1) {
+      setPlaying(false)
+      return
+    }
+    const id = setTimeout(() => setPreviewStep((p) => Math.min(k - 1, p + 1)), 620)
+    return () => clearTimeout(id)
+  }, [isAfterK, playing, revealing, previewStep, k])
 
   const cellState = (id: string): AnswerState => {
     if (feedback === "correct") return id === q.answer ? "correct" : "default"
@@ -301,39 +343,94 @@ function PredictPart({
     return id === selected ? "selected" : "default"
   }
 
-  // The Why-replay: the leaving card animates out the exit (pop / dequeue).
-  const leavingId =
-    feedback === "correct" || (feedback === "fail" && showWhy) ? q.answer : undefined
+  const onSelectCell = (id: string) => dispatch({ type: "select", letter: id })
+  // The Why-replay for first-out asks: the leaving card animates out the exit.
+  const leavingId = revealing ? q.answer : undefined
+
+  let figure: ReactNode
+  if (isAfterK) {
+    // Pops removed so far: capped at k-1 while answering, the full k on reveal.
+    const popped = revealing ? Math.min(previewStep, k) : Math.min(previewStep, k - 1)
+    figure = (
+      <div className="flex flex-col items-center gap-5">
+        <Container
+          discipline={q.discipline}
+          cells={q.cells.slice(popped)}
+          selectable={!terminal}
+          cellState={cellState}
+          onSelectCell={onSelectCell}
+          answerId={q.answer}
+        />
+        {!terminal && (
+          <StepTransport
+            index={Math.min(previewStep, k - 1)}
+            total={k}
+            playing={playing}
+            onPlayToggle={() => setPlaying((p) => !p)}
+            onPrev={() => {
+              setPlaying(false)
+              setPreviewStep((p) => Math.max(0, p - 1))
+            }}
+            onNext={() => {
+              setPlaying(false)
+              setPreviewStep((p) => Math.min(k - 1, p + 1))
+            }}
+            onReplay={() => {
+              setPlaying(false)
+              setPreviewStep(0)
+            }}
+          />
+        )}
+      </div>
+    )
+  } else if (q.theme === "browser") {
+    figure = (
+      <BrowserShowpiece
+        cells={builtCells}
+        selectable={!terminal && ready}
+        cellState={cellState}
+        onSelectCell={onSelectCell}
+        answerId={q.answer}
+        leavingId={leavingId}
+        reducedMotion={reduce}
+      />
+    )
+  } else if (q.theme === "printer") {
+    figure = (
+      <PrinterShowpiece
+        cells={builtCells}
+        selectable={!terminal && ready}
+        cellState={cellState}
+        onSelectCell={onSelectCell}
+        answerId={q.answer}
+        leavingId={leavingId}
+        reducedMotion={reduce}
+      />
+    )
+  } else {
+    figure = (
+      <Container
+        discipline={q.discipline}
+        cells={builtCells}
+        selectable={!terminal && ready}
+        cellState={cellState}
+        onSelectCell={onSelectCell}
+        answerId={q.answer}
+        leavingId={leavingId}
+      />
+    )
+  }
 
   return (
     <div className="flex flex-1 flex-col">
       <div className="mt-7">
         <QuotaLine state={state} />
-        {header && (
-          <div className="mt-2 flex justify-center">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-lilac-soft px-3 py-1 text-xs font-semibold text-lilac-strong">
-              <header.icon className="size-3.5" strokeWidth={2.5} />
-              {header.label}
-            </span>
-          </div>
-        )}
         <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground">
           {q.prompt}
         </h2>
       </div>
 
-      <div className="flex flex-1 items-center justify-center py-6">
-        <BuildingContainer
-          discipline={q.discipline}
-          cells={q.cells}
-          arrival={q.arrival}
-          selectable={!terminal}
-          cellState={cellState}
-          onSelectCell={(id) => dispatch({ type: "select", letter: id })}
-          answerId={q.answer}
-          leavingId={leavingId}
-        />
-      </div>
+      <div className="flex flex-1 items-center justify-center py-6">{figure}</div>
 
       <FeedbackFooter
         feedback={feedback}
@@ -370,7 +467,7 @@ function viewportPoint(
 /**
  * A loose card the learner drags into the structure. It physically follows the
  * pointer (`drag`); on release it either lands (dropped over the glowing bin →
- * push) or returns home — a soft glide-back (`glide`) or a pop-out-and-respawn
+ * push) or returns home: a soft glide-back (`glide`) or a pop-out-and-respawn
  * (`fade`). A plain tap / Enter pushes it too: one action for keyboard, touch,
  * and reduced-motion, never a two-step "pick then place".
  */
@@ -431,7 +528,7 @@ function DraggableCard({
           onActive(false, false)
           if (hit) onPush()
           else if (missMode === "fade") setFading(true)
-          // glide: dragSnapToOrigin animates it home — nothing to do.
+          // glide: dragSnapToOrigin animates it home, nothing to do.
         }}
         onAnimationComplete={() => {
           if (fading) {
@@ -533,7 +630,7 @@ function ConstructPart({
           {q.prompt}
         </h2>
         <div className="mt-3 flex items-center justify-center gap-1.5">
-          <span className="text-xs font-medium text-muted-foreground">Goal — leaves as</span>
+          <span className="text-xs font-medium text-muted-foreground">Goal: leaves as</span>
           {q.target.map((c, i) => (
             <span key={c.id} className="flex items-center gap-1.5">
               <span className="flex size-7 items-center justify-center rounded-md border border-border bg-card text-xs font-bold text-foreground">
@@ -618,6 +715,8 @@ function ComparePart({
   const q = state.question as ClassifyQuestion | ContrastQuestion
   const { feedback, selected, showWhy } = state
   const terminal = isTerminal(state)
+  const reduce = !!useReducedMotion()
+  const revealing = feedback === "correct" || (feedback === "fail" && showWhy)
 
   const cardState = (id: string): AnswerState => {
     if (feedback === "correct") return id === q.answer ? "correct" : "default"
@@ -647,7 +746,14 @@ function ComparePart({
             <ChipRow label="Out" cells={q.outOrder} />
           </div>
         ) : (
-          <ChipRow label="In" cells={q.arrival} />
+          <ContrastReplay
+            arrival={q.arrival}
+            target={q.target}
+            winner={q.answer as Discipline}
+            replay={revealing}
+            reducedMotion={reduce}
+            srLabel={revealing ? contrastSrLabel(q) : undefined}
+          />
         )}
       </div>
 
@@ -693,4 +799,19 @@ function ChipRow({ label, cells }: { label: string; cells: string[] }) {
       </div>
     </div>
   )
+}
+
+function nth(n: number): string {
+  const tens = n % 100
+  if (tens >= 11 && tens <= 13) return `${n}th`
+  const ones = n % 10
+  return `${n}${ones === 1 ? "st" : ones === 2 ? "nd" : ones === 3 ? "rd" : "th"}`
+}
+
+/** The SR-only verdict for the contrast replay (the badge shows icon + text). */
+function contrastSrLabel(q: ContrastQuestion): string {
+  const stackStep = targetEmitStep(q.arrival, q.target, "stack")
+  const queueStep = targetEmitStep(q.arrival, q.target, "queue")
+  const winnerLabel = q.answer === "stack" ? "Stack" : "Queue"
+  return `${winnerLabel} hands you ${q.target} first: ${nth(stackStep)} vs ${nth(queueStep)}.`
 }

@@ -12,6 +12,7 @@ import {
   applySwaps,
   binQuotaHeaps,
   currentPartHeaps,
+  extractIntroFrame,
   isTerminalHeaps,
   leftIndex,
   partQuotaHeaps,
@@ -23,6 +24,7 @@ import {
   type HeapCost,
   type HeapsQuestion,
   type HeapsState,
+  type SwapStep,
 } from "@/features/lesson/heapsEngine"
 import { HeapDualView, type SlotTone } from "./HeapDualView"
 
@@ -108,69 +110,131 @@ function givenSentence(q: HeapsQuestion): string {
   return base
 }
 
-function siftSentence(q: HeapsQuestion): string {
-  if (!q.path.length) return givenSentence(q)
-  const moves = q.path.map((p) => `slots ${p.a} and ${p.b} swap`).join(", then ")
-  return `${q.path.length} swap${q.path.length === 1 ? "" : "s"}: ${moves}. Final arrangement ${q.resultHeap.join(
+/* ------------------------------- step replay ------------------------------- */
+
+/**
+ * The minimal data a synced replay needs, decoupled from the full question so the
+ * same stepper drives a graded reveal, the teach-extract beat, AND the free-play
+ * demo (each insert).
+ */
+interface ReplaySpec {
+  startHeap: number[]
+  path: SwapStep[]
+  resultHeap: number[]
+  insertKey?: number | null
+  extracted?: number | null
+}
+
+/** An optional "before" frame shown ahead of the sift (the extract setup). */
+interface IntroFrame {
+  heap: number[]
+  highlightSlots: number[]
+  caption: string
+}
+
+function siftSentence(spec: ReplaySpec): string {
+  if (!spec.path.length) {
+    const landing = spec.resultHeap.join(", ")
+    return spec.insertKey != null
+      ? `Insert ${spec.insertKey}: it lands with no swap. Final arrangement ${landing}.`
+      : `Final arrangement ${landing}.`
+  }
+  const moves = spec.path.map((p) => `slots ${p.a} and ${p.b} swap`).join(", then ")
+  return `${spec.path.length} swap${spec.path.length === 1 ? "" : "s"}: ${moves}. Final arrangement ${spec.resultHeap.join(
     ", ",
   )}.`
 }
 
-/* ------------------------------- step replay ------------------------------- */
+/** Build the replay spec (and, for extract beats, the prepended intro) from a question. */
+function replayOf(q: HeapsQuestion): { spec: ReplaySpec; intro?: IntroFrame } {
+  const spec: ReplaySpec = {
+    startHeap: q.startHeap,
+    path: q.path,
+    resultHeap: q.resultHeap,
+    insertKey: q.insertKey,
+    extracted: q.extracted,
+  }
+  if (q.extracted == null) return { spec }
+  const frame = extractIntroFrame(q.heap)
+  const caption = `Take the top out (${q.heap[frame.leavingSlot]}). To keep the array packed with no gaps, the last item (${q.heap[frame.fillerSlot]}) moves up to fill the root, then it sinks.`
+  return {
+    spec,
+    intro: { heap: frame.heap, highlightSlots: [frame.leavingSlot, frame.fillerSlot], caption },
+  }
+}
 
 /**
- * The de-cued why-replay: a local Prev/Next/Replay stepper over the engine's
- * precomputed `path`. The step index is transient UI state — it never touches the
- * verdict. Reduced motion snaps to the end-state (no lift) but still lets the
- * learner walk the swaps.
+ * The synced why-replay: a local Back/Next/Replay stepper over the engine's
+ * precomputed `path`, driving the dual tree+array view so both panels move
+ * together. For extract beats an `intro` frame is PREPENDED (the top leaving + the
+ * last item rising to fill it) before the sift-down begins. The step index is
+ * transient UI state and never touches the verdict. No timers (manual stepper).
+ * Reduced motion snaps to the end-state (no lift) but still lets the learner walk.
  */
-function StepReplay({ q, reduced }: { q: HeapsQuestion; reduced: boolean }) {
-  const total = q.path.length
-  const [idx, setIdx] = useState(reduced ? total : 0)
-  const heap = applySwaps(q.startHeap, q.path, idx)
-  const pair = idx > 0 ? q.path[idx - 1] : null
-  const startSlot = q.insertKey != null ? q.startHeap.length - 1 : 0
-  const highlight = pair ? [pair.a, pair.b] : [startSlot]
+function StepReplay({
+  spec,
+  intro,
+  reduced,
+}: {
+  spec: ReplaySpec
+  intro?: IntroFrame
+  reduced: boolean
+}) {
+  const swaps = spec.path.length
+  const introCount = intro ? 1 : 0
+  const lastIdx = introCount + swaps
+  const [idx, setIdx] = useState(reduced ? lastIdx : 0)
+
+  // `intro && idx === 0` (rather than a hoisted boolean) so TS narrows `intro`.
+  const inIntro = intro != null && idx === 0
+  const step = Math.max(0, idx - introCount) // swaps applied so far (0..swaps)
+  const heap = intro && idx === 0 ? intro.heap : applySwaps(spec.startHeap, spec.path, step)
+  const pair = !inIntro && step > 0 ? spec.path[step - 1] : null
+  const startSlot = spec.insertKey != null ? spec.startHeap.length - 1 : 0
+  const highlight =
+    intro && idx === 0 ? intro.highlightSlots : pair ? [pair.a, pair.b] : [startSlot]
 
   const caption =
-    idx === 0
-      ? q.insertKey != null
-        ? `${q.insertKey} drops into the next open slot.`
-        : `The last item (${q.startHeap[0]}) moves to the top.`
-      : `Swap slots ${pair!.a} and ${pair!.b}.`
+    intro && idx === 0
+      ? intro.caption
+      : step === 0
+        ? spec.insertKey != null
+          ? `${spec.insertKey} drops into the next open slot.`
+          : `The last item (${spec.startHeap[0]}) moves to the top.`
+        : `Swap slots ${pair!.a} and ${pair!.b}.`
 
   return (
     <div className="flex flex-col items-center gap-3">
       <HeapDualView
         heap={heap}
         highlightSlots={highlight}
-        liftPair={reduced ? null : pair}
+        liftPair={reduced || inIntro ? null : pair}
         reducedMotion={reduced}
-        srLabel={siftSentence(q)}
+        srLabel={intro && idx === 0 ? intro.caption : siftSentence(spec)}
       />
-      <p className="text-center text-xs text-muted-foreground">{caption}</p>
-      {total > 0 && (
-        <div className="flex items-center gap-2">
+      <p className="max-w-xs text-center text-xs text-muted-foreground">{caption}</p>
+      {lastIdx > 0 && (
+        <div className="flex flex-wrap items-center justify-center gap-2">
           <Button
             variant="secondary"
-            size="sm"
+            size="default"
             disabled={idx === 0}
             onClick={() => setIdx((i) => Math.max(0, i - 1))}
           >
             <ArrowLeft className="size-4" /> Back
           </Button>
           <span className="min-w-16 text-center text-xs tabular-nums text-muted-foreground">
-            Step {idx} / {total}
+            Step {idx} / {lastIdx}
           </span>
           <Button
             variant="secondary"
-            size="sm"
-            disabled={idx === total}
-            onClick={() => setIdx((i) => Math.min(total, i + 1))}
+            size="default"
+            disabled={idx === lastIdx}
+            onClick={() => setIdx((i) => Math.min(lastIdx, i + 1))}
           >
             Next <ArrowRight className="size-4" />
           </Button>
-          <Button variant="soft" size="sm" onClick={() => setIdx(0)}>
+          <Button variant="soft" size="default" onClick={() => setIdx(0)}>
             <RotateCcw className="size-4" /> Replay
           </Button>
         </div>
@@ -304,6 +368,7 @@ function ArrangementBody({
   const correct = feedback === "correct"
   const reveal = correct || (feedback === "fail" && showWhy)
   const terminal = isTerminalHeaps(state)
+  const replay = replayOf(q)
 
   const cardState = (id: string): AnswerState => {
     if (feedback === "correct") return id === q.answer ? "correct" : "default"
@@ -322,7 +387,7 @@ function ArrangementBody({
 
       <div className="flex flex-col items-center gap-3 py-4">
         {reveal ? (
-          <StepReplay q={q} reduced={reduced} />
+          <StepReplay spec={replay.spec} intro={replay.intro} reduced={reduced} />
         ) : (
           <>
             <HeapDualView heap={q.heap} reducedMotion={reduced} srLabel={givenSentence(q)} />
@@ -491,15 +556,15 @@ function DemoPart({
   const reduced = useReducedMotion() ?? false
   const [heap, setHeap] = useState<number[]>(q ? q.heap : [])
   const [step, setStep] = useState(0)
-  const [landing, setLanding] = useState<number | null>(null)
+  const [spec, setSpec] = useState<ReplaySpec | null>(null)
   if (!q) return null
   const nextKey = DEMO_KEYS[step]
 
   const insert = () => {
     if (nextKey == null) return
-    const { result } = siftUp(heap, nextKey)
+    const { result, path, start } = siftUp(heap, nextKey)
+    setSpec({ startHeap: start, path, resultHeap: result, insertKey: nextKey })
     setHeap(result)
-    setLanding(result.indexOf(nextKey))
     setStep((s) => s + 1)
   }
 
@@ -511,18 +576,15 @@ function DemoPart({
       </div>
 
       <div className="flex flex-1 flex-col items-center justify-center gap-4 py-6">
-        <HeapDualView
-          heap={heap}
-          highlightSlots={landing != null ? [landing] : []}
-          connectorSlot={landing}
-          reducedMotion={reduced}
-          srLabel={`The heap is ${heap.join(", ")}.`}
-        />
-        {landing != null && (
-          <p className="text-center text-sm text-muted-foreground">
-            It dropped in at the next open slot, then sifted up to slot {landing} — the tree and
-            array moved together.
-          </p>
+        {spec ? (
+          // Each insert remounts (fresh `key`) so the stepper restarts at the drop-in.
+          <StepReplay key={step} spec={spec} reduced={reduced} />
+        ) : (
+          <HeapDualView
+            heap={heap}
+            reducedMotion={reduced}
+            srLabel={`The heap is ${heap.join(", ")}.`}
+          />
         )}
       </div>
 
@@ -634,6 +696,7 @@ function TeachExtractPart({
   const q = state.question
   const reduced = useReducedMotion() ?? false
   if (!q) return null
+  const { spec, intro } = replayOf(q)
 
   return (
     <div className="flex flex-1 flex-col">
@@ -643,7 +706,7 @@ function TeachExtractPart({
       </div>
 
       <div className="flex flex-1 flex-col items-center justify-center gap-4 py-6">
-        <StepReplay q={q} reduced={reduced} />
+        <StepReplay spec={spec} intro={intro} reduced={reduced} />
         {q.cost && q.sortCost && (
           <div className="flex flex-wrap justify-center gap-2">
             <LabeledCost label="Peek the top" cost={q.cost} />

@@ -4,6 +4,7 @@ import { motion, useReducedMotion } from "motion/react"
 import { cn } from "@/lib/utils"
 import type { LessonAction } from "@/features/lesson/engine"
 import {
+  candidatesRemaining,
   correctNextStep,
   cursorNode,
   droppedNodeIds,
@@ -25,6 +26,7 @@ import {
   type NodePos,
   type TreeLayout,
 } from "./treeLayout"
+import { HalvingMeter } from "./HalvingMeter"
 
 /**
  * The hierarchical tree figure: SVG edges under absolute-positioned circular node
@@ -336,6 +338,12 @@ function DescendFigure({
         )}
       </FitBox>
 
+      <HalvingMeter
+        total={subtreeSize(tree)}
+        remaining={candidatesRemaining(state)}
+        reducedMotion={reduced}
+      />
+
       <p className="sr-only" role="status">
         {descendStatus(state)}
       </p>
@@ -347,20 +355,20 @@ function descendStatus(state: TreesState): string {
   const q = state.question
   if (!q) return ""
   const tree = q.tree
-  const droppedCount = droppedNodeIds(state).size
-  const remaining = subtreeSize(tree) - droppedCount
+  const remaining = candidatesRemaining(state)
+  const inPlay = `${remaining} node${remaining === 1 ? "" : "s"} in play`
   const len = state.tappedPath.length
   if (state.tappedSlot) {
-    return `${q.target ?? "The value"} would attach at an empty slot — ${remaining} node${remaining === 1 ? "" : "s"} were searched.`
+    return `${q.target ?? "The value"} runs off into an empty slot; ${inPlay}.`
   }
-  if (len <= 1) return `At the root. ${remaining} node${remaining === 1 ? "" : "s"} in play.`
+  if (len <= 1) return `At the root; ${inPlay}.`
   const parent = nodeById(tree, state.tappedPath[len - 2])
   const childId = state.tappedPath[len - 1]
   if (!parent) return ""
   const goLeft = parent.left?.id === childId
   const opp = goLeft ? parent.right : parent.left
   const d = subtreeSize(opp)
-  return `${q.target ?? "The value"} ${goLeft ? "is less than" : "is greater than"} ${parent.key} — go ${goLeft ? "left" : "right"}; dropped ${d} node${d === 1 ? "" : "s"}; ${remaining} left.`
+  return `${q.target ?? "The value"} ${goLeft ? "is less than" : "is greater than"} ${parent.key}, go ${goLeft ? "left" : "right"}; dropped ${d} node${d === 1 ? "" : "s"}; ${inPlay}.`
 }
 
 /* -------------------------------- sequence --------------------------------- */
@@ -452,42 +460,57 @@ function SequenceFigure({
 /* ------------------------------ display tree ------------------------------- */
 
 /**
- * A read-only tidy tree for the teach beats and the compare-shape pair. Highlight
- * a path (e.g. an example descend) or dim the whole thing for context.
+ * A read-only tidy tree for the teach beats, the compare-shape pair, and the
+ * post-correct contrast race. Highlight a path (e.g. an example descend), grey the
+ * discarded subtrees (`droppedIds`, for the race), or dim the whole thing for
+ * context (`dim`). All extra props are optional and backward compatible.
  */
 export function DisplayTree({
   tree,
   highlightIds,
+  droppedIds,
+  dim = false,
   caption,
 }: {
   tree: TreeNode
   highlightIds?: string[]
+  /** Discarded subtrees to grey out read-only (the BST-vs-list race). */
+  droppedIds?: string[]
+  /** Dim the whole figure (background / context). */
+  dim?: boolean
   caption?: string
 }) {
   const prefersReduced = useReducedMotion()
   const reduced = prefersReduced ?? false
   const layout = tidyLayout(tree)
   const lit = new Set(highlightIds ?? [])
+  const dropped = new Set(droppedIds ?? [])
 
-  const edgeTone = (from: string, to: string): EdgeTone =>
-    lit.has(from) && lit.has(to) ? "path" : "muted"
+  const edgeTone = (from: string, to: string): EdgeTone => {
+    if (dropped.has(from) || dropped.has(to)) return "dropped"
+    return lit.has(from) && lit.has(to) ? "path" : "muted"
+  }
 
   return (
-    <div className="flex flex-col items-center gap-1.5">
+    <div className={cn("flex flex-col items-center gap-1.5", dim && "opacity-50")}>
       <FitBox figW={layout.width} figH={layout.height} reduced={reduced}>
         <Edges tree={tree} pos={layout.pos} tone={edgeTone} reduced={reduced} />
         {[...layout.pos.entries()].map(([id, p]) => {
           const node = nodeById(tree, id)!
+          const isDropped = dropped.has(id)
           return (
             <div
               key={id}
               data-node-id={id}
-              aria-label={`node ${node.key}`}
+              data-dropped={isDropped ? "1" : undefined}
+              aria-label={`node ${node.key}${isDropped ? ", discarded" : ""}`}
               className={cn(
                 "absolute flex items-center justify-center rounded-full border-2 text-base font-bold transition-colors",
-                lit.has(id)
-                  ? "border-lilac-strong bg-lilac-soft text-foreground"
-                  : "border-border bg-card text-foreground",
+                isDropped
+                  ? "border-dashed border-faint bg-card/40 text-faint opacity-40"
+                  : lit.has(id)
+                    ? "border-lilac-strong bg-lilac-soft text-foreground"
+                    : "border-border bg-card text-foreground",
               )}
               style={{ left: p.x - NODE_R, top: p.y - NODE_R, width: NODE_W, height: NODE_H }}
             >

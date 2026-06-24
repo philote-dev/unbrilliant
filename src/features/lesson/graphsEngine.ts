@@ -587,8 +587,32 @@ function makeRedrawDemo(): GraphsQuestion {
   })
 }
 
+/* ------------------------------ variant rotation ------------------------------ */
+
+export type SameGraphVariant = "same" | "different"
+export type TreeOrNotVariant = "graph" | "tree"
+
+/**
+ * Curated variant pools for the two classify beats. Both entries are
+ * hand-authored, deterministic instances (their layouts live as constants keyed
+ * by variant, so positions never depend on RNG); the seed only chooses which
+ * curated instance to show, so the beat rotates "same"/"different" and
+ * "graph"/"tree" across runs without ever fabricating a layout.
+ */
+export const SAME_GRAPH_VARIANTS: readonly SameGraphVariant[] = ["same", "different"]
+export const TREE_OR_NOT_VARIANTS: readonly TreeOrNotVariant[] = ["graph", "tree"]
+
+/** Seed-select one curated variant; returns the advanced rng so option-shuffle stays deterministic. */
+export function selectGraphVariant<T>(
+  pool: readonly T[],
+  seed: number,
+): { variant: T; next: number } {
+  const { value, next } = rngNext(seed)
+  return { variant: pool[Math.floor(value * pool.length)], next }
+}
+
 export function makeSameGraph(
-  variant: "same" | "different",
+  variant: SameGraphVariant,
   seed: number,
 ): { question: GraphsQuestion; next: number } {
   const adjB = variant === "same" ? cloneAdj(G6) : removeEdge(G6, "E", "F")
@@ -620,7 +644,7 @@ export function makeSameGraph(
 }
 
 export function makeTreeOrNot(
-  variant: "tree" | "graph",
+  variant: TreeOrNotVariant,
   seed: number,
 ): { question: GraphsQuestion; next: number } {
   const adj = variant === "tree" ? T6 : G6
@@ -675,10 +699,14 @@ function buildQuestion(
       return { question: makeDrawTransit(), next: seed }
     case "redraw-demo":
       return { question: makeRedrawDemo(), next: seed }
-    case "same-graph":
-      return makeSameGraph("same", seed)
-    case "tree-or-not":
-      return makeTreeOrNot("graph", seed)
+    case "same-graph": {
+      const { variant, next } = selectGraphVariant(SAME_GRAPH_VARIANTS, seed)
+      return makeSameGraph(variant, next)
+    }
+    case "tree-or-not": {
+      const { variant, next } = selectGraphVariant(TREE_OR_NOT_VARIANTS, seed)
+      return makeTreeOrNot(variant, next)
+    }
     default:
       return assertNever(part)
   }

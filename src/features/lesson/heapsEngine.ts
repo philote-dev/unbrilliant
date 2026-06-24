@@ -158,6 +158,25 @@ export function applySwaps(start: number[], path: SwapStep[], upto: number): num
   return out
 }
 
+/** The "before" frame of an extract-top replay. */
+export interface ExtractIntroFrame {
+  /** The pre-extract heap (a view, not mutated). */
+  heap: number[]
+  /** The slot whose value is leaving (always the root). */
+  leavingSlot: number
+  /** The slot that rises to fill the root (always the last), keeping the array gap-free. */
+  fillerSlot: number
+}
+
+/**
+ * The intro frame for an extract-top replay: the top (slot 0) is leaving and the
+ * last item (slot n-1) is about to jump up to fill it. This makes the compact-array
+ * invariant ("keep the array packed, no gaps") explicit before the sift-down. Pure.
+ */
+export function extractIntroFrame(heap: number[]): ExtractIntroFrame {
+  return { heap: heap.slice(), leavingSlot: 0, fillerSlot: heap.length - 1 }
+}
+
 /* --------------------------- invariants (test guards) --------------------------- */
 
 export const hasDistinctKeys = (h: number[]): boolean => new Set(h).size === h.length

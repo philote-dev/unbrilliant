@@ -126,6 +126,23 @@ export const present = (
   bucketCount: number = BUCKET_COUNT,
 ): boolean => (table[bucketOf(key, bucketCount)] ?? []).includes(key)
 
+/**
+ * The pure lookup trail for `key`: which bucket it hashes to, the chain that
+ * lives there, and where (if anywhere) the key sits in that chain. Illustration
+ * fuel for the "Trace the lookup" walk: `foundIndex` is the chain position on a
+ * hit and `-1` when absent (the full chain is still returned so a trace can show
+ * every node it checked). A pure selector: no state, quota, or verdict touched.
+ */
+export function searchTrail(
+  key: string,
+  table: Record<number, string[]>,
+  bucketCount: number = BUCKET_COUNT,
+): { bucket: number; chain: string[]; foundIndex: number } {
+  const bucket = bucketOf(key, bucketCount)
+  const chain = table[bucket] ?? []
+  return { bucket, chain, foundIndex: chain.indexOf(key) }
+}
+
 /** The rewire/tap target id for bucket `i`. */
 export const bucketTargetId = (i: number): string => `bucket-${i}`
 /** The bucket index a target id refers to ("bucket-3" → 3), or -1. */

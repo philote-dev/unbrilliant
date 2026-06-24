@@ -30,6 +30,23 @@ export interface ArraysOption {
   label: string
 }
 
+/**
+ * The structural op a shift/cost question is about, kept as data (not parsed from
+ * the prompt) so the pure frame selectors below can replay it deterministically.
+ */
+export interface ArrayOp {
+  kind: "insert" | "delete"
+  index: number
+  inserted?: string // the label dropped in (insert only)
+}
+
+/** What the resize question is over: a `size`-of-`capacity` block, full or not. */
+export interface ArrayResize {
+  size: number
+  capacity: number
+  resizes: boolean
+}
+
 export interface ArraysQuestion {
   kind: ArraysPart
   prompt: string
@@ -42,6 +59,11 @@ export interface ArraysQuestion {
   correct: string
   why: string
   cost: { word: CostWord; count: number; unit: string }
+  // The op behind a shift/cost question, used only to build POST-VERDICT shift
+  // frames (never to grade). Undefined for the access intro and resize.
+  op?: ArrayOp
+  // The block behind a resize question, used only to build the doubling frames.
+  resize?: ArrayResize
 }
 
 export interface ArraysState {
@@ -131,6 +153,7 @@ function makeShift(seed: number): { question: ArraysQuestion; next: number } {
   let result: string[]
   let shifted: number
   let prompt: string
+  let op: ArrayOp
   const candidates: string[][] = []
 
   if (insert) {
@@ -140,6 +163,7 @@ function makeShift(seed: number): { question: ArraysQuestion; next: number } {
     result = splice(array, index, 0, "X")
     shifted = len - index
     prompt = `Insert X at index ${index}. What does the array become?`
+    op = { kind: "insert", index, inserted: "X" }
     for (const j of [index - 1, index + 1, 0, len]) {
       if (j < 0 || j > len || j === index) continue
       candidates.push(splice(array, j, 0, "X"))
@@ -151,6 +175,7 @@ function makeShift(seed: number): { question: ArraysQuestion; next: number } {
     result = splice(array, index, 1)
     shifted = len - 1 - index
     prompt = `Delete index ${index} (${array[index]}). What does the array become?`
+    op = { kind: "delete", index }
     for (const j of [index - 1, index + 1, 0, len - 1]) {
       if (j < 0 || j >= len || j === index) continue
       candidates.push(splice(array, j, 1))
@@ -188,6 +213,7 @@ function makeShift(seed: number): { question: ArraysQuestion; next: number } {
         count: shifted,
         unit: shifted === 1 ? "element moved" : "elements moved",
       },
+      op,
     },
     next: a,
   }
@@ -206,18 +232,21 @@ function makeCost(seed: number): { question: ArraysQuestion; next: number } {
   let index: number
   let shifted: number
   let prompt: string
+  let op: ArrayOp
   if (insert) {
     r = rngInt(a, len - 1)
     a = r.next
     index = 1 + r.value
     shifted = len - index
     prompt = `Insert X at index ${index}. How many existing elements shift?`
+    op = { kind: "insert", index, inserted: "X" }
   } else {
     r = rngInt(a, len - 2)
     a = r.next
     index = 1 + r.value
     shifted = len - 1 - index
     prompt = `Delete index ${index}. How many elements shift to close the gap?`
+    op = { kind: "delete", index }
   }
 
   const counts = new Set<number>([shifted])
@@ -247,6 +276,7 @@ function makeCost(seed: number): { question: ArraysQuestion; next: number } {
         count: shifted,
         unit: shifted === 1 ? "element moved" : "elements moved",
       },
+      op,
     },
     next: a,
   }
@@ -288,14 +318,17 @@ function makeResize(seed: number): { question: ArraysQuestion; next: number } {
       hint: "Compare the item count to the block size.",
       nudge: "A resize happens only when the block is already full.",
       correct: resizes
-        ? "Right — it's full, so it must grow."
-        : "Right — there's room, so no resize.",
+        ? "Right, it's full, so it must grow."
+        : "Right, there's room, so no resize.",
+      // The longer house gloss lives here in why-copy ONLY; the chip stays the
+      // bare enum word "usually free" (the locked dynamic-array doubling word).
       why: resizes
-        ? `All ${capacity} slots are used, so inserting forces a bigger block and copies all ${size} over — the occasional big reshuffle.`
+        ? `All ${capacity} slots are used, so inserting forces a bigger block and copies all ${size} over. Usually free, with the occasional big reshuffle.`
         : `Only ${size} of ${capacity} slots are used, so the new item drops in with no copying.`,
       cost: resizes
-        ? { word: "scales", count: size, unit: "items copied" }
+        ? { word: "usually free", count: size, unit: "items copied" }
         : { word: "free", count: 1, unit: "step" },
+      resize: { size, capacity, resizes },
     },
     next: a,
   }
@@ -482,6 +515,181 @@ export function hasProgressArrays(state: ArraysState): boolean {
     state.costCorrect > 0 ||
     state.resizeCorrect > 0
   )
+}
+
+/* --------------------- frame selectors (pure, view-only) -------------------- */
+
+/**
+ * One cell in a shift frame: a stable identity (so the renderer can animate the
+ * same box sliding between slots), its label, the column `slot` it occupies in
+ * this frame, and whether it is the cell that just moved (for the highlight).
+ */
+export interface ShiftFrameCell {
+  id: string
+  label: string
+  slot: number
+  moving: boolean
+}
+
+/** A single snapshot of the row mid-shift, plus a caption for the SR live region. */
+export interface ShiftFrame {
+  cells: ShiftFrameCell[] // sorted by slot
+  caption: string
+  columns: number // fixed address slots to reserve across the whole sequence
+}
+
+const bySlot = (cells: ShiftFrameCell[]): ShiftFrameCell[] =>
+  [...cells].sort((a, b) => a.slot - b.slot)
+
+const calm = (cells: ShiftFrameCell[]): ShiftFrameCell[] =>
+  cells.map((c) => ({ ...c, moving: false }))
+
+const clampIdx = (i: number, hi: number): number => Math.min(Math.max(i, 0), hi)
+
+/**
+ * Deterministic per-cell frames for a mid-insert/delete "wave of shifts". A PURE
+ * view selector: no reducer, no engine state, same op always yields the same
+ * frames. Consecutive frames move exactly one cell, so the renderer animates the
+ * ripple; the FINAL frame is the end-state, so reduced motion snaps straight to
+ * it. These reveal the resulting arrangement, so callers must only mount them
+ * AFTER the verdict (never to grade, never before the answer is locked).
+ */
+export function shiftFrames(array: string[], op: ArrayOp): ShiftFrame[] {
+  const n = array.length
+  const cells: ShiftFrameCell[] = array.map((label, i) => ({
+    id: `c${i}`,
+    label,
+    slot: i,
+    moving: false,
+  }))
+
+  if (op.kind === "insert") {
+    const columns = n + 1
+    const i = clampIdx(op.index, n)
+    const inserted = op.inserted ?? "X"
+    const slot = cells.map((c) => c.slot)
+    const frames: ShiftFrame[] = [
+      {
+        cells: calm(cells),
+        caption: `Insert ${inserted} at index ${i}: first make room.`,
+        columns,
+      },
+    ]
+    // Ripple from the end so the gap opens exactly at the insert index.
+    for (let k = n - 1; k >= i; k--) {
+      slot[k] = k + 1
+      frames.push({
+        cells: bySlot(cells.map((c, idx) => ({ ...c, slot: slot[idx], moving: idx === k }))),
+        caption: `${array[k]} slides right into index ${k + 1}.`,
+        columns,
+      })
+    }
+    const placed = cells.map((c, idx) => ({ ...c, slot: slot[idx], moving: false }))
+    placed.push({ id: "ins", label: inserted, slot: i, moving: true })
+    frames.push({
+      cells: bySlot(placed),
+      caption: `${inserted} drops into index ${i}.`,
+      columns,
+    })
+    return frames
+  }
+
+  // delete: drop the cell, then ripple the tail left to close the gap.
+  const columns = n
+  const i = clampIdx(op.index, Math.max(0, n - 1))
+  const survivors = cells.filter((c) => c.slot !== i)
+  const slot: Record<string, number> = {}
+  for (const c of survivors) slot[c.id] = c.slot
+  const frames: ShiftFrame[] = [
+    { cells: calm(cells), caption: `Delete index ${i} (${array[i]}).`, columns },
+    {
+      cells: bySlot(calm(survivors)),
+      caption: `${array[i]} leaves a gap at index ${i}.`,
+      columns,
+    },
+  ]
+  for (let k = i + 1; k < n; k++) {
+    const id = `c${k}`
+    slot[id] = k - 1
+    frames.push({
+      cells: bySlot(survivors.map((c) => ({ ...c, slot: slot[c.id], moving: c.id === id }))),
+      caption: `${array[k]} slides left into index ${k - 1}.`,
+      columns,
+    })
+  }
+  return frames
+}
+
+/** A single snapshot of the dynamic-array block mid-resize. */
+export interface ResizeFrame {
+  capacity: number // slots in the block right now (doubles on the resize)
+  filled: number // how many slots currently hold an item
+  copying: number | null // slot being copied this frame (for the highlight)
+  phase: "full" | "allocate" | "copy" | "place" | "settled"
+  caption: string
+}
+
+/**
+ * Deterministic frames for the doubling visualization: when the block is full,
+ * allocate a block twice the size, copy every item over (the "occasional big
+ * reshuffle"), then drop the new item in. When there is room, the item just
+ * lands. PURE and view-only; the verdict is graded elsewhere.
+ */
+export function resizeFrames(r: ArrayResize): ResizeFrame[] {
+  const { size, capacity, resizes } = r
+  if (!resizes) {
+    return [
+      {
+        capacity,
+        filled: size,
+        copying: null,
+        phase: "settled",
+        caption: `${size} of ${capacity} slots are used.`,
+      },
+      {
+        capacity,
+        filled: size + 1,
+        copying: null,
+        phase: "place",
+        caption: "Room to spare: the new item drops straight in.",
+      },
+    ]
+  }
+
+  const grown = capacity * 2
+  const frames: ResizeFrame[] = [
+    {
+      capacity,
+      filled: capacity,
+      copying: null,
+      phase: "full",
+      caption: `All ${capacity} slots are full.`,
+    },
+    {
+      capacity: grown,
+      filled: 0,
+      copying: null,
+      phase: "allocate",
+      caption: `Allocate a bigger block, double the size (${grown} slots).`,
+    },
+  ]
+  for (let k = 0; k < size; k++) {
+    frames.push({
+      capacity: grown,
+      filled: k + 1,
+      copying: k,
+      phase: "copy",
+      caption: `Copy item ${k + 1} of ${size} into the new block.`,
+    })
+  }
+  frames.push({
+    capacity: grown,
+    filled: size + 1,
+    copying: null,
+    phase: "place",
+    caption: "Now the new item drops in. Usually free, with the occasional big reshuffle.",
+  })
+  return frames
 }
 
 /* ----------------------------- resume / progress ----------------------------- */

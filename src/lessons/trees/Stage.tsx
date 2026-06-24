@@ -22,6 +22,7 @@ import {
 } from "@/features/lesson/treesEngine"
 import { DisplayTree, TreeFigure } from "./TreeFigure"
 import { SortedChain } from "./SortedChain"
+import { ContrastRace } from "./ContrastRace"
 
 /**
  * The Trees stage routes the eleven beats across the two faces (descend / locate
@@ -438,6 +439,17 @@ function ContrastPart({
           )}
         </div>
       </div>
+
+      {correct && (
+        <div className="mb-4 flex justify-center">
+          <ContrastRace
+            chain={q.chain}
+            chainTargetIndex={q.chainTargetIndex}
+            tree={q.tree}
+            path={q.descend?.path ?? []}
+          />
+        </div>
+      )}
 
       {correct && q.cost && q.altCost && (
         <div className="mb-3 flex flex-wrap justify-center gap-2">

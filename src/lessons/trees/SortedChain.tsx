@@ -28,13 +28,16 @@ export function SortedChain({
 }) {
   const done = cursor >= targetIndex
   const nextIndex = cursor + 1
+  // Read-only (no `onAdvance`, e.g. the post-correct race): no live walk button,
+  // the cursor alone shows progress, and no stray DEV `data-answer` hook.
+  const interactive = onAdvance != null
 
   return (
     <div className="flex flex-col items-center gap-2">
       <div className="flex flex-wrap items-center justify-center gap-1">
         {keys.map((k, i) => {
           const walked = i <= cursor
-          const isNext = i === nextIndex && !done
+          const isNext = i === nextIndex && !done && interactive
           const isTarget = i === targetIndex
           return (
             <Fragment key={k}>

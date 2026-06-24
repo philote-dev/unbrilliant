@@ -1,4 +1,5 @@
-import type { Dispatch } from "react"
+import { useState, type Dispatch } from "react"
+import { useReducedMotion } from "motion/react"
 
 import { Button } from "@/components/ui/button"
 import { AnswerCard, type AnswerState } from "@/components/willow/AnswerCard"
@@ -15,6 +16,7 @@ import {
   isTerminalHash,
   legalBuckets,
   partQuotaHash,
+  searchTrail,
   type HashCost,
   type HashQuestion,
   type HashTablesState,
@@ -33,12 +35,14 @@ export function HashTablesStage({
   dispatch: Dispatch<LessonAction>
 }) {
   const part = currentPartHash(state)
+  // Key each part so per-beat local state (a teach step, a lookup trace cursor)
+  // resets cleanly when the beat changes; two lookup beats render back to back.
   if (part === "demo" || part === "teach-hash" || part === "teach-collision") {
-    return <IntroPart state={state} dispatch={dispatch} />
+    return <IntroPart key={part} state={state} dispatch={dispatch} />
   }
-  if (isDragPart(part)) return <DragPart state={state} dispatch={dispatch} />
-  if (isTapPart(part)) return <LocatePart state={state} dispatch={dispatch} />
-  return <CollisionPart state={state} dispatch={dispatch} />
+  if (isDragPart(part)) return <DragPart key={part} state={state} dispatch={dispatch} />
+  if (isTapPart(part)) return <LocatePart key={part} state={state} dispatch={dispatch} />
+  return <CollisionPart key={part} state={state} dispatch={dispatch} />
 }
 
 /* --------------------------- intro / teach beats --------------------------- */
@@ -51,8 +55,20 @@ function IntroPart({
   dispatch: Dispatch<LessonAction>
 }) {
   const q = state.question
+  // teach-collision: the second key joins the SAME bucket's chain on a step.
+  const [joined, setJoined] = useState(false)
   if (!q) return null
   const isCollision = q.kind === "teach-collision"
+
+  // Split the colliding bucket's chain into the keys already there and the one
+  // that joins, so the step button animates only the newcomer (snaps if reduced).
+  const collideBucket = 4
+  const fullChain = q.table[collideBucket] ?? []
+  const baseChain = fullChain.slice(0, -1)
+  const joiningKey = fullChain[fullChain.length - 1]
+  const collisionTable = joined
+    ? { [collideBucket]: fullChain }
+    : { [collideBucket]: baseChain }
 
   return (
     <div className="flex flex-1 flex-col">
@@ -67,16 +83,29 @@ function IntroPart({
 
       <div className="flex flex-1 flex-col items-center justify-center gap-5 py-6">
         {isCollision ? (
-          <HashTable
-            bucketCount={q.bucketCount}
-            table={q.table}
-            mode="display"
-            highlightBucket={4}
-            newestBucket={4}
-          />
+          <>
+            <HashTable
+              bucketCount={q.bucketCount}
+              table={collisionTable}
+              mode="display"
+              highlightBucket={collideBucket}
+              newestBucket={joined ? collideBucket : undefined}
+              appendingBucket={joined ? collideBucket : undefined}
+            />
+            {joined ? (
+              <p className="max-w-xs text-center text-sm font-medium text-foreground">
+                {joiningKey} collides with {baseChain.join(", ")}, so it chains onto
+                the end of bucket {collideBucket}.
+              </p>
+            ) : (
+              <Button variant="soft" size="sm" onClick={() => setJoined(true)}>
+                Drop the second key
+              </Button>
+            )}
+          </>
         ) : (
           <>
-            {q.key && <HashBox question={q} />}
+            {q.key && <HashBox question={q} revealBucket={q.kind === "demo"} />}
             <HashTable bucketCount={q.bucketCount} table={q.table} mode="display" />
           </>
         )}
@@ -158,6 +187,7 @@ function DragPart({
             mode={correct ? "display" : "drag"}
             highlightBucket={correct ? q.bucket : undefined}
             newestBucket={correct ? q.bucket : undefined}
+            appendingBucket={correct ? q.bucket : undefined}
             contacts={q.contacts}
           />
         </RewireSurface>
@@ -192,10 +222,45 @@ function LocatePart({
   dispatch: Dispatch<LessonAction>
 }) {
   const q = state.question
+  const reduced = useReducedMotion() ?? false
+  // A LOCAL trace cursor over the bucket's chain (illustration only; the verdict
+  // still comes from the engine). -1 means "not started".
+  const [cursor, setCursor] = useState(-1)
+  const [announce, setAnnounce] = useState("")
   if (!q) return null
   const { feedback, selected, showWhy } = state
   const correct = feedback === "correct"
   const terminal = isTerminalHash(state)
+
+  const trail = searchTrail(q.key ?? "", q.table, q.bucketCount)
+  const canTrace = q.bin === "lookup" && trail.chain.length > 0
+  // Stop at the hit, or at the chain's end when absent.
+  const stopIndex = trail.foundIndex >= 0 ? trail.foundIndex : trail.chain.length - 1
+  const traceDone = cursor >= stopIndex
+  const showFound = trail.foundIndex >= 0 && cursor >= trail.foundIndex
+
+  // The cumulative readout up to `upto`: "checking owl, checking fox, found fox in
+  // bucket 0" on a hit, or "...checking elk, not in bucket 3, absent" when absent.
+  const describe = (upto: number): string => {
+    const parts: string[] = []
+    for (let i = 0; i <= upto && i < trail.chain.length; i++) {
+      parts.push(`checking ${trail.chain[i]}`)
+      if (trail.foundIndex === i) {
+        parts.push(`found ${q.key} in bucket ${trail.bucket}`)
+        return parts.join(", ")
+      }
+    }
+    if (trail.foundIndex < 0 && upto >= trail.chain.length - 1) {
+      parts.push(`not in bucket ${trail.bucket}, absent`)
+    }
+    return parts.join(", ")
+  }
+
+  const trace = () => {
+    const target = reduced ? stopIndex : Math.min(stopIndex, cursor + 1)
+    setCursor(target)
+    setAnnounce(describe(target))
+  }
 
   return (
     <div className="flex flex-1 flex-col">
@@ -210,8 +275,25 @@ function LocatePart({
           selected={selected}
           highlightBucket={correct ? q.bucket : undefined}
           correctTarget={q.answer}
+          searchBucket={canTrace ? q.bucket : undefined}
+          searchActiveIndex={cursor}
+          foundIndex={showFound ? trail.foundIndex : undefined}
           onTap={(id) => dispatch({ type: "select", letter: id })}
         />
+        {canTrace && (
+          <div className="flex flex-col items-center gap-2">
+            <Button variant="soft" size="sm" disabled={traceDone} onClick={trace}>
+              Trace the lookup
+            </Button>
+            <p
+              role="status"
+              aria-live="polite"
+              className="min-h-5 max-w-xs text-center text-sm text-muted-foreground"
+            >
+              {announce}
+            </p>
+          </div>
+        )}
         {correct && (
           <p className="text-center text-sm font-medium text-foreground">
             {q.present
@@ -282,6 +364,7 @@ function CollisionPart({
           mode="display"
           highlightBucket={q.bucket}
           newestBucket={correct ? q.bucket : undefined}
+          appendingBucket={correct ? q.bucket : undefined}
         />
       </div>
 

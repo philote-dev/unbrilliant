@@ -11,7 +11,10 @@ export default defineConfig({
   workers: 1,
   retries: 0,
   reporter: "list",
-  timeout: 90_000,
+  // One long chain now plays all seven lessons; warm runs finish in ~18s, but a
+  // cold Vite server compiles on demand mid-chain — give generous headroom so the
+  // first (cold) run can't trip the per-test budget.
+  timeout: 240_000,
   use: {
     baseURL: "http://localhost:5173",
     trace: "on-first-retry",

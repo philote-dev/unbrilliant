@@ -1,0 +1,324 @@
+import { readFileSync } from "node:fs"
+
+import {
+  assertFails,
+  initializeTestEnvironment,
+  type RulesTestEnvironment,
+} from "@firebase/rules-unit-testing"
+import type { Firestore } from "firebase/firestore"
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
+
+import { createFirestoreProgressRepository } from "@/features/progress/firestoreProgressRepository"
+import type { LessonProgress } from "@/features/progress/ProgressRepository"
+import {
+  DATA_STRUCTURES_LESSONS,
+  deriveCourseProgress,
+  derivePathNodes,
+  type ProgressByLesson,
+} from "@/lessons/catalog"
+import { lessonStats } from "@/features/progress/analytics"
+
+async function progressMapFor(
+  repo: ReturnType<typeof createFirestoreProgressRepository>,
+  uid: string,
+): Promise<ProgressByLesson> {
+  const entries = await Promise.all(
+    DATA_STRUCTURES_LESSONS.map(
+      async (l) => [l.id, await repo.getProgress(uid, l.id)] as const,
+    ),
+  )
+  const map: ProgressByLesson = {}
+  for (const [id, p] of entries) if (p) map[id] = p
+  return map
+}
+
+/**
+ * Persistence-seam integration tests against the Firestore emulator — exercised
+ * THROUGH the ProgressRepository interface (never Firestore internals), as the
+ * app uses it. Run via `npm run test:emulator` (wraps these in emulators:exec).
+ */
+const PROJECT_ID = "demo-willow"
+const LESSON = "stacks-and-queues"
+
+let testEnv: RulesTestEnvironment
+
+function repoFor(uid: string) {
+  const db = testEnv
+    .authenticatedContext(uid)
+    .firestore() as unknown as Firestore
+  return createFirestoreProgressRepository(db)
+}
+
+beforeAll(async () => {
+  testEnv = await initializeTestEnvironment({
+    projectId: PROJECT_ID,
+    firestore: {
+      rules: readFileSync("firestore.rules", "utf8"),
+      host: "127.0.0.1",
+      port: 8080,
+    },
+  })
+})
+
+afterAll(async () => {
+  await testEnv.cleanup()
+})
+
+beforeEach(async () => {
+  await testEnv.clearFirestore()
+})
+
+describe("FirestoreProgressRepository (emulator)", () => {
+  it("returns null before any progress is saved", async () => {
+    const repo = repoFor("alice")
+    expect(await repo.getProgress("alice", LESSON)).toBeNull()
+  })
+
+  it("persists progress and reads it back", async () => {
+    const repo = repoFor("alice")
+    await repo.ensureUser("alice", { displayName: "Alice" })
+    const progress: LessonProgress = {
+      counters: { pops: 3, dequeues: 1, scenarios: 0 },
+      currentPart: "queue-dequeue",
+      completed: false,
+    }
+    await repo.saveProgress("alice", LESSON, progress)
+    expect(await repo.getProgress("alice", LESSON)).toEqual(progress)
+  })
+
+  it("round-trips the redesigned S&Q counters on a mid-lesson beat", async () => {
+    const repo = repoFor("nina")
+    await repo.ensureUser("nina", { displayName: "Nina" })
+    const progress: LessonProgress = {
+      counters: {
+        stackPredict: 1,
+        stackRealworld: 1,
+        stackConstruct: 1,
+        queuePredict: 0,
+        queueRealworld: 0,
+        queueConstruct: 0,
+        classify: 0,
+        contrast: 0,
+        attempts: 5,
+      },
+      currentPart: "queue-predict",
+      completed: false,
+    }
+    await repo.saveProgress("nina", LESSON, progress)
+    expect(await repo.getProgress("nina", LESSON)).toEqual(progress)
+  })
+
+  it("round-trips the Linked Lists counters on a mid-lesson beat and resumes there", async () => {
+    const repo = repoFor("liam")
+    await repo.ensureUser("liam", { displayName: "Liam" })
+    const progress: LessonProgress = {
+      counters: {
+        traverse: 1,
+        insert: 1,
+        delete: 0,
+        predict: 0,
+        playlist: 0,
+        contrastInsert: 0,
+        contrastReach: 0,
+        attempts: 4,
+      },
+      currentPart: "rewire-delete",
+      completed: false,
+    }
+    await repo.saveProgress("liam", "linked-lists", progress)
+    expect(await repo.getProgress("liam", "linked-lists")).toEqual(progress)
+    // A fresh handle (page reload) resumes on the same beat with the same counts.
+    const resumed = await repoFor("liam").getProgress("liam", "linked-lists")
+    expect(resumed?.currentPart).toBe("rewire-delete")
+    expect(resumed?.counters.insert).toBe(1)
+  })
+
+  it("round-trips the Hash Tables counters on a mid-lesson beat and resumes there", async () => {
+    const repo = repoFor("hana")
+    await repo.ensureUser("hana", { displayName: "Hana" })
+    const progress: LessonProgress = {
+      counters: { hash: 3, collision: 1, lookup: 0, attempts: 6 },
+      currentPart: "collide-ant",
+      completed: false,
+    }
+    await repo.saveProgress("hana", "hash-tables", progress)
+    expect(await repo.getProgress("hana", "hash-tables")).toEqual(progress)
+    // A fresh handle (page reload) resumes on the same beat with the same counts.
+    const resumed = await repoFor("hana").getProgress("hana", "hash-tables")
+    expect(resumed?.currentPart).toBe("collide-ant")
+    expect(resumed?.counters.hash).toBe(3)
+  })
+
+  it("round-trips the Trees counters on a mid-lesson beat and resumes there", async () => {
+    const repo = repoFor("tess")
+    await repo.ensureUser("tess", { displayName: "Tess" })
+    const progress: LessonProgress = {
+      counters: { locate: 2, sequence: 1, comparison: 0, attempts: 5 },
+      currentPart: "sequence-a",
+      completed: false,
+    }
+    await repo.saveProgress("tess", "trees", progress)
+    expect(await repo.getProgress("tess", "trees")).toEqual(progress)
+    const resumed = await repoFor("tess").getProgress("tess", "trees")
+    expect(resumed?.currentPart).toBe("sequence-a")
+    expect(resumed?.counters.locate).toBe(2)
+  })
+
+  it("round-trips the Heaps counters on a mid-lesson beat and resumes there", async () => {
+    const repo = repoFor("hugo")
+    await repo.ensureUser("hugo", { displayName: "Hugo" })
+    const progress: LessonProgress = {
+      counters: { siftUp: 2, siftDown: 1, mapping: 0, contrast: 0, attempts: 5 },
+      currentPart: "siftdown-2",
+      completed: false,
+    }
+    await repo.saveProgress("hugo", "heaps", progress)
+    expect(await repo.getProgress("hugo", "heaps")).toEqual(progress)
+    const resumed = await repoFor("hugo").getProgress("hugo", "heaps")
+    expect(resumed?.currentPart).toBe("siftdown-2")
+    expect(resumed?.counters.siftUp).toBe(2)
+  })
+
+  it("round-trips the Graphs counters on a mid-lesson beat and resumes there", async () => {
+    const repo = repoFor("gwen")
+    await repo.ensureUser("gwen", { displayName: "Gwen" })
+    const progress: LessonProgress = {
+      counters: { read: 4, draw: 0, same: 0, attempts: 6 },
+      currentPart: "draw-edge",
+      completed: false,
+    }
+    await repo.saveProgress("gwen", "graphs", progress)
+    expect(await repo.getProgress("gwen", "graphs")).toEqual(progress)
+    const resumed = await repoFor("gwen").getProgress("gwen", "graphs")
+    expect(resumed?.currentPart).toBe("draw-edge")
+    expect(resumed?.counters.read).toBe(4)
+  })
+
+  it("survives a reload and resumes on the same part", async () => {
+    await repoFor("bob").saveProgress("bob", LESSON, {
+      counters: { pops: 3, dequeues: 3, scenarios: 2 },
+      currentPart: "scenario",
+      completed: false,
+    })
+    // A fresh handle (simulating a page reload) reads back server state.
+    const resumed = await repoFor("bob").getProgress("bob", LESSON)
+    expect(resumed?.currentPart).toBe("scenario")
+    expect(resumed?.counters.scenarios).toBe(2)
+    expect(resumed?.completed).toBe(false)
+  })
+
+  it("carries an in-flight run up to a brand-new account", async () => {
+    const repo = repoFor("carol")
+    expect(await repo.getProgress("carol", LESSON)).toBeNull() // brand-new
+    await repo.ensureUser("carol", { displayName: "Carol" })
+    await repo.saveProgress("carol", LESSON, {
+      counters: { pops: 2, dequeues: 0, scenarios: 0 },
+      currentPart: "stack-pop",
+      completed: false,
+    })
+    expect((await repo.getProgress("carol", LESSON))?.counters.pops).toBe(2)
+  })
+
+  it("records completion", async () => {
+    await repoFor("dave").saveProgress("dave", LESSON, {
+      counters: { pops: 3, dequeues: 3, scenarios: 4 },
+      currentPart: "scenario",
+      completed: true,
+    })
+    expect((await repoFor("dave").getProgress("dave", LESSON))?.completed).toBe(
+      true,
+    )
+  })
+
+  it("derives real course progress from completed lessons", async () => {
+    const repo = repoFor("erin")
+    await repo.saveProgress("erin", LESSON, {
+      counters: { pops: 3, dequeues: 3, scenarios: 4 },
+      currentPart: "scenario",
+      completed: true,
+    })
+    const map = await progressMapFor(repo, "erin")
+    expect(deriveCourseProgress("data-structures", map)).toBe(
+      Math.round((1 / DATA_STRUCTURES_LESSONS.length) * 100),
+    )
+  })
+
+  it("completing Stacks & Queues persists the Arrays unlock (derived)", async () => {
+    const repo = repoFor("grace")
+    // Before: Arrays is locked.
+    expect(
+      derivePathNodes(await progressMapFor(repo, "grace")).find(
+        (n) => n.id === "arrays",
+      )?.state,
+    ).toBe("locked")
+    // Complete S&Q...
+    await repo.saveProgress("grace", LESSON, {
+      counters: { pops: 3, dequeues: 3, scenarios: 4 },
+      currentPart: "scenario",
+      completed: true,
+    })
+    // ...and a fresh read shows Arrays unlocked (current).
+    expect(
+      derivePathNodes(await progressMapFor(repo, "grace")).find(
+        (n) => n.id === "arrays",
+      )?.state,
+    ).toBe("current")
+  })
+
+  it("the progress drill-down reflects persisted per-lesson stats", async () => {
+    const repo = repoFor("ivan")
+    await repo.saveProgress("ivan", LESSON, {
+      counters: { pops: 3, dequeues: 3, scenarios: 4, attempts: 12 },
+      currentPart: "scenario",
+      completed: true,
+    })
+    const stats = lessonStats(LESSON, (await repo.getProgress("ivan", LESSON)) ?? undefined)
+    expect(stats.completed).toBe(true)
+    expect(stats.correct).toBe(10)
+    expect(stats.attempted).toBe(12)
+    expect(stats.mastery).toBe(1)
+  })
+
+  it("persists the on-fire streak and preserves the best across a reset", async () => {
+    const repo = repoFor("heidi")
+    await repo.ensureUser("heidi", { displayName: "Heidi" })
+    expect((await repo.getUser("heidi"))?.streak).toEqual({
+      current: 0,
+      longest: 0,
+    })
+    await repo.updateUser("heidi", { streak: { current: 5, longest: 5 } })
+    expect((await repo.getUser("heidi"))?.streak).toEqual({
+      current: 5,
+      longest: 5,
+    })
+    // The chosen cross-session rule: a full fail resets `current`, but the
+    // all-time `longest` is preserved (and "sign in to save your streak" honest).
+    await repo.updateUser("heidi", { streak: { current: 0, longest: 5 } })
+    expect((await repo.getUser("heidi"))?.streak).toEqual({
+      current: 0,
+      longest: 5,
+    })
+  })
+
+  it("persists and reads the user's current course", async () => {
+    const repo = repoFor("frank")
+    await repo.ensureUser("frank", { displayName: "Frank" })
+    expect((await repo.getUser("frank"))?.currentCourseId).toBeNull()
+    await repo.updateUser("frank", { currentCourseId: "data-structures" })
+    expect((await repo.getUser("frank"))?.currentCourseId).toBe(
+      "data-structures",
+    )
+  })
+
+  it("denies reading another learner's progress", async () => {
+    await repoFor("alice").saveProgress("alice", LESSON, {
+      counters: { pops: 1, dequeues: 0, scenarios: 0 },
+      currentPart: "stack-pop",
+      completed: false,
+    })
+    const mallory = createFirestoreProgressRepository(
+      testEnv.authenticatedContext("mallory").firestore() as unknown as Firestore,
+    )
+    await assertFails(mallory.getProgress("alice", LESSON))
+  })
+})

@@ -6,7 +6,7 @@ import {
 } from "@/features/lesson/engine"
 
 /**
- * Pure, framework-agnostic Stacks & Queues engine (the redesign — see
+ * Pure, framework-agnostic Stacks & Queues engine (the redesign, see
  * docs/lessons/stacks-queues-redesign.md). One idea: LIFO vs FIFO, who gets
  * served next. The shipped lesson let a learner ace it by "tapping the tagged
  * top card"; this version never tags the exit and tests the rule through four
@@ -67,14 +67,29 @@ interface Copy {
   why: string
 }
 
+/**
+ * How a predict beat phrases the ask. The de-cue stays purely presentational:
+ * the exit is still a pure function of the container order, just not labeled.
+ * first-out = the exit end, last-out = the deep end, after-k = the cell that is
+ * on top once the first k have left (0 < k < cells.length).
+ */
+export type PredictAsk =
+  | { kind: "first-out" }
+  | { kind: "last-out" }
+  | { kind: "after-k"; k: number }
+
+/** The showpiece skin a predict beat wears. "letters" stays plain. */
+export type PredictTheme = "letters" | "browser" | "printer"
+
 export interface PredictQuestion extends Copy {
   kind: "predict"
   skill: SQSkill
   discipline: Discipline
-  theme: "letters" | "undo" | "printer"
+  theme: PredictTheme
+  ask: PredictAsk
   cells: Cell[] // container order: index 0 = the exit end (top / front)
   arrival: string[] // cell ids in arrival order (drives the build-in animation)
-  answer: string // the cell id that leaves
+  answer: string // the cell id that leaves (the pure consequence of `ask`)
 }
 
 export interface ClassifyQuestion extends Copy {
@@ -83,7 +98,7 @@ export interface ClassifyQuestion extends Copy {
   inOrder: string[]
   outOrder: string[]
   options: Option[]
-  answer: string // "stack" | "queue"
+  answer: string // "stack" | "queue" | "neither"
 }
 
 export interface ContrastQuestion extends Copy {
@@ -113,6 +128,83 @@ export interface ConstructWork {
   loose: string[] // cells not yet pushed (display order)
   pushed: string[] // cells pushed so far, in push order
 }
+
+/* ------------------------- pure verdicts (no model, ever) ------------------------- */
+/**
+ * Every S&Q verdict is a pure function of the visible container order or a
+ * hand-authored bank. These helpers ARE those verdicts, exported so the Stage
+ * figures (and the tests) compute the exact answer the engine grades on.
+ */
+
+const sameOrder = (a: string[], b: string[]): boolean =>
+  a.length === b.length && a.every((x, i) => x === b[i])
+
+/**
+ * The cell a predict beat resolves to, by ask. first-out is the exit end,
+ * last-out is the deep end, and after-k is the cell on top once the first k have
+ * left (0 < k < cells.length, else a RangeError so a bad seed fails loudly).
+ */
+export function predictAnswer(cells: Cell[], ask: PredictAsk): string {
+  switch (ask.kind) {
+    case "first-out":
+      return cells[0].id
+    case "last-out":
+      return cells[cells.length - 1].id
+    case "after-k": {
+      const { k } = ask
+      if (!Number.isInteger(k) || k <= 0 || k >= cells.length) {
+        throw new RangeError(
+          `predictAnswer: after-k needs 0 < k < ${cells.length}, got ${k}`,
+        )
+      }
+      return cells[k].id
+    }
+  }
+}
+
+/** The order items leave a container: a stack reverses arrival, a queue keeps it. */
+export function drainOrder(arrival: string[], discipline: Discipline): string[] {
+  return discipline === "stack" ? [...arrival].reverse() : [...arrival]
+}
+
+/** The 1-based step at which `target` leaves the container (0 if it never does). */
+export function targetEmitStep(
+  arrival: string[],
+  target: string,
+  discipline: Discipline,
+): number {
+  return drainOrder(arrival, discipline).indexOf(target) + 1
+}
+
+/**
+ * Classify-by-behavior under the NO-INTERLEAVE frame (everything goes in, then
+ * everything comes out): a clean reverse is a stack, the same order is a queue,
+ * and anything else is neither (no single structure can produce it).
+ */
+export function classifyVerdict(
+  inOrder: string[],
+  outOrder: string[],
+): "stack" | "queue" | "neither" {
+  if (sameOrder(outOrder, [...inOrder].reverse())) return "stack"
+  if (sameOrder(outOrder, inOrder)) return "queue"
+  return "neither"
+}
+
+export interface ClassifyInstance {
+  inOrder: string[]
+  outOrder: string[]
+}
+
+/**
+ * Hand-authored classify seeds, one per verdict: a clean reverse (stack), the
+ * same order (queue), and the 3-1-2 pattern (neither: unreachable without
+ * interleaving, so no single stack or queue produces it).
+ */
+export const CLASSIFY_BANK: ClassifyInstance[] = [
+  { inOrder: ["A", "B", "C"], outOrder: ["C", "B", "A"] },
+  { inOrder: ["A", "B", "C"], outOrder: ["A", "B", "C"] },
+  { inOrder: ["A", "B", "C"], outOrder: ["C", "A", "B"] },
+]
 
 export interface SQState {
   seed: number
@@ -157,8 +249,8 @@ function shuffle<T>(arr: T[], seed: number): { result: T[]; next: number } {
 /* ------------------------------ curated content ------------------------------ */
 /**
  * The fixed curated set (8 graded questions). Authored as data so a later pass
- * can swap in randomized variants without touching the engine — see the spec's
- * "seedable-now / randomized-later" decision. Cell ids are opaque; labels are
+ * can swap in randomized variants without touching the engine (see the spec's
+ * "seedable-now / randomized-later" decision). Cell ids are opaque; labels are
  * what the learner reads.
  */
 
@@ -171,9 +263,10 @@ function containerOrder(arrival: string[], discipline: Discipline): string[] {
 function predict(
   skill: SQSkill,
   discipline: Discipline,
-  theme: PredictQuestion["theme"],
+  theme: PredictTheme,
   arrival: string[],
   labels: Record<string, string>,
+  ask: PredictAsk,
   copy: Copy,
 ): PredictQuestion {
   const order = containerOrder(arrival, discipline)
@@ -183,9 +276,10 @@ function predict(
     skill,
     discipline,
     theme,
+    ask,
     cells,
     arrival,
-    answer: cells[0].id, // the exit end leaves first
+    answer: predictAnswer(cells, ask), // pure consequence of the ask + order
     ...copy,
   }
 }
@@ -205,7 +299,7 @@ function construct(
   return { kind: "construct", skill, discipline, target, correctPush, ...copy }
 }
 
-const LETTERS: Record<string, string> = { A: "A", B: "B", C: "C" }
+const LETTERS: Record<string, string> = { A: "A", B: "B", C: "C", D: "D" }
 
 function makeGraded(
   part: SQPart,
@@ -216,32 +310,43 @@ function makeGraded(
 
   switch (part) {
     case "stack-predict":
+      // De-cued + stepped back: two pops, then "what is on top?" (after-k, k=2).
       return {
-        question: predict("stackPredict", "stack", "letters", ["A", "B", "C"], LETTERS, {
-          prompt: "Pop one card. Which comes off?",
-          hint: "A stack lets cards out the same end they went in — the top.",
-          nudge: "Which card landed on top most recently?",
-          correct: "Right — C was pushed last, so it pops first.",
-          why: "Last in, first out: C went on last, so it sits on top and pops first.",
-        }),
+        question: predict(
+          "stackPredict",
+          "stack",
+          "letters",
+          ["A", "B", "C", "D"],
+          LETTERS,
+          { kind: "after-k", k: 2 },
+          {
+            prompt: "Pop twice. After two pops, which card is on top?",
+            hint: "Each pop lifts off the top card, so two pops clear the top two.",
+            nudge: "Take the top two cards away, then read off the new top.",
+            correct: "Right: D pops, then C, so B is on top.",
+            why: "Pop removes the top card. D leaves first, then C, which leaves B on top.",
+          },
+        ),
         construct: null,
         next: a,
       }
 
     case "stack-realworld":
+      // Browser Back skin: history is a stack; Back leaves the current page.
       return {
         question: predict(
           "stackRealworld",
           "stack",
-          "undo",
-          ["w1", "w2", "w3"],
-          { w1: "the", w2: "quick", w3: "fox" },
+          "browser",
+          ["p1", "p2", "p3"],
+          { p1: "Home", p2: "Blog", p3: "Photos" },
+          { kind: "first-out" },
           {
-            prompt: "You typed these words, then press Undo. Which disappears?",
-            hint: "Undo is a stack — it removes your most recent action first.",
-            nudge: "Which word did you type most recently?",
-            correct: "Right — “fox” was typed last, so Undo removes it first.",
-            why: "Undo is last-in, first-out: the most recent word, “fox”, is removed first.",
+            prompt: "You visited these pages, then press Back. Which page do you leave?",
+            hint: "Browser history is a stack: Back returns you from the page you are on.",
+            nudge: "Which page did you open most recently?",
+            correct: "Right: Photos was your latest page, so Back leaves it first.",
+            why: "History is a stack. The page you are on (Photos) sits on top, so Back leaves it first.",
           },
         ),
         construct: null,
@@ -253,8 +358,8 @@ function makeGraded(
         question: construct("stackConstruct", "stack", ["A", "B", "C"], LETTERS, {
           prompt: "Push the cards so they pop out in the order shown.",
           hint: "A stack reverses: the last card you push pops first.",
-          nudge: "To pop A first, A has to be pushed last — on top.",
-          correct: "Right — push C, B, A and they pop out A, B, C.",
+          nudge: "To pop A first, A has to be pushed last, on top.",
+          correct: "Right: push C, B, A and they pop out A, B, C.",
           why: "A stack reverses order. To get A out first, push it last, so push C, then B, then A.",
         }),
         construct: { loose: shuffle(["A", "B", "C"], a).result, pushed: [] },
@@ -263,13 +368,21 @@ function makeGraded(
 
     case "queue-predict":
       return {
-        question: predict("queuePredict", "queue", "letters", ["A", "B", "C"], LETTERS, {
-          prompt: "Dequeue one item. Which leaves?",
-          hint: "A queue lets items out the front — the end that has waited longest.",
-          nudge: "Which item has been waiting the longest?",
-          correct: "Right — A arrived first, so it leaves first.",
-          why: "First in, first out: A joined first, so it is at the front and leaves first.",
-        }),
+        question: predict(
+          "queuePredict",
+          "queue",
+          "letters",
+          ["A", "B", "C"],
+          LETTERS,
+          { kind: "first-out" },
+          {
+            prompt: "Dequeue one item. Which leaves?",
+            hint: "A queue lets items out the front, the end that has waited longest.",
+            nudge: "Which item has been waiting the longest?",
+            correct: "Right: A arrived first, so it leaves first.",
+            why: "First in, first out: A joined first, so it is at the front and leaves first.",
+          },
+        ),
         construct: null,
         next: a,
       }
@@ -282,12 +395,13 @@ function makeGraded(
           "printer",
           ["j1", "j2", "j3"],
           { j1: "report", j2: "essay", j3: "photo" },
+          { kind: "first-out" },
           {
             prompt: "Three files are sent to the printer in this order. Which prints first?",
-            hint: "A print queue is first-in, first-out.",
+            hint: "A print queue is first in, first out.",
             nudge: "Which file was sent first?",
-            correct: "Right — the report was sent first, so it prints first.",
-            why: "A printer queue is first-in, first-out: the report was sent first, so it prints first.",
+            correct: "Right: the report was sent first, so it prints first.",
+            why: "A printer queue is first in, first out: the report was sent first, so it prints first.",
           },
         ),
         construct: null,
@@ -298,67 +412,119 @@ function makeGraded(
       return {
         question: construct("queueConstruct", "queue", ["C", "A", "B"], LETTERS, {
           prompt: "Add the items so they come out in the order shown.",
-          hint: "A queue keeps order — items leave in the same order they arrive.",
+          hint: "A queue keeps order: items leave in the same order they arrive.",
           nudge: "Whatever order you add them in is the order they leave.",
-          correct: "Right — a queue preserves order, so add C, A, B.",
-          why: "A queue is first-in, first-out: order is preserved, so to get C, A, B out, add them C, A, B.",
+          correct: "Right: a queue preserves order, so add C, A, B.",
+          why: "A queue is first in, first out: order is preserved, so to get C, A, B out, add them C, A, B.",
         }),
         construct: { loose: shuffle(["A", "B", "C"], a).result, pushed: [] },
         next: shuffle(["A", "B", "C"], a).next,
       }
 
-    case "compare": {
-      if (compareStep === 0) {
-        const sh = shuffle(
-          [
-            { id: "stack", label: "A stack" },
-            { id: "queue", label: "A queue" },
-          ],
-          a,
-        )
-        a = sh.next
-        const q: ClassifyQuestion = {
-          kind: "classify",
-          skill: "classify",
-          inOrder: ["A", "B", "C"],
-          outOrder: ["C", "B", "A"],
-          options: sh.result,
-          answer: "stack",
-          prompt: "Items went in A, B, C and came out C, B, A. Which structure is this?",
-          hint: "Compare the order out to the order in.",
-          nudge: "The output is the exact reverse of the input.",
-          correct: "Right — reversed order is last-in, first-out: a stack.",
-          why: "The output is the reverse of the input. Only a stack does that — last-in, first-out.",
-        }
-        return { question: q, construct: null, next: a }
-      }
-      const sh = shuffle(
-        [
-          { id: "stack", label: "A stack" },
-          { id: "queue", label: "A queue" },
-        ],
-        a,
-      )
-      a = sh.next
-      const q: ContrastQuestion = {
-        kind: "contrast",
-        skill: "contrast",
-        arrival: ["A", "B", "C"],
-        target: "C",
-        options: sh.result,
-        answer: "stack",
-        prompt: "A, B, C go into both a stack and a queue. Which one hands you C first?",
-        hint: "C went in last. Which structure serves the most recent first?",
-        nudge: "A stack serves the newest item; a queue serves the oldest.",
-        correct: "Right — a stack serves the most recent, so it gives you C first.",
-        why: "C arrived last. A stack is last-in, first-out, so it serves C first; the queue serves A first.",
-      }
-      return { question: q, construct: null, next: a }
-    }
+    case "compare":
+      return compareStep === 0 ? makeClassify(a) : makeContrast(a)
 
     default:
       return { question: null as unknown as SQQuestion, construct: null, next: a }
   }
+}
+
+/* ------------------------------- compare makers ------------------------------- */
+
+/** Per-verdict copy for the classify beat (the NO-INTERLEAVE frame is fixed). */
+function classifyCopy(answer: "stack" | "queue" | "neither"): Copy {
+  const prompt =
+    "Everything goes in, then everything comes out. Which structure produced this order?"
+  const hint = "A stack hands them back in reverse. A queue keeps the same order."
+  const nudge = "Check both: is the output the exact reverse, the exact same order, or neither?"
+  if (answer === "stack") {
+    return {
+      prompt,
+      hint,
+      nudge,
+      correct: "Right: the output is the exact reverse, which is last in, first out. A stack.",
+      why: "Out is the reverse of in, and only a stack reverses a no-interleave batch (last in, first out).",
+    }
+  }
+  if (answer === "queue") {
+    return {
+      prompt,
+      hint,
+      nudge,
+      correct: "Right: the output keeps the input order, which is first in, first out. A queue.",
+      why: "Out matches in, and a queue keeps a no-interleave batch in order (first in, first out).",
+    }
+  }
+  return {
+    prompt,
+    hint,
+    nudge,
+    correct: "Right: that order is not a clean reverse or the same order, so it is neither.",
+    why: "Everything goes in, then comes out: a stack gives the reverse, a queue the same order. This is neither, so no single structure produces it.",
+  }
+}
+
+/** Classify: seed-select one bank instance, offer the three verdicts shuffled. */
+function makeClassify(rng: number): {
+  question: SQQuestion
+  construct: null
+  next: number
+} {
+  const pick = rngNext(rng)
+  const inst = CLASSIFY_BANK[Math.floor(pick.value * CLASSIFY_BANK.length)]
+  const answer = classifyVerdict(inst.inOrder, inst.outOrder)
+  const sh = shuffle(
+    [
+      { id: "stack", label: "A stack" },
+      { id: "queue", label: "A queue" },
+      { id: "neither", label: "Neither" },
+    ],
+    pick.next,
+  )
+  const q: ClassifyQuestion = {
+    kind: "classify",
+    skill: "classify",
+    inOrder: inst.inOrder,
+    outOrder: inst.outOrder,
+    options: sh.result,
+    answer,
+    ...classifyCopy(answer),
+  }
+  return { question: q, construct: null, next: sh.next }
+}
+
+/** Contrast: same input into both; the winner is whoever emits the target first. */
+function makeContrast(rng: number): {
+  question: SQQuestion
+  construct: null
+  next: number
+} {
+  const arrival = ["A", "B", "C"]
+  const target = "C"
+  const stackStep = targetEmitStep(arrival, target, "stack")
+  const queueStep = targetEmitStep(arrival, target, "queue")
+  const winner: Discipline = stackStep <= queueStep ? "stack" : "queue"
+  const sh = shuffle(
+    [
+      { id: "stack", label: "A stack" },
+      { id: "queue", label: "A queue" },
+    ],
+    rng,
+  )
+  const q: ContrastQuestion = {
+    kind: "contrast",
+    skill: "contrast",
+    arrival,
+    target,
+    options: sh.result,
+    answer: winner,
+    prompt: `${arrival.join(", ")} go into both a stack and a queue. Which one hands you ${target} first?`,
+    hint: `${target} went in last. Which structure serves the most recent first?`,
+    nudge: "A stack serves the newest item; a queue serves the oldest.",
+    correct: `Right: a stack serves the most recent, so it hands you ${target} first.`,
+    why: `${target} arrived last. A stack is last in, first out, so it serves ${target} first; the queue serves ${arrival[0]} first.`,
+  }
+  return { question: q, construct: null, next: sh.next }
 }
 
 /* ------------------------------- construction ------------------------------- */
@@ -474,7 +640,7 @@ export function answerOf(question: SQQuestion): string {
   return question.answer
 }
 
-/** Construct: the legal drop target(s) — the bin mouth while cells remain loose. */
+/** Construct: the legal drop target(s), i.e. the bin mouth while cells remain loose. */
 export function legalTargets(state: SQState): Set<string> {
   if (state.construct && state.construct.loose.length > 0)
     return new Set(["mouth"])

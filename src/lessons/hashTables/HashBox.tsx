@@ -1,4 +1,6 @@
 import { useState } from "react"
+import { ArrowRight } from "lucide-react"
+import { motion, useReducedMotion } from "motion/react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -11,21 +13,30 @@ import { letterSteps, type HashQuestion } from "@/features/lesson/hashTablesEngi
  * up); the box scaffolds the *sum* but never the `mod` — the learner supplies
  * the bucket by dragging the key in (drag beats, via `dragSourceId`) or tapping
  * a bucket (tap beats). It never pre-lights the answer bucket.
+ *
+ * On the ungraded DEMO beat only (`revealBucket`), the box finishes the arithmetic
+ * itself: once every letter is added it shows `sum mod B = bucket` and flies the
+ * key tile into its bucket. Graded beats keep withholding the bucket as "?".
  */
 export function HashBox({
   question,
   dragSourceId,
+  revealBucket,
 }: {
   question: HashQuestion
   /** When set (drag beats), the key tile is a draggable RewireSource. */
   dragSourceId?: string
+  /** DEMO beat only: finish the `mod` and animate the key into its bucket. */
+  revealBucket?: boolean
 }) {
+  const reduced = useReducedMotion() ?? false
   const key = question.key ?? ""
   const steps = letterSteps(key)
   const B = question.bucketCount
   const [revealed, setRevealed] = useState(0)
   const allRevealed = revealed >= steps.length
   const runningSum = revealed > 0 ? steps[revealed - 1].runningSum : 0
+  const showBucket = Boolean(revealBucket) && allRevealed
 
   return (
     <div className="flex w-full max-w-[280px] flex-col items-center gap-3 rounded-2xl border border-border bg-card p-4 shadow-soft">
@@ -66,7 +77,9 @@ export function HashBox({
         </p>
         <p className="mt-0.5 tabular-nums text-muted-foreground">
           {question.sum} mod {B} ={" "}
-          <span className="font-semibold text-lilac-strong">?</span>
+          <span className="font-semibold text-lilac-strong">
+            {showBucket ? question.bucket : "?"}
+          </span>
         </p>
       </div>
 
@@ -80,6 +93,23 @@ export function HashBox({
         </Button>
       )}
 
+      {showBucket && (
+        <div className="flex items-center gap-2" data-testid="hash-fly">
+          <motion.span
+            initial={reduced ? false : { x: -36, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 260, damping: 20 }}
+            className="flex h-8 min-w-8 items-center justify-center rounded-lg border-2 border-lilac-strong bg-lilac-soft px-2 text-sm font-bold text-foreground"
+          >
+            {key}
+          </motion.span>
+          <ArrowRight className="size-3 shrink-0 text-faint" aria-hidden />
+          <span className="rounded-lg border-2 border-lilac-strong bg-lilac-soft px-2 py-1 text-sm font-bold text-lilac-strong">
+            bucket {question.bucket}
+          </span>
+        </div>
+      )}
+
       {dragSourceId ? (
         <div
           data-hash-correct-bucket={
@@ -90,7 +120,7 @@ export function HashBox({
             {key}
           </RewireSource>
         </div>
-      ) : (
+      ) : revealBucket ? null : (
         <p className="text-center text-xs text-muted-foreground">
           Tap the {question.contacts ? "slot" : "bucket"} it lands in.
         </p>
@@ -98,7 +128,8 @@ export function HashBox({
 
       <p className="sr-only" role="status">
         {key}: {steps.map((s) => `${s.ch} is ${s.value}`).join(", ")}; sum {question.sum};{" "}
-        {question.sum} mod {B}.
+        {question.sum} mod {B}
+        {showBucket ? ` = ${question.bucket}; ${key} lands in bucket ${question.bucket}` : ""}.
       </p>
     </div>
   )

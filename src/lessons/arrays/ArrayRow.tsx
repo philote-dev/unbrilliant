@@ -1,27 +1,52 @@
-import { motion } from "motion/react"
+import { AnimatePresence, motion } from "motion/react"
 
 import { cn } from "@/lib/utils"
+import type { ShiftFrame } from "@/features/lesson/arraysEngine"
 
 /**
- * A horizontal row of indexed, contiguous cells (value on top, index beneath) —
- * the Arrays counterpart to StructureColumn. Cells can be tapped (the access
- * intro) and the touched index is highlighted; entrance is animated, but there
- * is no multi-frame step-scrubbing (that stays deferred — see ADR 0001).
+ * A horizontal row of indexed, contiguous cells (value on top, index beneath):
+ * the Arrays counterpart to StructureColumn. In the default mode cells can be
+ * tapped (the access intro) and the touched index is highlighted.
+ *
+ * Passing a `frame` switches to the POST-VERDICT wave-of-shifts view: cells slide
+ * between fixed address slots one move at a time (frames come from the pure
+ * `shiftFrames` selector), so the learner watches the ripple. Reduced motion
+ * snaps each cell straight to its slot. The wave reveals the resulting
+ * arrangement, so callers only ever mount it after the answer is locked.
  */
+
+// w-10 cell (40px) + gap-1.5 (6px). Cells are absolutely placed at slot * STEP.
+const CELL_W = 40
+const GAP = 6
+const STEP = CELL_W + GAP
+
 export function ArrayRow({
   cells,
   highlight = -1,
   onTap,
   className,
+  frame,
+  opIndex = -1,
+  reduced = false,
 }: {
-  cells: string[]
+  cells?: string[]
   highlight?: number
   onTap?: (index: number) => void
   className?: string
+  /** Wave-of-shifts frame to render instead of a static row (post-verdict only). */
+  frame?: ShiftFrame
+  /** The op index to keep highlighted on the address ruler during the wave. */
+  opIndex?: number
+  /** Snap (no animation) for prefers-reduced-motion. */
+  reduced?: boolean
 }) {
+  if (frame) {
+    return <ShiftWaveRow frame={frame} opIndex={opIndex} reduced={reduced} className={className} />
+  }
+
   return (
     <div className={cn("flex gap-1.5", className)}>
-      {cells.map((c, i) => (
+      {(cells ?? []).map((c, i) => (
         <div key={`${i}-${c}`} className="flex flex-col items-center gap-1">
           <motion.button
             type="button"
@@ -53,6 +78,73 @@ export function ArrayRow({
           </span>
         </div>
       ))}
+    </div>
+  )
+}
+
+function ShiftWaveRow({
+  frame,
+  opIndex,
+  reduced,
+  className,
+}: {
+  frame: ShiftFrame
+  opIndex: number
+  reduced: boolean
+  className?: string
+}) {
+  const width = frame.columns * STEP - GAP
+  const spring = { type: "spring", stiffness: 420, damping: 32 } as const
+
+  return (
+    <div
+      className={cn("relative", className)}
+      style={{ width, height: 68 }}
+      data-testid="shift-wave"
+    >
+      <div className="absolute inset-x-0 top-0 flex gap-1.5" aria-hidden>
+        {Array.from({ length: frame.columns }).map((_, i) => (
+          <div key={i} className="flex w-10 flex-col items-center gap-1">
+            <div
+              className={cn(
+                "h-12 w-10 rounded-lg border-2 border-dashed",
+                i === opIndex ? "border-lilac-strong/50" : "border-border/60",
+              )}
+            />
+            <span
+              className={cn(
+                "text-[10px]",
+                i === opIndex ? "font-semibold text-lilac-strong" : "text-faint",
+              )}
+            >
+              {i}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <AnimatePresence initial={false}>
+        {frame.cells.map((c) => (
+          <motion.div
+            key={c.id}
+            className="absolute left-0 top-0"
+            initial={{ opacity: 0, scale: 0.6, x: c.slot * STEP }}
+            animate={{ opacity: 1, scale: 1, x: c.slot * STEP }}
+            exit={{ opacity: 0, scale: 0.6 }}
+            transition={reduced ? { duration: 0 } : spring}
+            data-cell={c.id}
+          >
+            <div
+              className={cn(
+                "flex h-12 w-10 items-center justify-center rounded-lg border-2 font-bold text-foreground",
+                c.moving ? "border-lilac-strong bg-lilac-soft" : "border-border bg-card",
+              )}
+            >
+              {c.label}
+            </div>
+          </motion.div>
+        ))}
+      </AnimatePresence>
     </div>
   )
 }

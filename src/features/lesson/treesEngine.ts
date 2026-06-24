@@ -727,20 +727,41 @@ export function tappableChildren(state: TreesState): {
   return { left, right, ghostSides }
 }
 
-/** Node ids dropped (opposite subtrees) along the descend so far — dimmed + SR. */
-export function droppedNodeIds(state: TreesState): Set<string> {
-  const q = state.question
+/**
+ * Node ids dropped (the opposite subtree discarded at each step) along an
+ * arbitrary descend path. Pure over (tree, pathIds) so the post-correct contrast
+ * race can grey the discarded subtrees of any path prefix, not only the live
+ * working state.
+ */
+export function droppedAlongPath(tree: TreeNode | null, pathIds: string[]): Set<string> {
   const out = new Set<string>()
-  if (!q) return out
-  for (let i = 0; i < state.tappedPath.length - 1; i++) {
-    const parent = nodeById(q.tree, state.tappedPath[i])
-    const childId = state.tappedPath[i + 1]
+  if (!tree) return out
+  for (let i = 0; i < pathIds.length - 1; i++) {
+    const parent = nodeById(tree, pathIds[i])
+    const childId = pathIds[i + 1]
     if (!parent) continue
     const opp =
       parent.left?.id === childId ? parent.right : parent.right?.id === childId ? parent.left : null
     if (opp) collectIds(opp, out)
   }
   return out
+}
+
+/** Node ids dropped (opposite subtrees) along the descend so far — dimmed + SR. */
+export function droppedNodeIds(state: TreesState): Set<string> {
+  return state.question ? droppedAlongPath(state.question.tree, state.tappedPath) : new Set<string>()
+}
+
+/**
+ * How many nodes are still in play: the size of the cursor's subtree (every node
+ * the target could still be hiding in). Each comparison discards the opposite
+ * subtree, so this halves cleanly (7 -> 3 -> 1 on the balanced tree). Zero once
+ * the search has fallen into an empty slot (the value is absent / placed). Drives
+ * both the HalvingMeter and the SR descend line, so the two always agree.
+ */
+export function candidatesRemaining(state: TreesState): number {
+  if (state.tappedSlot != null) return 0
+  return subtreeSize(cursorNode(state))
 }
 
 /**

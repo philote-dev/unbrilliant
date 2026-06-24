@@ -182,6 +182,9 @@ export function HeapDualView({
             <motion.g
               key={`node-${node.i}`}
               data-testid="heap-node"
+              data-slot={node.i}
+              data-lit={treeLit ? "1" : undefined}
+              data-lifted={lifted(node.i) ? "1" : undefined}
               animate={{ y: lifted(node.i) && !reduced ? -7 : 0 }}
               transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 360, damping: 24 }}
             >
@@ -269,6 +272,9 @@ export function HeapDualView({
                   key={`${i}-${v}`}
                   type="button"
                   data-testid="heap-cell"
+                  data-slot={i}
+                  data-lit={tone != null ? "1" : undefined}
+                  data-lifted={lifted(i) ? "1" : undefined}
                   data-heap-correct-slot={
                     import.meta.env.DEV && correctSlot === i ? String(i) : undefined
                   }
