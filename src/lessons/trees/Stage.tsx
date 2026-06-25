@@ -1,9 +1,7 @@
 import type { Dispatch } from "react"
 
-import { Button } from "@/components/ui/button"
 import { AnswerCard, type AnswerState } from "@/components/willow/AnswerCard"
 import { CostReadout } from "@/components/willow/CostReadout"
-import { FeedbackFooter } from "@/components/willow/FeedbackFooter"
 import type { LessonAction } from "@/features/lesson/engine"
 import {
   binOf,
@@ -22,13 +20,17 @@ import {
 import { DisplayTree, TreeFigure } from "./TreeFigure"
 import { SortedChain } from "./SortedChain"
 import { ContrastRace } from "./ContrastRace"
-import { GuessNumber } from "./GuessNumber"
+import { ArenaContinue, ArenaFooter, ArenaShell, RebalanceBracket, type ArenaQuota } from "./Arena"
 
 /**
- * The Trees stage routes the eleven beats across the two faces (descend / locate
- * and in-order / sequence) and the comparison synthesis. Every verdict flows
- * through the shared FeedbackFooter (with its `canCheck` gate + `hideFailHint`
- * SR-only fail copy); the figures are tap-only (no rewire infra).
+ * The Trees stage, skinned as a March Madness TOURNAMENT BRACKET. Every beat
+ * renders inside the full-bleed `ArenaShell` (a page-transforming arena, like the
+ * Linked Lists Spotify immersion): the BST is drawn top-down as a bracket, a
+ * descend is a championship search that eliminates (greys) half the field each
+ * round, the in-order beats seed the bracket, and the compare beat rebalances a
+ * lopsided bracket into a fair one. Nothing here changes a verdict: the figures
+ * keep their pure-engine logic and `data-*` hooks; only the paint changes (the
+ * arena overrides design-token CSS variables for its subtree).
  */
 export function TreesStage({
   state,
@@ -67,23 +69,11 @@ const BIN_LABEL: Record<TreesBin, string> = {
   comparison: "Comparison",
 }
 
-function BinHeader({ state }: { state: TreesState }) {
-  const q = state.question
-  if (!q) return null
+function arenaQuota(state: TreesState): ArenaQuota | null {
   const bin = binOf(currentPartTrees(state))
   const quota = partQuotaTrees(state)
-  return (
-    <div className="mt-7">
-      {bin && quota && (
-        <p className="text-center text-xs font-medium uppercase tracking-wide text-lilac-strong">
-          {BIN_LABEL[bin]} · {quota.done} / {quota.total} correct
-        </p>
-      )}
-      <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground">
-        {q.prompt}
-      </h2>
-    </div>
-  )
+  if (!bin || !quota) return null
+  return { label: BIN_LABEL[bin], done: quota.done, total: quota.total }
 }
 
 const feedbackCopy = (q: TreesQuestion) => ({
@@ -94,22 +84,27 @@ const feedbackCopy = (q: TreesQuestion) => ({
   why: q.why,
 })
 
+function ArenaLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <span
+      className="text-[10px] font-semibold uppercase tracking-wide"
+      style={{ color: "#64748b" }}
+    >
+      {children}
+    </span>
+  )
+}
+
 function LabeledCost({ label, cost }: { label: string; cost: TreesCost }) {
   return (
     <div className="flex flex-col items-center gap-1">
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-        {label}
-      </span>
+      <ArenaLabel>{label}</ArenaLabel>
       <CostReadout word={cost.word} count={cost.count} unit={cost.unit} />
     </div>
   )
 }
 
-function mcqCardState(
-  state: TreesState,
-  id: string,
-  answer: string,
-): AnswerState {
+function mcqCardState(state: TreesState, id: string, answer: string): AnswerState {
   const { feedback, selected, showWhy } = state
   if (feedback === "correct") return id === answer ? "correct" : "default"
   if (feedback === "nudge") return id === selected ? "nudge" : "default"
@@ -133,30 +128,18 @@ function DemoPart({
   const q = state.question
   if (!q) return null
   return (
-    <div className="flex flex-1 flex-col">
-      <div className="mt-7 text-center">
-        <h2 className="text-xl font-bold text-foreground">Trees: descend to search</h2>
-        <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground">{q.prompt}</p>
-      </div>
-
-      <div className="flex flex-1 flex-col items-center justify-center py-5">
-        <TreeFigure state={state} dispatch={dispatch} />
-      </div>
-
-      <div className="mt-auto">
-        <p className="mb-3 text-center text-sm text-muted-foreground">
-          Each tap compares and steps down. The half you skip drops away.
-        </p>
-        <Button
-          variant="tactile"
-          size="lg"
-          className="w-full"
+    <ArenaShell
+      eyebrow="Tip-off"
+      title="It's a bracket: tap a seed to advance, and the half you skip is out"
+      footer={
+        <ArenaContinue
           onClick={() => dispatch({ type: "continue" })}
-        >
-          Continue
-        </Button>
-      </div>
-    </div>
+          hint="Each tap compares and advances one round. The half you skip is eliminated."
+        />
+      }
+    >
+      <TreeFigure state={state} dispatch={dispatch} variant="bracket" />
+    </ArenaShell>
   )
 }
 
@@ -175,43 +158,33 @@ function TeachPart({
   const highlight = isDescend ? descendPath(q.tree, 10).path : q.order
 
   return (
-    <div className="flex flex-1 flex-col">
-      <div className="mt-7 text-center">
-        <h2 className="text-xl font-bold text-foreground">{q.title}</h2>
-        <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground">{q.prompt}</p>
-      </div>
-
-      <div className="flex flex-1 flex-col items-center justify-center gap-5 py-6">
-        <DisplayTree
-          tree={q.tree}
-          highlightIds={highlight}
-          orderRanks={isDescend ? undefined : q.order}
-        />
-        {isDescend ? (
-          <p className="mx-auto max-w-xs text-center text-sm text-muted-foreground">
-            Compare, go left if smaller or right if larger, and throw away the half you
-            didn't pick.
-          </p>
-        ) : (
-          <p className="mx-auto max-w-xs text-center text-sm text-muted-foreground">
-            The badges count the visit order: left subtree, then the node, then the right
-            subtree, and it comes out{" "}
-            <span className="font-semibold text-foreground">sorted</span>.
-          </p>
-        )}
-      </div>
-
-      <div className="mt-auto">
-        <Button
-          variant="tactile"
-          size="lg"
-          className="w-full"
-          onClick={() => dispatch({ type: "continue" })}
-        >
-          Continue
-        </Button>
-      </div>
-    </div>
+    <ArenaShell
+      eyebrow={isDescend ? "Scouting report" : "Seeding"}
+      title={q.title}
+      footer={<ArenaContinue onClick={() => dispatch({ type: "continue" })} />}
+    >
+      <DisplayTree
+        tree={q.tree}
+        highlightIds={highlight}
+        orderRanks={isDescend ? undefined : q.order}
+        variant="bracket"
+      />
+      {isDescend ? (
+        <p className="mx-auto max-w-xs text-center text-sm" style={{ color: "#475569" }}>
+          Compare, advance left if smaller or right if larger, and the half you skip is
+          eliminated.
+        </p>
+      ) : (
+        <p className="mx-auto max-w-xs text-center text-sm" style={{ color: "#475569" }}>
+          The badges count the visit order: left bracket, then the seed, then the right
+          bracket, and it comes out{" "}
+          <span className="font-semibold" style={{ color: "#0f2a4a" }}>
+            sorted
+          </span>
+          .
+        </p>
+      )}
+    </ArenaShell>
   )
 }
 
@@ -229,29 +202,25 @@ function DescendPart({
   const correct = state.feedback === "correct"
 
   return (
-    <div className="flex flex-1 flex-col">
-      <BinHeader state={state} />
-
-      <div className="flex flex-1 flex-col items-center justify-center gap-4 py-5">
-        <TreeFigure state={state} dispatch={dispatch} />
-      </div>
-
+    <ArenaShell
+      eyebrow="Bracket search"
+      title={q.prompt}
+      quota={arenaQuota(state)}
+      footer={
+        <ArenaFooter
+          feedback={state.feedback}
+          showWhy={state.showWhy}
+          canCheck={canCheckTrees(state)}
+          copy={feedbackCopy(q)}
+          dispatch={dispatch}
+        />
+      }
+    >
+      <TreeFigure state={state} dispatch={dispatch} variant="bracket" />
       {correct && q.cost && (
-        <div className="mb-4 flex justify-center">
-          <CostReadout word={q.cost.word} count={q.cost.count} unit={q.cost.unit} />
-        </div>
+        <CostReadout word={q.cost.word} count={q.cost.count} unit={q.cost.unit} />
       )}
-
-      <FeedbackFooter
-        feedback={state.feedback}
-        selected={null}
-        canCheck={canCheckTrees(state)}
-        showWhy={state.showWhy}
-        hideFailHint
-        copy={feedbackCopy(q)}
-        dispatch={dispatch}
-      />
-    </div>
+    </ArenaShell>
   )
 }
 
@@ -269,30 +238,32 @@ function SequencePart({
   const tappedKeys = state.tappedOrder.map((id) => nodeById(q.tree, id)?.key ?? "?")
 
   return (
-    <div className="flex flex-1 flex-col">
-      <BinHeader state={state} />
-
-      <div className="flex flex-1 flex-col items-center justify-center gap-4 py-5">
-        <TreeFigure state={state} dispatch={dispatch} />
-        <p className="min-h-6 text-center text-sm font-semibold tabular-nums text-lilac-strong">
-          {tappedKeys.length > 0 ? tappedKeys.join(" → ") : "Tap the nodes in order"}
-        </p>
-      </div>
-
-      <FeedbackFooter
-        feedback={state.feedback}
-        selected={null}
-        canCheck={canCheckTrees(state)}
-        showWhy={state.showWhy}
-        hideFailHint
-        copy={feedbackCopy(q)}
-        dispatch={dispatch}
-      />
-    </div>
+    <ArenaShell
+      eyebrow="Seed the bracket"
+      title={q.prompt}
+      quota={arenaQuota(state)}
+      footer={
+        <ArenaFooter
+          feedback={state.feedback}
+          showWhy={state.showWhy}
+          canCheck={canCheckTrees(state)}
+          copy={feedbackCopy(q)}
+          dispatch={dispatch}
+        />
+      }
+    >
+      <TreeFigure state={state} dispatch={dispatch} variant="bracket" />
+      <p
+        className="min-h-6 text-center text-sm font-semibold tabular-nums"
+        style={{ color: "#0f2a4a" }}
+      >
+        {tappedKeys.length > 0 ? tappedKeys.join(" → ") : "Tap the seeds in order"}
+      </p>
+    </ArenaShell>
   )
 }
 
-/* ------------------- real-world skin ("guess my number") ------------------ */
+/* ------------------------- real-world skin (the bracket) ------------------ */
 
 function RealWorldPart({
   state,
@@ -306,29 +277,25 @@ function RealWorldPart({
   const correct = state.feedback === "correct"
 
   return (
-    <div className="flex flex-1 flex-col">
-      <BinHeader state={state} />
-
-      <div className="flex flex-1 flex-col items-center justify-center gap-4 py-5">
-        <GuessNumber state={state} dispatch={dispatch} />
-      </div>
-
+    <ArenaShell
+      eyebrow="Championship search"
+      title={q.prompt}
+      quota={arenaQuota(state)}
+      footer={
+        <ArenaFooter
+          feedback={state.feedback}
+          showWhy={state.showWhy}
+          canCheck={canCheckTrees(state)}
+          copy={feedbackCopy(q)}
+          dispatch={dispatch}
+        />
+      }
+    >
+      <TreeFigure state={state} dispatch={dispatch} variant="bracket" />
       {correct && q.cost && (
-        <div className="mb-4 flex justify-center">
-          <CostReadout word={q.cost.word} count={q.cost.count} unit={q.cost.unit} />
-        </div>
+        <CostReadout word={q.cost.word} count={q.cost.count} unit={q.cost.unit} />
       )}
-
-      <FeedbackFooter
-        feedback={state.feedback}
-        selected={null}
-        canCheck={canCheckTrees(state)}
-        showWhy={state.showWhy}
-        hideFailHint
-        copy={feedbackCopy(q)}
-        dispatch={dispatch}
-      />
-    </div>
+    </ArenaShell>
   )
 }
 
@@ -347,22 +314,38 @@ function ComparePart({
   const terminal = isTerminalTrees(state)
 
   return (
-    <div className="flex flex-1 flex-col">
-      <BinHeader state={state} />
-
-      <div className="flex flex-col items-center gap-3 py-3">
-        <DisplayTree tree={q.tree} caption="Balanced" />
-        <DisplayTree tree={q.stick} caption="Stick (same keys)" />
-      </div>
-
-      {correct && q.cost && q.altCost && (
-        <div className="mb-3 flex flex-wrap justify-center gap-2">
-          <LabeledCost label="Balanced" cost={q.cost} />
-          <LabeledCost label="Stick" cost={q.altCost} />
+    <ArenaShell
+      eyebrow="Bracket math"
+      title={q.prompt}
+      quota={arenaQuota(state)}
+      footer={
+        <ArenaFooter
+          feedback={state.feedback}
+          showWhy={state.showWhy}
+          canCheck={state.selected != null}
+          copy={feedbackCopy(q)}
+          dispatch={dispatch}
+        />
+      }
+    >
+      {correct ? (
+        <>
+          <RebalanceBracket balanced={q.tree} stick={q.stick} />
+          {q.cost && q.altCost && (
+            <div className="flex flex-wrap justify-center gap-2">
+              <LabeledCost label="Fair bracket" cost={q.cost} />
+              <LabeledCost label="Lopsided" cost={q.altCost} />
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="flex flex-col items-center gap-3">
+          <DisplayTree tree={q.tree} caption="Fair bracket" variant="bracket" />
+          <DisplayTree tree={q.stick} caption="Lopsided (same seeds)" variant="bracket" />
         </div>
       )}
 
-      <div className="flex flex-col gap-3">
+      <div className="flex w-full flex-col gap-3">
         {q.options.map((opt, i) => (
           <AnswerCard
             key={opt.id}
@@ -375,16 +358,7 @@ function ComparePart({
           />
         ))}
       </div>
-
-      <FeedbackFooter
-        feedback={state.feedback}
-        selected={state.selected}
-        showWhy={state.showWhy}
-        hideFailHint
-        copy={feedbackCopy(q)}
-        dispatch={dispatch}
-      />
-    </div>
+    </ArenaShell>
   )
 }
 
@@ -403,18 +377,27 @@ function ContrastPart({
   const walkDone = chainWalkDone(state)
 
   return (
-    <div className="flex flex-1 flex-col">
-      <BinHeader state={state} />
-
-      {/* Until correct, the learner does the graded walk-then-descend. Once
-          correct, those figures give way to the ContrastRace replay so the page
-          never stacks a duplicate chain + tree (mobile overflow). */}
+    <ArenaShell
+      eyebrow="Seed line vs bracket"
+      title={q.prompt}
+      quota={arenaQuota(state)}
+      footer={
+        <ArenaFooter
+          feedback={state.feedback}
+          showWhy={state.showWhy}
+          canCheck={canCheckTrees(state)}
+          copy={feedbackCopy(q)}
+          dispatch={dispatch}
+        />
+      }
+    >
+      {/* Until correct, the learner walks the seed line then advances the bracket.
+          Once correct, the ContrastRace replay takes over so the page never stacks
+          a duplicate seed line + bracket (mobile overflow). */}
       {!correct && (
-        <div className="flex flex-1 flex-col items-center justify-center gap-5 py-4">
+        <>
           <div className="flex flex-col items-center gap-1.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Sorted list. Walk it
-            </span>
+            <ArenaLabel>Seed line: walk every team</ArenaLabel>
             <SortedChain
               keys={q.chain}
               cursor={state.chainCursor}
@@ -424,46 +407,33 @@ function ContrastPart({
           </div>
 
           <div className="flex flex-col items-center gap-1.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Balanced tree. Descend it
-            </span>
-            <TreeFigure state={state} dispatch={dispatch} lockDescend={!walkDone} />
+            <ArenaLabel>Bracket: advance it</ArenaLabel>
+            <TreeFigure state={state} dispatch={dispatch} variant="bracket" lockDescend={!walkDone} />
             {!walkDone && (
-              <p className="max-w-xs text-center text-xs text-faint">
-                Finish the walk first, then descend the tree.
+              <p className="max-w-xs text-center text-xs" style={{ color: "#94a3b8" }}>
+                Finish the walk first, then advance the bracket.
               </p>
             )}
           </div>
-        </div>
+        </>
       )}
 
       {correct && (
-        <div className="mb-4 flex flex-1 items-center justify-center">
-          <ContrastRace
-            chain={q.chain}
-            chainTargetIndex={q.chainTargetIndex}
-            tree={q.tree}
-            path={q.descend?.path ?? []}
-          />
-        </div>
+        <ContrastRace
+          chain={q.chain}
+          chainTargetIndex={q.chainTargetIndex}
+          tree={q.tree}
+          path={q.descend?.path ?? []}
+          variant="bracket"
+        />
       )}
 
       {correct && q.cost && q.altCost && (
-        <div className="mb-3 flex flex-wrap justify-center gap-2">
-          <LabeledCost label="List walk" cost={q.altCost} />
-          <LabeledCost label="Tree descend" cost={q.cost} />
+        <div className="flex flex-wrap justify-center gap-2">
+          <LabeledCost label="Seed line walk" cost={q.altCost} />
+          <LabeledCost label="Bracket" cost={q.cost} />
         </div>
       )}
-
-      <FeedbackFooter
-        feedback={state.feedback}
-        selected={null}
-        canCheck={canCheckTrees(state)}
-        showWhy={state.showWhy}
-        hideFailHint
-        copy={feedbackCopy(q)}
-        dispatch={dispatch}
-      />
-    </div>
+    </ArenaShell>
   )
 }

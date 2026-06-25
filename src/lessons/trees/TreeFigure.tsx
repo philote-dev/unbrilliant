@@ -49,6 +49,16 @@ import { HalvingMeter } from "./HalvingMeter"
 const GHOST_DX = 30
 const DEV = import.meta.env.DEV
 
+/**
+ * Visual skin. "tree" is the abstract circular figure; "bracket" re-shapes the
+ * same nodes/edges into a top-down tournament bracket (rounded seed cards +
+ * orthogonal connectors) for the arena. Logic and every `data-*` hook are
+ * identical across variants; colors come from the arena's CSS-variable override.
+ */
+export type FigureVariant = "tree" | "bracket"
+const nodeRadius = (variant: FigureVariant) =>
+  variant === "bracket" ? "rounded-xl" : "rounded-full"
+
 const edgesOf = (tree: TreeNode): { from: string; to: string }[] => {
   const out: { from: string; to: string }[] = []
   const walk = (n: TreeNode | null) => {
@@ -73,6 +83,7 @@ export function TreeFigure({
   dispatch,
   lockDescend = false,
   reducedMotion,
+  variant = "tree",
 }: {
   state: TreesState
   dispatch: Dispatch<LessonAction>
@@ -80,16 +91,24 @@ export function TreeFigure({
   lockDescend?: boolean
   /** Override the reduced-motion media query (tests; otherwise the hook decides). */
   reducedMotion?: boolean
+  /** Visual skin (logic + hooks unchanged); "bracket" draws the arena bracket. */
+  variant?: FigureVariant
 }) {
   const prefersReduced = useReducedMotion()
   const reduced = reducedMotion ?? prefersReduced ?? false
   const q = state.question
   if (!q) return null
   if (q.mode === "sequence") {
-    return <SequenceFigure state={state} dispatch={dispatch} reduced={reduced} />
+    return <SequenceFigure state={state} dispatch={dispatch} reduced={reduced} variant={variant} />
   }
   return (
-    <DescendFigure state={state} dispatch={dispatch} lockDescend={lockDescend} reduced={reduced} />
+    <DescendFigure
+      state={state}
+      dispatch={dispatch}
+      lockDescend={lockDescend}
+      reduced={reduced}
+      variant={variant}
+    />
   )
 }
 
@@ -165,11 +184,13 @@ function Edges({
   pos,
   tone,
   reduced,
+  variant = "tree",
 }: {
   tree: TreeNode
   pos: Map<string, NodePos>
   tone: (from: string, to: string) => EdgeTone
   reduced: boolean
+  variant?: FigureVariant
 }) {
   const transition = reduced ? { duration: 0 } : { type: "spring" as const, stiffness: 220, damping: 28 }
   return (
@@ -179,14 +200,39 @@ function Edges({
         const b = pos.get(to)
         if (!a || !b) return null
         const t = tone(from, to)
+        const opacity = t === "dropped" ? 0.4 : 1
+        const stroke = EDGE_STROKE[t]
+        const width = variant === "bracket" ? 2.8 : 2.4
+        if (variant === "bracket") {
+          // Orthogonal bracket connector: down, across, down (3 animatable segments).
+          const mid = (a.y + b.y) / 2
+          const seg = (key: string, x1: number, y1: number, x2: number, y2: number) => (
+            <motion.line
+              key={key}
+              initial={false}
+              animate={{ x1, y1, x2, y2, opacity }}
+              transition={transition}
+              stroke={stroke}
+              strokeWidth={width}
+              strokeLinecap="round"
+            />
+          )
+          return (
+            <g key={`${from}-${to}`}>
+              {seg(`${from}-${to}-v1`, a.x, a.y, a.x, mid)}
+              {seg(`${from}-${to}-h`, a.x, mid, b.x, mid)}
+              {seg(`${from}-${to}-v2`, b.x, mid, b.x, b.y)}
+            </g>
+          )
+        }
         return (
           <motion.line
             key={`${from}-${to}`}
             initial={false}
-            animate={{ x1: a.x, y1: a.y, x2: b.x, y2: b.y, opacity: t === "dropped" ? 0.4 : 1 }}
+            animate={{ x1: a.x, y1: a.y, x2: b.x, y2: b.y, opacity }}
             transition={transition}
-            stroke={EDGE_STROKE[t]}
-            strokeWidth={2.4}
+            stroke={stroke}
+            strokeWidth={width}
             strokeLinecap="round"
           />
         )
@@ -202,14 +248,17 @@ function DescendFigure({
   dispatch,
   lockDescend,
   reduced,
+  variant,
 }: {
   state: TreesState
   dispatch: Dispatch<LessonAction>
   lockDescend: boolean
   reduced: boolean
+  variant: FigureVariant
 }) {
   const q = state.question!
   const tree = q.tree
+  const radius = nodeRadius(variant)
   const layout = tidyLayout(tree)
   const dropped = droppedNodeIds(state)
   const pathIds = new Set(state.tappedPath)
@@ -245,7 +294,7 @@ function DescendFigure({
   return (
     <div className="flex flex-col items-center gap-3">
       <FitBox figW={figW} figH={figH} reduced={reduced}>
-        <Edges tree={tree} pos={layout.pos} tone={edgeTone} reduced={reduced} />
+        <Edges tree={tree} pos={layout.pos} tone={edgeTone} reduced={reduced} variant={variant} />
 
         {[...layout.pos.entries()].map(([id, p]) => {
           const node = nodeById(tree, id)!
@@ -276,7 +325,8 @@ function DescendFigure({
                   aria-label={`node ${node.key}`}
                   onClick={() => dispatch({ type: "select", letter: id })}
                   className={cn(
-                    "flex size-full items-center justify-center rounded-full border-2 text-base font-bold text-foreground outline-none transition-colors",
+                    "flex size-full items-center justify-center border-2 text-base font-bold text-foreground outline-none transition-colors",
+                    radius,
                     "cursor-pointer border-lilac-strong/60 bg-card ring-4 ring-lilac-strong/15 hover:bg-lilac-soft",
                     "focus-visible:ring-2 focus-visible:ring-lilac-strong/70 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                   )}
@@ -288,7 +338,8 @@ function DescendFigure({
                   data-node-id={id}
                   aria-label={`node ${node.key}${isDropped ? ", discarded" : ""}`}
                   className={cn(
-                    "flex size-full items-center justify-center rounded-full border-2 text-base font-bold transition-colors",
+                    "flex size-full items-center justify-center border-2 text-base font-bold transition-colors",
+                    radius,
                     onPath
                       ? "border-lilac-strong bg-lilac-soft text-foreground"
                       : isDropped
@@ -321,7 +372,8 @@ function DescendFigure({
                 aria-label={`empty ${side} slot. Tap if ${q.target ?? "the value"} would attach here`}
                 onClick={() => dispatch({ type: "select", letter: side === "left" ? "ghost:left" : "ghost:right" })}
                 className={cn(
-                  "absolute flex items-center justify-center rounded-full border-2 border-dashed border-lilac-strong/70 bg-lilac-soft/40 text-sm font-semibold text-lilac-strong outline-none",
+                  "absolute flex items-center justify-center border-2 border-dashed border-lilac-strong/70 bg-lilac-soft/40 text-sm font-semibold text-lilac-strong outline-none",
+                  radius,
                   "cursor-pointer hover:bg-lilac-soft focus-visible:ring-2 focus-visible:ring-lilac-strong/70 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                 )}
                 style={{ left: p.x - NODE_R, top: p.y - NODE_R, width: NODE_W, height: NODE_H }}
@@ -335,7 +387,10 @@ function DescendFigure({
         {state.tappedSlot && (
           <div
             aria-label={`${q.target ?? "value"} ${q.insertAt ? "attaches" : "would be"} here`}
-            className="absolute flex items-center justify-center rounded-full border-2 border-lilac-strong bg-lilac-soft text-base font-bold text-lilac-strong"
+            className={cn(
+              "absolute flex items-center justify-center border-2 border-lilac-strong bg-lilac-soft text-base font-bold text-lilac-strong",
+              radius,
+            )}
             style={(() => {
               const p = slotPos(state.tappedSlot.side)
               return { left: p.x - NODE_R, top: p.y - NODE_R, width: NODE_W, height: NODE_H }
@@ -346,11 +401,20 @@ function DescendFigure({
         )}
       </FitBox>
 
-      <HalvingMeter
-        total={subtreeSize(tree)}
-        remaining={candidatesRemaining(state)}
-        reducedMotion={reduced}
-      />
+      {variant === "bracket" ? (
+        // The halving is felt through the eliminated (greyed) half of the bracket,
+        // so the abstract pip meter is folded away; the count survives in the SR
+        // line + a compact "seeds still in" caption.
+        <p className="text-xs font-bold tabular-nums" style={{ color: "#0f2a4a" }}>
+          {candidatesRemaining(state)} seed{candidatesRemaining(state) === 1 ? "" : "s"} still in
+        </p>
+      ) : (
+        <HalvingMeter
+          total={subtreeSize(tree)}
+          remaining={candidatesRemaining(state)}
+          reducedMotion={reduced}
+        />
+      )}
 
       <p className="sr-only" role="status">
         {descendStatus(state)}
@@ -385,13 +449,16 @@ function SequenceFigure({
   state,
   dispatch,
   reduced,
+  variant,
 }: {
   state: TreesState
   dispatch: Dispatch<LessonAction>
   reduced: boolean
+  variant: FigureVariant
 }) {
   const q = state.question!
   const tree = q.tree
+  const radius = nodeRadius(variant)
   const compact = compactLayout(tree)
   const tidy = tidyLayout(tree)
   // The teaching payoff: straighten the compact layout into sorted order on a
@@ -411,7 +478,7 @@ function SequenceFigure({
 
   return (
     <FitBox figW={figW} figH={figH} reduced={reduced} straightened={straightened}>
-      <Edges tree={tree} pos={layout.pos} tone={() => "muted"} reduced={reduced} />
+      <Edges tree={tree} pos={layout.pos} tone={() => "muted"} reduced={reduced} variant={variant} />
 
       {[...layout.pos.entries()].map(([id, p]) => {
         const node = nodeById(tree, id)!
@@ -436,7 +503,8 @@ function SequenceFigure({
                 aria-label={`node ${node.key}`}
                 onClick={() => dispatch({ type: "select", letter: id })}
                 className={cn(
-                  "flex size-full items-center justify-center rounded-full border-2 border-border bg-card text-base font-bold text-foreground outline-none transition-colors",
+                  "flex size-full items-center justify-center border-2 border-border bg-card text-base font-bold text-foreground outline-none transition-colors",
+                  radius,
                   "cursor-pointer hover:border-lilac-strong/50 focus-visible:ring-2 focus-visible:ring-lilac-strong/70 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                 )}
               >
@@ -448,7 +516,8 @@ function SequenceFigure({
                 data-inorder-rank={DEV ? rank.get(id) : undefined}
                 aria-label={`node ${node.key}${orderNo ? `, tapped ${orderNo}` : ""}`}
                 className={cn(
-                  "relative flex size-full items-center justify-center rounded-full border-2 text-base font-bold transition-colors",
+                  "relative flex size-full items-center justify-center border-2 text-base font-bold transition-colors",
+                  radius,
                   tapped ? "border-lilac-strong bg-lilac-soft text-foreground" : "border-border bg-card text-foreground",
                 )}
               >
@@ -482,6 +551,7 @@ export function DisplayTree({
   orderRanks,
   dim = false,
   caption,
+  variant = "tree",
 }: {
   tree: TreeNode
   highlightIds?: string[]
@@ -493,9 +563,12 @@ export function DisplayTree({
   /** Dim the whole figure (background / context). */
   dim?: boolean
   caption?: string
+  /** Visual skin; "bracket" draws seed cards + orthogonal connectors. */
+  variant?: FigureVariant
 }) {
   const prefersReduced = useReducedMotion()
   const reduced = prefersReduced ?? false
+  const radius = nodeRadius(variant)
   const layout = tidyLayout(tree)
   const lit = new Set(highlightIds ?? [])
   const dropped = new Set(droppedIds ?? [])
@@ -509,7 +582,7 @@ export function DisplayTree({
   return (
     <div className={cn("flex flex-col items-center gap-1.5", dim && "opacity-50")}>
       <FitBox figW={layout.width} figH={layout.height} reduced={reduced}>
-        <Edges tree={tree} pos={layout.pos} tone={edgeTone} reduced={reduced} />
+        <Edges tree={tree} pos={layout.pos} tone={edgeTone} reduced={reduced} variant={variant} />
         {[...layout.pos.entries()].map(([id, p]) => {
           const node = nodeById(tree, id)!
           const isDropped = dropped.has(id)
@@ -522,7 +595,8 @@ export function DisplayTree({
               data-order-rank={rank}
               aria-label={`node ${node.key}${rank ? `, visited ${rank}` : ""}${isDropped ? ", discarded" : ""}`}
               className={cn(
-                "absolute flex items-center justify-center rounded-full border-2 text-base font-bold transition-colors",
+                "absolute flex items-center justify-center border-2 text-base font-bold transition-colors",
+                radius,
                 isDropped
                   ? "border-dashed border-faint bg-card/40 text-faint opacity-40"
                   : lit.has(id)

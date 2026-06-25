@@ -502,8 +502,8 @@ function makeDescend(part: "find-hit" | "find-miss" | "insert" | "realworld"): T
       why: "8 → 4 → 6: 5 < 6 needs a left child, which is empty. That empty slot is exactly where 5 belongs.",
     }
   }
-  // realworld: the "guess my number" game show. Target 6 takes a MIXED path
-  // (lower to 4, then higher to 6), so the host says both "Lower!" and "Higher!".
+  // realworld: the tournament BRACKET. Target 6 takes a MIXED path (advance left
+  // to 4, then right to 6), so the search swings both ways down the bracket.
   const target = 6
   const d = descendPath(tree, target)
   return {
@@ -512,16 +512,16 @@ function makeDescend(part: "find-hit" | "find-miss" | "insert" | "realworld"): T
     bin: "locate",
     mode: "descend",
     tree,
-    title: "Guess my number",
+    title: "Bracket buster",
     target,
     descend: d,
     realWorld: true,
     cost: comparisonsCost(d.comparisons),
-    prompt: "I'm thinking of a number from 2 to 14. Each guess tells you higher or lower.",
-    hint: "Use the clue: lower means the secret sits below your guess, higher means above. Each guess halves the range.",
-    nudge: "Follow the clue: if it says lower, guess lower; if it says higher, guess higher.",
-    correct: "Lower then higher pins it to 6 in three guesses, halving the range each time.",
-    why: "Higher or lower is just a BST descend: 8 → 4 → 6, halving the range at every guess. That's why guessing games end so fast.",
+    prompt: "Find the 6 seed. Each round, the half you skip is eliminated.",
+    hint: "Compare at each matchup: advance left if the seed is lower, right if higher. The half you skip is out.",
+    nudge: "Compare the seed at each matchup, then advance toward it; do not jump around.",
+    correct: "Found the 6 seed in three rounds, half the bracket eliminated each round.",
+    why: "A bracket search is a BST descend: 8 → 4 → 6, halving the field every round. That is why even a huge bracket resolves in a few rounds.",
   }
 }
 

@@ -4,7 +4,7 @@ import { useReducedMotion } from "motion/react"
 
 import { Button } from "@/components/ui/button"
 import { droppedAlongPath, type TreeNode } from "@/features/lesson/treesEngine"
-import { DisplayTree } from "./TreeFigure"
+import { DisplayTree, type FigureVariant } from "./TreeFigure"
 import { SortedChain } from "./SortedChain"
 
 /**
@@ -22,12 +22,15 @@ export function ContrastRace({
   tree,
   path,
   reducedMotion,
+  variant = "tree",
 }: {
   chain: number[]
   chainTargetIndex: number
   tree: TreeNode
   path: string[]
   reducedMotion?: boolean
+  /** Visual skin forwarded to the tree (arena uses "bracket"). */
+  variant?: FigureVariant
 }) {
   const prefersReduced = useReducedMotion()
   const reduced = reducedMotion ?? prefersReduced ?? false
@@ -63,7 +66,7 @@ export function ContrastRace({
         <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
           Balanced tree: half drops each step
         </span>
-        <DisplayTree tree={tree} highlightIds={litPath} droppedIds={dropped} />
+        <DisplayTree tree={tree} highlightIds={litPath} droppedIds={dropped} variant={variant} />
       </div>
 
       <p className="sr-only" role="status">
