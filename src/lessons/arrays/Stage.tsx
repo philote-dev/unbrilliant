@@ -16,15 +16,19 @@ import { ParkingLot, type ParkingScene } from "./ParkingLot"
 
 /**
  * The Arrays stage, skinned as a FULL-SCREEN aerial parking lot (the PlaylistQueue
- * immersion pattern): a negative-margin, edge-to-edge dark tarmac surface fills
- * the whole stage, with parking signage, the numbered lot as the hero, an entrance
- * /exit aisle, and a themed footer. The lot transforms the page rather than
- * sitting in a card. The verdict UX is preserved exactly: the MCQ keeps the shared
- * AnswerCard (with answerMarker), the CostReadout renders the engine's q.cost
- * verbatim (locked house words), the footer dispatches the same actions, and the
- * access Continue button stays. The ParkingLot owns the deterministic, reveal-gated
- * choreography and the aria-live result; nothing here recomputes a verdict.
+ * immersion pattern): an edge-to-edge dark-asphalt surface fills the whole stage,
+ * with a blue "P" parking sign, the numbered lot as the hero (a single linear row
+ * of bays in index order), a solid yellow drive-aisle line, and a themed footer.
+ * The verdict UX is preserved exactly: the MCQ keeps the shared AnswerCard (with
+ * answerMarker), the CostReadout renders q.cost verbatim (locked house words), the
+ * footer dispatches the same actions, and the access Continue button stays. The
+ * ParkingLot owns the deterministic, reveal-gated choreography and the aria-live
+ * result; nothing here recomputes a verdict.
  */
+
+/** Keep the single row within the phone frame; wider (doubled) lots scale to fit. */
+const LOT_MAX_W = 330
+
 export function ArraysStage({
   state,
   dispatch,
@@ -59,23 +63,27 @@ function AccessPart({
         {q.prompt}
       </p>
 
-      <div className="flex flex-1 flex-col items-center justify-center gap-4 py-3">
-        <ParkingLot
-          bare
-          scene={{
-            kind: "access",
-            cars: q.array,
-            pinned: accessed,
-            onPark: (i) => dispatch({ type: "select", letter: String(i) }),
-            cost: q.cost,
-          }}
-        />
+      <div className="flex flex-1 flex-col justify-center gap-3 py-3">
+        <div className="flex justify-center">
+          <ParkingLot
+            bare
+            maxWidth={LOT_MAX_W}
+            scene={{
+              kind: "access",
+              cars: q.array,
+              pinned: accessed,
+              onPark: (i) => dispatch({ type: "select", letter: String(i) }),
+              cost: q.cost,
+            }}
+          />
+        </div>
+        <DriveAisle />
         {accessed != null && (
-          <CostReadout word={q.cost.word} count={q.cost.count} unit={q.cost.unit} />
+          <div className="flex justify-center">
+            <CostReadout word={q.cost.word} count={q.cost.count} unit={q.cost.unit} />
+          </div>
         )}
       </div>
-
-      <DriveAisle />
 
       <div className="mt-3">
         {accessed != null && (
@@ -138,21 +146,24 @@ function PredictPart({
             type="button"
             onClick={() => dispatch({ type: "reattempt" })}
             aria-label="Regenerate this example"
-            className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-white/10 px-3 text-xs font-semibold text-white/80 transition-colors hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#23262d]"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-white/10 px-3 text-xs font-semibold text-white/80 transition-colors hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#2b2b2b]"
           >
             <Shuffle className="size-3.5" /> New example
           </button>
         </div>
       )}
 
-      <div className="flex flex-1 flex-col items-center justify-center gap-4 py-2">
-        {scene && <ParkingLot bare scene={scene} />}
+      <div className="flex flex-1 flex-col justify-center gap-3 py-2">
+        <div className="flex justify-center">
+          {scene && <ParkingLot bare maxWidth={LOT_MAX_W} scene={scene} />}
+        </div>
+        <DriveAisle />
         {reveal && (
-          <CostReadout word={q.cost.word} count={q.cost.count} unit={q.cost.unit} />
+          <div className="flex justify-center">
+            <CostReadout word={q.cost.word} count={q.cost.count} unit={q.cost.unit} />
+          </div>
         )}
       </div>
-
-      <DriveAisle />
 
       <div className="mt-3 flex flex-col gap-2.5">
         {q.options.map((opt, i) => (
@@ -181,8 +192,9 @@ function PredictPart({
 
 /* ------------------------------ themed scene ------------------------------- */
 
-/** The full-bleed dark-tarmac surface: cancels the host's px-5/pb-6 padding to go
- * edge-to-edge, paints speckled asphalt, and tops it with parking signage. */
+/** The full-bleed dark-asphalt surface: cancels the host's px-5/pb-6 padding to go
+ * edge-to-edge, paints flat tarmac with a faint speckle, and tops it with the
+ * blue "P" parking sign. */
 function LotScene({
   quota,
   children,
@@ -198,10 +210,9 @@ function LotScene({
       transition={reduced ? { duration: 0 } : { duration: 0.4, ease: "easeOut" }}
       className="-mx-5 -mb-6 flex flex-1 flex-col px-5 pb-6 pt-6 text-white"
       style={{
-        backgroundColor: "#23262d",
-        backgroundImage:
-          "radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1.4px), linear-gradient(180deg, #2c313b, #1f232a)",
-        backgroundSize: "7px 7px, 100% 100%",
+        backgroundColor: "#2b2b2b",
+        backgroundImage: "radial-gradient(rgba(255,255,255,0.045) 1px, transparent 1.4px)",
+        backgroundSize: "7px 7px",
       }}
     >
       <LotSignage quota={quota} />
@@ -216,8 +227,8 @@ function LotSignage({ quota }: { quota: { done: number; total: number } | null }
       <div className="flex items-center gap-2.5">
         <span
           aria-hidden
-          className="flex size-9 items-center justify-center rounded-lg text-xl font-black text-white shadow-md ring-1 ring-white/25"
-          style={{ backgroundColor: "#2563eb" }}
+          className="flex size-9 items-center justify-center rounded-md border-2 border-white text-xl font-black text-white shadow-md"
+          style={{ backgroundColor: "#2f6fde" }}
         >
           P
         </span>
@@ -235,25 +246,14 @@ function LotSignage({ quota }: { quota: { done: number; total: number } | null }
   )
 }
 
-/** The entrance/exit drive aisle: a dashed yellow lane line bracketed by IN/OUT
- * signage, so the lot reads as a real lot you drive into. Decorative only. */
+/** The solid yellow drive-aisle line, full-bleed across the lot (matches the ref). */
 function DriveAisle() {
   return (
-    <div aria-hidden className="my-1 flex items-center gap-2">
-      <span className="text-[9px] font-bold uppercase tracking-wider text-amber-300/80">
-        Entrance
-      </span>
-      <span
-        className="h-0.5 flex-1 rounded-full"
-        style={{
-          backgroundImage:
-            "repeating-linear-gradient(90deg, rgba(250,204,21,0.55) 0 10px, transparent 10px 20px)",
-        }}
-      />
-      <span className="text-[9px] font-bold uppercase tracking-wider text-amber-300/80">
-        Exit
-      </span>
-    </div>
+    <div
+      aria-hidden
+      className="-mx-5 h-1"
+      style={{ backgroundColor: "#f5c518", boxShadow: "0 0 10px rgba(245,197,24,0.4)" }}
+    />
   )
 }
 
@@ -314,7 +314,7 @@ function ArraysFooter({
               type="button"
               disabled={showWhy}
               onClick={() => dispatch({ type: "reveal" })}
-              className="flex-1 rounded-full bg-white/10 py-3.5 text-center text-[15px] font-semibold text-white outline-none transition-colors hover:bg-white/15 disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-amber-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#23262d]"
+              className="flex-1 rounded-full bg-white/10 py-3.5 text-center text-[15px] font-semibold text-white outline-none transition-colors hover:bg-white/15 disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-amber-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#2b2b2b]"
             >
               Why?
             </button>
@@ -346,7 +346,7 @@ function SignButton({
       disabled={disabled}
       className={cn(
         "w-full rounded-full bg-amber-400 py-3.5 text-center text-[15px] font-bold text-neutral-900 outline-none transition-transform active:scale-[0.99] disabled:opacity-40",
-        "focus-visible:ring-2 focus-visible:ring-amber-200 focus-visible:ring-offset-2 focus-visible:ring-offset-[#23262d]",
+        "focus-visible:ring-2 focus-visible:ring-amber-200 focus-visible:ring-offset-2 focus-visible:ring-offset-[#2b2b2b]",
         className,
       )}
     >

@@ -8,24 +8,23 @@ import type { ArrayOp, ArrayResize } from "@/features/lesson/arraysEngine"
 import { ARRIVAL_LABEL, carFor, type Car } from "./parkingData"
 
 /**
- * The Arrays "parking lot" skin, drawn as an AERIAL view of a real lot: an
- * asphalt surface with painted, numbered bays (the bay number IS the index) and
- * top-down car silhouettes parked in them (a car IS the value, its letter on the
- * roof). It is the live structure across all four beats, and its choreography
- * makes the cost felt:
+ * The Arrays "parking lot" skin, drawn as an AERIAL view of a real lot (matched to
+ * the reference): dark asphalt, white "T"-shaped stall dividers between the bays,
+ * and top-down car silhouettes parked in them (a car IS the value, its letter on
+ * the roof; the bay number IS the index). The bays stay in a SINGLE linear row in
+ * index order so the array's order is never obscured; a wide doubled lot scales to
+ * fit rather than wrapping. The choreography makes the cost felt:
  *
- *  - Access: a "you are here" pin SNAPS onto the tapped bay with no travel, so
- *    reaching bay 0 and bay 9 look identical (free, direct).
- *  - Shift insert: on reveal the cars from the spot onward roll forward one bay,
- *    staggered by distance (a ripple), and the arrival car pulls into the spot.
- *  - Shift delete: the car at the spot pulls out and the rest roll back.
- *  - Resize: a lot with room quietly parks the new car in the first empty bay;
- *    a full lot doubles in size, the cars convoy over, then the new car parks.
+ *  - Access: a "you are here" pin SNAPS onto the tapped bay with no travel.
+ *  - Shift insert: cars from the spot onward roll forward one bay (a ripple), the
+ *    gold arrival car pulls into the spot. Delete: the car pulls out, rest close up.
+ *  - Resize: room parks the new car in the first empty bay; a full lot grows to a
+ *    2x lot and the cars convoy over.
  *
  * The wave only fires on `reveal` (post-verdict), so nothing leaks. Reduced motion
- * snaps every case straight to its end-state, and a polite live region announces
- * the result with the locked cost word. Pure and view-only: the plan is a function
- * of the scene, and no count is ever recomputed here for grading.
+ * snaps every case to its end-state, and a polite live region announces the result
+ * with the locked cost word. Pure and view-only: the plan is a function of the
+ * scene, and no count is ever recomputed here for grading.
  */
 
 const BAY_W = 46
@@ -35,11 +34,10 @@ const CAR_W = 36
 const CAR_H = 50
 const STEP_X = BAY_W + GAP
 const STEP_Y = BAY_H + GAP
-const RESIZE_COLS = 4
 /** Per-bay stagger (seconds) that turns the shifts into a visible ripple. */
 const PER = 0.06
-/** Asphalt surface colour (also used for the focus-ring offset on a bay). */
-const ASPHALT = "#30353f"
+/** Asphalt surface colour (also the focus-ring offset on a bay). */
+const ASPHALT = "#2b2b2b"
 
 type Cost = { word: CostWord; count: number; unit: string }
 
@@ -121,9 +119,8 @@ const carObj = (
 })
 
 /**
- * Build the (pure) render plan for a scene at a given reveal state. Bay slots,
- * car positions, the per-car ripple delays, and the spoken announcement are all
- * deterministic functions of the scene; grading lives in the engine, not here.
+ * Build the (pure) render plan for a scene at a given reveal state. Every scene is
+ * a single linear row (cols spans the whole row), so index order is preserved.
  */
 function planScene(scene: ParkingScene, reveal: boolean): Plan {
   if (scene.kind === "access") {
@@ -221,11 +218,11 @@ function planScene(scene: ParkingScene, reveal: boolean): Plan {
     }
   }
 
-  // resize
+  // resize: a single linear row that grows from `capacity` to `endCap` bays.
   const base = scene.cars
   const { size, capacity, resizes } = scene.resize
-  const cols = RESIZE_COLS
   const endCap = resizes ? capacity * 2 : capacity
+  const cols = Math.max(1, endCap)
   const { width, height } = gridSize(endCap, cols)
   const bayCount = reveal ? endCap : capacity
 
@@ -275,29 +272,33 @@ export function ParkingLot({
   scene,
   reducedMotion,
   bare = false,
+  maxWidth,
 }: {
   scene: ParkingScene
   reducedMotion?: boolean
-  /** Drop the built-in asphalt slab when the host scene already paints tarmac
-   * (the full-bleed Stage), so the bays sit straight on the page surface. */
+  /** Drop the built-in asphalt slab when the host scene already paints tarmac. */
   bare?: boolean
+  /** Scale the single row down to fit this width (used for the doubled lot). */
+  maxWidth?: number
 }) {
   const prefersReduced = useReducedMotion()
   const reduced = reducedMotion ?? prefersReduced ?? false
   const reveal = scene.kind === "access" ? scene.pinned != null : scene.reveal
   const plan = planScene(scene, reveal)
   const onPark = scene.kind === "access" ? scene.onPark : undefined
+  const scale = maxWidth && plan.width > maxWidth ? maxWidth / plan.width : 1
 
-  return (
+  const lot = (
     <div
       data-testid="parking-lot"
       data-reduced-motion={reduced ? "1" : undefined}
       role="group"
       aria-label={plan.groupLabel}
-      className="relative mx-auto"
+      className="relative"
       style={{ width: plan.width, height: plan.height }}
     >
       {!bare && <Asphalt />}
+      <BayDividers cols={plan.cols} />
 
       {plan.bays.map((bay) => (
         <BaySlot
@@ -357,21 +358,35 @@ export function ParkingLot({
       </p>
     </div>
   )
+
+  if (scale === 1) {
+    return (
+      <div className="mx-auto" style={{ width: plan.width }}>
+        {lot}
+      </div>
+    )
+  }
+  return (
+    <div className="mx-auto" style={{ width: plan.width * scale, height: plan.height * scale }}>
+      <div style={{ transform: `scale(${scale})`, transformOrigin: "top left", width: plan.width, height: plan.height }}>
+        {lot}
+      </div>
+    </div>
+  )
 }
 
 /* --------------------------------- pieces ---------------------------------- */
 
-/** The asphalt surface under the bays: a dark, faintly speckled slab with a soft
- * top-down vignette and a curb edge, so the lot reads as tarmac, not a card. */
+/** The asphalt slab (only when not bare): flat dark tarmac with a faint speckle. */
 function Asphalt() {
   return (
     <div
       aria-hidden
       className="pointer-events-none absolute -inset-2 rounded-2xl"
       style={{
-        background: `linear-gradient(165deg, #454c59, ${ASPHALT} 58%, #272b33)`,
+        backgroundColor: ASPHALT,
         boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.06), inset 0 0 0 1px rgba(0,0,0,0.4), 0 12px 26px -14px rgba(0,0,0,0.6)",
+          "inset 0 0 0 1px rgba(0,0,0,0.4), 0 12px 26px -14px rgba(0,0,0,0.6)",
       }}
     >
       <div
@@ -381,6 +396,31 @@ function Asphalt() {
           backgroundSize: "7px 7px",
         }}
       />
+    </div>
+  )
+}
+
+/** The white "T" stall dividers, one at every bay boundary across the single row:
+ * a thin vertical with a short cross-cap at the top (the lot's head), exactly like
+ * the reference. Purely decorative. */
+function BayDividers({ cols }: { cols: number }) {
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0">
+      {Array.from({ length: cols + 1 }).map((_, i) => {
+        const x = i * STEP_X - GAP / 2
+        return (
+          <div key={i}>
+            <div
+              className="absolute rounded-full bg-white/85"
+              style={{ left: x - 8, top: 2, width: 16, height: 2.5 }}
+            />
+            <div
+              className="absolute rounded-full bg-white/75"
+              style={{ left: x - 1, top: 2, width: 2, height: BAY_H - 12 }}
+            />
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -397,14 +437,15 @@ function BaySlot({
   onTap?: () => void
 }) {
   const { x, y } = bayXY(bay.index, cols)
-  // Painted slot lines (left/right/head) on the asphalt; highlights recolour them.
-  const lines = bay.pinned
-    ? "border-lilac-strong bg-lilac-soft/25"
+  // No box border (the T-dividers separate the stalls); highlights are a soft fill
+  // plus an inset ring so the touched/target bay stands out without colour alone.
+  const tone = bay.pinned
+    ? "bg-lilac-soft/30 ring-2 ring-inset ring-lilac-strong"
     : bay.highlight === "spot" || bay.highlight === "target"
-      ? "border-dashed border-lilac-strong/80 bg-lilac-soft/15"
+      ? "bg-lilac-soft/20 ring-2 ring-inset ring-lilac-strong/70"
       : bay.highlight === "leaving"
-        ? "border-dashed border-rose-400/80 bg-rose-500/10"
-        : "border-white/55 bg-white/[0.03]"
+        ? "bg-rose-500/15 ring-2 ring-inset ring-rose-400/80"
+        : ""
 
   const motionProps = {
     initial: reduced ? false : ({ opacity: 0, scale: 0.6, x, y } as const),
@@ -412,21 +453,17 @@ function BaySlot({
     transition: reduced ? { duration: 0 } : { type: "spring" as const, stiffness: 300, damping: 26 },
     style: { width: BAY_W, height: BAY_H, position: "absolute" as const, left: 0, top: 0 },
     "data-testid": "bay",
-    // Open at the bottom (the drive aisle); lines on the sides + head.
-    className: cn(
-      "rounded-t-md border-l-2 border-r-2 border-t-2 border-b-0 transition-colors",
-      lines,
-    ),
+    className: cn("rounded-md transition-colors", tone),
   }
 
   const number = (
     <span
       aria-hidden
       className={cn(
-        "absolute inset-x-0 bottom-0.5 text-center text-[10px] font-extrabold tabular-nums",
-        bay.pinned ? "text-lilac-strong" : "text-white/65",
+        "absolute inset-x-0 bottom-1 text-center text-[10px] font-extrabold tabular-nums",
+        bay.pinned ? "text-lilac-strong" : "text-white/70",
       )}
-      style={{ textShadow: "0 1px 1px rgba(0,0,0,0.5)" }}
+      style={{ textShadow: "0 1px 2px rgba(0,0,0,0.6)" }}
     >
       {bay.index}
     </span>
@@ -441,8 +478,8 @@ function BaySlot({
         aria-label={bay.ariaLabel}
         className={cn(
           motionProps.className,
-          "cursor-pointer outline-none hover:border-lilac-strong/70",
-          "focus-visible:ring-2 focus-visible:ring-lilac-strong focus-visible:ring-offset-2",
+          "cursor-pointer outline-none hover:bg-white/5",
+          "focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lilac-strong",
         )}
         style={{ ...motionProps.style, ["--tw-ring-offset-color" as string]: ASPHALT }}
       >
@@ -473,14 +510,12 @@ function CarSprite({ car }: { car: Car }) {
             <stop offset="100%" stopColor={c1} />
           </linearGradient>
         </defs>
-        {/* wheels peeking from under the body */}
         <g fill="#0f172a">
           <rect x="2.5" y="10" width="3.5" height="9" rx="1.5" />
           <rect x="30" y="10" width="3.5" height="9" rx="1.5" />
           <rect x="2.5" y="31" width="3.5" height="9" rx="1.5" />
           <rect x="30" y="31" width="3.5" height="9" rx="1.5" />
         </g>
-        {/* body */}
         <rect
           x="5"
           y="2"
@@ -491,10 +526,8 @@ function CarSprite({ car }: { car: Car }) {
           stroke={car.arrival ? "#fde047" : "rgba(0,0,0,0.28)"}
           strokeWidth={car.arrival ? 1.6 : 0.75}
         />
-        {/* windshield (front) + rear window, tinted glass */}
         <path d="M10 13 H26 L24 19 H12 Z" fill="#dbeafe" opacity="0.9" />
         <path d="M12 37 H24 L26 43 H10 Z" fill="#dbeafe" opacity="0.5" />
-        {/* side mirrors */}
         <rect x="3.5" y="16" width="2.6" height="2.6" rx="1" fill={c1} />
         <rect x="29.9" y="16" width="2.6" height="2.6" rx="1" fill={c1} />
       </svg>
