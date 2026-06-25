@@ -1,4 +1,4 @@
-import { useMemo, useRef, type CSSProperties } from "react"
+import { useId, useMemo, useRef, type CSSProperties } from "react"
 import { motion, useReducedMotion } from "motion/react"
 
 import { cn } from "@/lib/utils"
@@ -6,6 +6,7 @@ import { useRewireNode } from "@/components/rewire/useRewireNode"
 import {
   edgeKey,
   edgeList,
+  neighbors,
   type Adjacency,
   type Edge,
   type NodeId,
@@ -16,30 +17,26 @@ import { METRO, TRANSIT_LINES, stationName, type TransitLine } from "./transitDa
 
 /**
  * The subway skin: the SAME draw / display contract as GraphCanvas, dressed as a
- * real transit-map poster. Route-colored named lines, interchange-aware station
- * markers, station names, the live "rubber-band" stretch, and the draw-on commit.
+ * real transit-map poster in the style of a clean metro diagram + a city "L" map.
+ * Distinct route colors, white-circle / capsule transfer markers with thick ink
+ * outlines, colored-filled termini, small regular stops, and a faint street grid.
  * None of it grades: the colors and the two layouts (geographic vs diagrammatic)
- * are decoration over the engine's adjacency. The picture is the decoration; the
- * route list is the data. Draw stations carry the same DEV hooks as GraphCanvas's
- * DrawNode, so the e2e tracer drives the transit beat identically
- * (data-graph-correct-target + data-rewire-source/target via useRewireNode with
- * sourceId = targetId = n).
+ * are decoration over the engine's adjacency; the route list is the data. Draw
+ * stations carry the same DEV hooks as GraphCanvas's DrawNode, so the e2e tracer
+ * drives the transit beat identically (data-graph-correct-target +
+ * data-rewire-source/target via useRewireNode with sourceId = targetId = n).
  */
 
 export const SUBWAY_W = 300
 export const SUBWAY_H = 300
-const STATION_R = 22
-const STATION_D = STATION_R * 2
-/**
- * Marker size floor. In DRAW mode it never shrinks below the 44px touch/a11y
- * target even when scaled; in DISPLAY mode the markers are not tap targets (the
- * route list carries the data), so they may scale smaller for the side-by-side
- * comparison, with a legibility floor.
- */
-const stationSize = (scale: number, draw: boolean) =>
-  Math.max(draw ? 44 : 24, STATION_D * scale)
+
+/** Intrinsic marker diameters per role (before the fit scale). */
+const REG_D = 30
+const TERM_D = 34
+const INT_D = 42
 
 export type SubwayVariant = "geographic" | "diagrammatic"
+type Role = "interchange" | "terminus" | "regular"
 
 export interface SubwayMapProps {
   mode: "display" | "draw"
@@ -50,7 +47,7 @@ export interface SubwayMapProps {
   variant: SubwayVariant
   /** Routes (decoration): tints the segments + flags interchanges. */
   lines?: TransitLine[]
-  /** Grow to fill the full-bleed scene width (caps the up-scale). */
+  /** Grow to fill the full-bleed scene + show the street-grid backdrop. */
   fill?: boolean
   /** Draw: the single drawn segment (draws on in its route color). */
   pendingEdge?: Edge | null
@@ -63,6 +60,23 @@ export interface SubwayMapProps {
 
 function center(layout: Record<NodeId, Pt>, n: NodeId): Pt {
   return layout[n] ?? { x: SUBWAY_W / 2, y: SUBWAY_H / 2 }
+}
+
+/**
+ * Marker footprint per role + mode. In DRAW mode every station is a >=44px tap
+ * target (a11y); in DISPLAY mode regular stops shrink to ref-style dots (they are
+ * not interactive, the route list carries the data). The interchange is a tall
+ * rounded capsule, the metro "major transfer" marker.
+ */
+function markerSize(role: Role, scale: number, draw: boolean): { w: number; h: number } {
+  if (role === "interchange") {
+    const w = draw ? Math.max(44, INT_D * scale) : Math.max(20, INT_D * scale)
+    return { w, h: w * 1.28 }
+  }
+  const base = role === "terminus" ? TERM_D : REG_D
+  const floor = draw ? 44 : role === "terminus" ? 16 : 13
+  const d = Math.max(floor, base * scale)
+  return { w: d, h: d }
 }
 
 export function SubwayMap({
@@ -82,6 +96,7 @@ export function SubwayMap({
   const prefersReduced = useReducedMotion()
   const reduced = reducedMotion ?? prefersReduced ?? false
   const draw = mode === "draw"
+  const clipId = useId()
 
   const { outerRef, scale } = useFitScale(SUBWAY_W, fill ? 1.3 : 1)
   const innerRef = useRef<HTMLDivElement>(null)
@@ -107,9 +122,17 @@ export function SubwayMap({
   const edges = edgeList(adj)
   const transition = reduced ? { duration: 0 } : { duration: 0.5, ease: "easeInOut" as const }
 
+  const roleOf = (n: NodeId): Role => {
+    if (interchanges.has(n)) return "interchange"
+    return neighbors(adj, n).length <= 1 ? "terminus" : "regular"
+  }
+  const terminusColor = (n: NodeId): string => {
+    const m = neighbors(adj, n)[0]
+    return (m && edgeColor.get(edgeKey(n, m))) || METRO.ink
+  }
+
   const W = SUBWAY_W * scale
   const H = SUBWAY_H * scale
-  const sd = stationSize(scale, draw)
 
   return (
     <div ref={outerRef} className="w-full overflow-hidden">
@@ -121,7 +144,7 @@ export function SubwayMap({
         className="relative mx-auto"
         style={{ width: W, height: H }}
       >
-        {/* Map card + routes: pure decoration, hidden from assistive tech. */}
+        {/* Map card, street grid, areas, and routes: decoration, hidden from AT. */}
         <svg
           className="pointer-events-none absolute inset-0"
           width={W}
@@ -130,6 +153,12 @@ export function SubwayMap({
           preserveAspectRatio="xMidYMid meet"
           aria-hidden
         >
+          <defs>
+            <clipPath id={clipId}>
+              <rect x={2} y={2} width={SUBWAY_W - 4} height={SUBWAY_H - 4} rx={22} />
+            </clipPath>
+          </defs>
+
           <rect
             x={2}
             y={2}
@@ -140,9 +169,24 @@ export function SubwayMap({
             stroke={METRO.cardEdge}
             strokeWidth={2}
           />
-          {/* Decorative geography (a park and a waterfront), well clear of routes. */}
-          <ellipse cx={SUBWAY_W - 58} cy={62} rx={46} ry={34} fill={METRO.park} opacity={0.55} />
-          <rect x={12} y={SUBWAY_H - 74} width={92} height={56} rx={18} fill={METRO.water} opacity={0.55} />
+
+          {fill && (
+            <g clipPath={`url(#${clipId})`}>
+              <GridLines />
+              {/* Neighborhood geography: a park and a waterfront, like a city map. */}
+              <ellipse cx={SUBWAY_W - 56} cy={60} rx={48} ry={34} fill={METRO.park} opacity={0.55} />
+              <rect x={6} y={SUBWAY_H - 76} width={96} height={70} rx={16} fill={METRO.water} opacity={0.5} />
+              <NeighborhoodLabel x={12} y={22} anchor="start">
+                RIVERSIDE
+              </NeighborhoodLabel>
+              <NeighborhoodLabel x={20} y={SUBWAY_H - 50} anchor="start">
+                HARBOR BAY
+              </NeighborhoodLabel>
+              <NeighborhoodLabel x={SUBWAY_W - 12} y={SUBWAY_H - 16} anchor="end">
+                PARKSIDE
+              </NeighborhoodLabel>
+            </g>
+          )}
 
           {edges.map((e) => {
             const k = edgeKey(e[0], e[1])
@@ -162,7 +206,7 @@ export function SubwayMap({
                   animate={{ pathLength: 1, opacity: 1 }}
                   transition={reduced ? { duration: 0 } : { duration: 0.55, ease: "easeOut" }}
                   stroke={color}
-                  strokeWidth={9}
+                  strokeWidth={8}
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
@@ -170,13 +214,13 @@ export function SubwayMap({
             }
             return (
               <g key={k}>
-                {/* White casing lifts each route off the paper and separates crossings. */}
+                {/* Thin white casing lifts the route off the map + breaks crossings. */}
                 <motion.line
                   initial={false}
                   animate={{ x1: a.x, y1: a.y, x2: b.x, y2: b.y }}
                   transition={transition}
                   stroke={METRO.station}
-                  strokeWidth={glow ? 13 : 11}
+                  strokeWidth={glow ? 12 : 10.5}
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
@@ -185,7 +229,7 @@ export function SubwayMap({
                   animate={{ x1: a.x, y1: a.y, x2: b.x, y2: b.y }}
                   transition={transition}
                   stroke={color}
-                  strokeWidth={glow ? 9 : 7}
+                  strokeWidth={glow ? 8 : 7}
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
@@ -200,21 +244,31 @@ export function SubwayMap({
 
         {nodes.map((n) => {
           const p = center(layout, n)
+          const role = roleOf(n)
+          const { w, h } = markerSize(role, scale, draw)
+          const fontSize = Math.max(7, Math.min(15, Math.min(w, h) * 0.46))
           return (
             <motion.div
               key={n}
               className="absolute left-0 top-0"
-              style={{ width: sd, height: sd }}
+              style={{ width: w, height: h }}
               initial={false}
-              animate={{ x: p.x * scale - sd / 2, y: p.y * scale - sd / 2 }}
+              animate={{ x: p.x * scale - w / 2, y: p.y * scale - h / 2 }}
               transition={transition}
             >
               {draw ? (
-                <StationDraw n={n} interchange={interchanges.has(n)} missingEdge={missingEdge} terminal={terminal} />
+                <StationDraw
+                  n={n}
+                  role={role}
+                  termColor={terminusColor(n)}
+                  fontSize={fontSize}
+                  missingEdge={missingEdge}
+                  terminal={terminal}
+                />
               ) : (
-                <StationDisplay n={n} interchange={interchanges.has(n)} />
+                <StationDisplay n={n} role={role} termColor={terminusColor(n)} fontSize={fontSize} />
               )}
-              <StationLabel name={stationName(n)} small={sd < 40} />
+              <StationLabel name={stationName(n)} small={Math.min(w, h) < 30} />
             </motion.div>
           )
         })}
@@ -223,22 +277,68 @@ export function SubwayMap({
   )
 }
 
+/* --------------------------------- backdrop bits --------------------------------- */
+
+function GridLines() {
+  const step = 30
+  const lines: number[] = []
+  for (let v = step; v < SUBWAY_W; v += step) lines.push(v)
+  return (
+    <g stroke={METRO.grid} strokeWidth={1}>
+      {lines.map((x) => (
+        <line key={`v${x}`} x1={x} y1={4} x2={x} y2={SUBWAY_H - 4} />
+      ))}
+      {lines.map((y) => (
+        <line key={`h${y}`} x1={4} y1={y} x2={SUBWAY_W - 4} y2={y} />
+      ))}
+    </g>
+  )
+}
+
+function NeighborhoodLabel({
+  x,
+  y,
+  anchor,
+  children,
+}: {
+  x: number
+  y: number
+  anchor: "start" | "end"
+  children: string
+}) {
+  return (
+    <text
+      x={x}
+      y={y}
+      textAnchor={anchor}
+      fill={METRO.label}
+      fontSize={9}
+      fontWeight={700}
+      letterSpacing={1.5}
+    >
+      {children}
+    </text>
+  )
+}
+
 /* --------------------------------- station pieces --------------------------------- */
 
 const STATION_BASE =
-  "flex size-full items-center justify-center rounded-full border-2 font-bold outline-none transition-colors"
+  "flex size-full items-center justify-center rounded-full border-solid font-bold leading-none outline-none transition-colors"
 const FOCUSABLE =
   "focus-visible:ring-2 focus-visible:ring-lilac-strong/70 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
 
-/** Classic interchange tick: a white gap then an ink outer ring. */
-const INTERCHANGE_RING = `0 0 0 3px ${METRO.card}, 0 0 0 5px ${METRO.ink}`
-
-function restingStyle(interchange: boolean): CSSProperties {
+/** Resting marker fill/outline per role: white circle, colored terminus, etc. */
+function restingStyle(role: Role, termColor: string, fontSize: number): CSSProperties {
+  if (role === "terminus") {
+    return { background: termColor, borderColor: METRO.ink, color: "#ffffff", borderWidth: 2.5, fontSize }
+  }
   return {
     background: METRO.station,
     borderColor: METRO.ink,
     color: METRO.ink,
-    boxShadow: interchange ? INTERCHANGE_RING : undefined,
+    borderWidth: role === "interchange" ? 3.5 : 2,
+    fontSize,
   }
 }
 
@@ -257,12 +357,22 @@ function StationLabel({ name, small }: { name: string; small: boolean }) {
   )
 }
 
-function StationDisplay({ n, interchange }: { n: NodeId; interchange: boolean }) {
+function StationDisplay({
+  n,
+  role,
+  termColor,
+  fontSize,
+}: {
+  n: NodeId
+  role: Role
+  termColor: string
+  fontSize: number
+}) {
   return (
     <span
       aria-label={`${stationName(n)} station`}
-      className={cn(STATION_BASE, "text-sm")}
-      style={restingStyle(interchange)}
+      className={STATION_BASE}
+      style={restingStyle(role, termColor, fontSize)}
     >
       {n}
     </span>
@@ -277,12 +387,16 @@ function StationDisplay({ n, interchange }: { n: NodeId; interchange: boolean })
  */
 function StationDraw({
   n,
-  interchange,
+  role,
+  termColor,
+  fontSize,
   missingEdge,
   terminal,
 }: {
   n: NodeId
-  interchange: boolean
+  role: Role
+  termColor: string
+  fontSize: number
   missingEdge?: Edge
   terminal?: boolean
 }) {
@@ -295,15 +409,15 @@ function StationDraw({
   const correctTarget =
     import.meta.env.DEV && missingEdge && missingEdge[0] === n ? missingEdge[1] : undefined
 
-  // Resting = white/ink map marker; the interaction states reuse the shared lilac
-  // accent so "grabbed / drop here / hovered" reads the same as every lesson.
-  let style: CSSProperties = restingStyle(interchange)
+  // Resting = the map marker; the interaction states reuse the shared lilac accent
+  // so "grabbed / drop here / hovered" reads the same as every lesson.
+  let style: CSSProperties = restingStyle(role, termColor, fontSize)
   if (armed) {
-    style = { background: METRO.activeSoft, borderColor: METRO.active, color: METRO.active, boxShadow: `0 0 0 4px ${METRO.active}33` }
+    style = { background: METRO.activeSoft, borderColor: METRO.active, color: METRO.active, borderWidth: 3, boxShadow: `0 0 0 4px ${METRO.active}33`, fontSize }
   } else if (showLegal) {
-    style = { background: METRO.activeSoft, borderColor: METRO.active, color: METRO.active, borderStyle: "dashed" }
+    style = { background: METRO.activeSoft, borderColor: METRO.active, color: METRO.active, borderWidth: 2.5, borderStyle: "dashed", fontSize }
   } else if (hovered) {
-    style = { ...restingStyle(interchange), borderColor: METRO.active, boxShadow: `0 0 0 4px ${METRO.active}40` }
+    style = { ...style, borderColor: METRO.active, boxShadow: `0 0 0 4px ${METRO.active}40` }
   }
 
   return (
@@ -323,7 +437,7 @@ function StationDraw({
       className={cn(
         STATION_BASE,
         FOCUSABLE,
-        "touch-none select-none text-sm",
+        "touch-none select-none",
         armed ? "cursor-grabbing" : showLegal ? "cursor-pointer" : "cursor-grab",
         terminal && "cursor-default",
       )}

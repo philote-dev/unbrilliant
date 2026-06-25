@@ -744,17 +744,24 @@ function MetroRoundel() {
 
 function MetroLegend() {
   return (
-    <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1" aria-hidden>
+    <div
+      className="mx-auto mt-2 flex w-fit max-w-full flex-wrap items-center justify-center gap-x-4 gap-y-1.5 rounded-xl px-3.5 py-2"
+      style={{ background: "#ffffffd9", border: `1px solid ${METRO.cardEdge}` }}
+      aria-hidden
+    >
       {TRANSIT_LINES.map((l) => (
-        <span
-          key={l.id}
-          className="flex items-center gap-1.5 text-[11px] font-semibold"
-          style={{ color: METRO.muted }}
-        >
-          <span className="h-1.5 w-5 rounded-full" style={{ background: l.color }} />
+        <span key={l.id} className="flex items-center gap-2 text-[11px] font-bold" style={{ color: METRO.ink }}>
+          <span className="h-2.5 w-7 rounded-full" style={{ background: l.color }} />
           {l.name}
         </span>
       ))}
+      <span className="flex items-center gap-2 text-[11px] font-bold" style={{ color: METRO.ink }}>
+        <span
+          className="size-4 rounded-full"
+          style={{ background: METRO.station, border: `2.5px solid ${METRO.ink}` }}
+        />
+        Transfer station
+      </span>
     </div>
   )
 }

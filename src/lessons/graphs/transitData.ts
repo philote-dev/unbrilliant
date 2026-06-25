@@ -42,8 +42,8 @@ export const TRANSIT_STATIONS: Record<NodeId, string> = {
  * undirected segments, exactly one cycle. Colors are decoration.
  */
 export const TRANSIT_LINES: TransitLine[] = [
-  { id: "harbor", name: "Harbor Loop", color: "#e4572e", path: ["A", "B", "C", "D", "E", "A"] },
-  { id: "park", name: "Park Line", color: "#2a9d8f", path: ["F", "C", "G"] },
+  { id: "harbor", name: "Harbor Loop", color: "#e0473b", path: ["A", "B", "C", "D", "E", "A"] },
+  { id: "park", name: "Park Line", color: "#2f7dc4", path: ["F", "C", "G"] },
 ]
 
 /** Geographic layout: irregular, "where the stations really sit". */
@@ -112,10 +112,12 @@ export const stationName = (id: NodeId): string => TRANSIT_STATIONS[id] ?? id
 export const METRO = {
   paper: "#eef1f7",
   paperEdge: "#dfe5f0",
-  card: "#fbfbf6",
+  card: "#fbfaf4",
   cardEdge: "#d8deea",
-  ink: "#1b2330",
+  ink: "#16202e",
   muted: "#5c6577",
+  grid: "#e7e3d6",
+  label: "#c2bdac",
   water: "#cfe0f2",
   park: "#d8e8cf",
   station: "#ffffff",
