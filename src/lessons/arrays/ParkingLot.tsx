@@ -274,9 +274,13 @@ function planScene(scene: ParkingScene, reveal: boolean): Plan {
 export function ParkingLot({
   scene,
   reducedMotion,
+  bare = false,
 }: {
   scene: ParkingScene
   reducedMotion?: boolean
+  /** Drop the built-in asphalt slab when the host scene already paints tarmac
+   * (the full-bleed Stage), so the bays sit straight on the page surface. */
+  bare?: boolean
 }) {
   const prefersReduced = useReducedMotion()
   const reduced = reducedMotion ?? prefersReduced ?? false
@@ -293,7 +297,7 @@ export function ParkingLot({
       className="relative mx-auto"
       style={{ width: plan.width, height: plan.height }}
     >
-      <Asphalt />
+      {!bare && <Asphalt />}
 
       {plan.bays.map((bay) => (
         <BaySlot
