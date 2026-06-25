@@ -4,7 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --port 5173 --strictPort",
+    "dev:e2e": "vite --port 5273 --strictPort",
     "gallery": "vite --mode frozen --port 5174 --strictPort --open /gallery.html",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
