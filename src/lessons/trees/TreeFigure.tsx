@@ -297,7 +297,7 @@ function DescendFigure({
   const transition = reduced ? { duration: 0 } : { type: "spring" as const, stiffness: 260, damping: 24 }
 
   return (
-    <div className="flex flex-col items-center gap-3">
+    <div className="flex w-full flex-col items-center gap-3">
       <FitBox figW={figW} figH={figH} reduced={reduced}>
         <Edges tree={tree} pos={layout.pos} tone={edgeTone} reduced={reduced} variant={variant} />
 
