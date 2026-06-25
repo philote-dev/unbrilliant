@@ -1,14 +1,35 @@
 import { useEffect, useRef } from "react"
-import { motion, useReducedMotion } from "motion/react"
+import { motion, useReducedMotion, type PanInfo } from "motion/react"
 
 import { cn } from "@/lib/utils"
-import { RewireSource } from "@/components/rewire/RewireSource"
 import { useRewireContext } from "@/components/rewire/RewireContext"
+import { resolveDropTarget } from "@/components/rewire/core"
 import { bucketTargetId, type HashQuestion } from "@/features/lesson/hashTablesEngine"
 import { itemFor, type WarehouseItem } from "./warehouseData"
 
 /** The draggable package's source id (opaque; grading is on the chosen bin). */
 const PACKAGE_SOURCE = "hash-key"
+
+/** Forgiving slop (px) around a bin so a clumsy drop still lands. */
+const DROP_TOLERANCE = 16
+
+/**
+ * The pointer's viewport coords from a framer-motion drag event (mouse / touch /
+ * pen). Mirrors the Stacks & Queues drag so the box hit-tests the live bin rects
+ * exactly where the finger is, then snaps home on a miss.
+ */
+function viewportPoint(
+  event: MouseEvent | TouchEvent | PointerEvent,
+  info: PanInfo,
+): { x: number; y: number } {
+  if ("clientX" in event && typeof event.clientX === "number") {
+    return { x: event.clientX, y: event.clientY }
+  }
+  const touch =
+    (event as TouchEvent).changedTouches?.[0] ?? (event as TouchEvent).touches?.[0]
+  if (touch) return { x: touch.clientX, y: touch.clientY }
+  return { x: info.point.x - window.scrollX, y: info.point.y - window.scrollY }
+}
 
 /**
  * The Amazon-style "chaotic storage" shelf: a wall of numbered bins, each a drop
@@ -62,25 +83,27 @@ export function WarehouseShelf({
       data-reduced-motion={reduced ? "1" : undefined}
       className="flex w-full flex-1 flex-col gap-4"
     >
-      {/* The inbound package (scan, then stow). One tracer hook lives here. */}
-      <div className="flex flex-col items-center gap-2">
+      {/* The inbound package: an actual draggable carton. One tracer hook here. */}
+      <div className="flex flex-col items-center gap-2.5">
         <div
           data-hash-correct-bucket={
             import.meta.env.DEV ? bucketTargetId(bucket) : undefined
           }
         >
-          <RewireSource id={PACKAGE_SOURCE} label={`Stow package ${pkg.sku} in its bin`}>
-            <span className="flex items-center gap-3">
-              <Carton art={pkg.art} className="size-11" />
-              <span className="flex flex-col items-start leading-tight">
-                <span className="font-mono text-[13px] font-bold tracking-wide text-[#232f3e]">
-                  {pkg.sku}
-                </span>
-                <span className="text-xs text-[#232f3e]/70">{pkg.name}</span>
-              </span>
-            </span>
-          </RewireSource>
+          <DraggablePackage
+            label={`Stow package ${pkg.sku} in its bin`}
+            reduced={reduced}
+          />
         </div>
+
+        {/* SKU + name as a static caption OUTSIDE the box (only the box drags). */}
+        <span className="flex flex-col items-center leading-tight">
+          <span className="font-mono text-[13px] font-bold tracking-wide text-white">
+            {pkg.sku}
+          </span>
+          <span className="text-xs text-white/60">{pkg.name}</span>
+        </span>
+
         <div className="flex items-center gap-2 rounded-lg border border-[#08aae3]/40 bg-[#08aae3]/10 px-3 py-1.5 font-mono text-[12px] text-white/85 shadow-[0_0_14px_-5px_#08aae3]">
           <span className="font-bold text-[#2dbff8]">SCAN</span>
           <span className="tabular-nums">
@@ -194,15 +217,166 @@ function WarehouseBin({
 
 /* -------------------------------- packages -------------------------------- */
 
+/**
+ * The inbound package: a single draggable cardboard carton that PHYSICALLY
+ * follows the pointer (framer-motion `drag`) and snaps home on a miss
+ * (`dragSnapToOrigin`). It is the only drag handle. It talks to the shared rewire
+ * surface directly: arming on drag start so the bins light up, hit-testing the
+ * pointer against the live bin rects on drag, and committing (or cancelling) on
+ * release. Tap and keyboard fall back to the same arm-then-choose intent, so
+ * mouse, touch, and keyboard land the package identically. Reduced motion turns
+ * off the physical follow; tap and keyboard still work.
+ */
+function DraggablePackage({ label, reduced }: { label: string; reduced: boolean }) {
+  const {
+    registerSource,
+    armSource,
+    armedSource,
+    chooseTarget,
+    cancel,
+    setHovered,
+    moveHover,
+    confirmKeyboard,
+    targetRects,
+  } = useRewireContext()
+  // Tell a real drag apart from a tap so a drag's trailing click never re-arms.
+  const draggedRef = useRef(false)
+
+  useEffect(() => registerSource(PACKAGE_SOURCE, label), [registerSource, label])
+
+  const armed = armedSource === PACKAGE_SOURCE
+
+  return (
+    <motion.button
+      type="button"
+      data-rewire-source={PACKAGE_SOURCE}
+      data-rewire-armed={armed && import.meta.env.DEV ? "1" : undefined}
+      aria-label={label}
+      aria-pressed={armed}
+      drag={!reduced}
+      dragSnapToOrigin
+      dragMomentum={false}
+      dragElastic={0.18}
+      whileDrag={{ scale: 1.08, zIndex: 50, cursor: "grabbing" }}
+      onPointerDown={() => {
+        draggedRef.current = false
+      }}
+      onDragStart={() => {
+        draggedRef.current = true
+        armSource(PACKAGE_SOURCE)
+      }}
+      onDrag={(event, info) =>
+        setHovered(
+          resolveDropTarget(viewportPoint(event, info), targetRects(), DROP_TOLERANCE),
+        )
+      }
+      onDragEnd={(event, info) => {
+        const hit = resolveDropTarget(
+          viewportPoint(event, info),
+          targetRects(),
+          DROP_TOLERANCE,
+        )
+        if (hit) chooseTarget(hit)
+        else cancel()
+      }}
+      onClick={(e) => {
+        // Stop the surface's background click (it cancels) and arm only on a real
+        // tap; a drag's trailing synthetic click is ignored via draggedRef.
+        e.stopPropagation()
+        if (draggedRef.current) return
+        armSource(PACKAGE_SOURCE)
+      }}
+      onKeyDown={(e) => {
+        if (!armed) {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault()
+            armSource(PACKAGE_SOURCE)
+          }
+          return
+        }
+        if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+          e.preventDefault()
+          moveHover(1)
+        } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+          e.preventDefault()
+          moveHover(-1)
+        } else if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault()
+          confirmKeyboard()
+        } else if (e.key === "Escape") {
+          e.preventDefault()
+          cancel()
+        }
+      }}
+      className={cn(
+        "touch-none select-none rounded-[10px] outline-none",
+        reduced ? "cursor-pointer" : "cursor-grab active:cursor-grabbing",
+        "focus-visible:ring-2 focus-visible:ring-[#ff9900] focus-visible:ring-offset-2 focus-visible:ring-offset-[#232f3e]",
+        armed && "ring-2 ring-[#ff9900]",
+      )}
+    >
+      <CardboardBox className="size-16" />
+    </motion.button>
+  )
+}
+
+/**
+ * A kraft cardboard shipping carton drawn in CSS: a kraft fill, the two top flaps
+ * creased down the front, a vertical strip of packing tape over the seam, and a
+ * little shading for weight. Decorative only (the button around it owns the label
+ * and behaviour), so it is `aria-hidden`.
+ */
+function CardboardBox({ className }: { className?: string }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "relative block overflow-hidden rounded-[6px] ring-1 ring-black/20",
+        "shadow-[0_8px_16px_-8px_rgba(0,0,0,0.7)]",
+        className,
+      )}
+      style={{
+        backgroundImage: "linear-gradient(155deg, #ddbd87 0%, #cba668 48%, #b78d52 100%)",
+      }}
+    >
+      {/* the two top flaps, folded down the front along a crease */}
+      <span
+        className="absolute inset-x-0 top-0 h-[42%] border-b border-black/25"
+        style={{ backgroundImage: "linear-gradient(180deg, #d4ad6b, #c69d5f)" }}
+      />
+      {/* the seam where the flaps meet */}
+      <span className="absolute left-1/2 top-0 h-[42%] w-px -translate-x-1/2 bg-black/25" />
+      {/* the vertical packing tape over the seam */}
+      <span
+        className="absolute left-1/2 top-0 h-full w-[30%] -translate-x-1/2 border-x border-black/10"
+        style={{
+          backgroundImage:
+            "linear-gradient(90deg, rgba(245,234,206,0.35), rgba(245,234,206,0.92) 28%, rgba(228,212,176,0.92) 72%, rgba(245,234,206,0.35))",
+        }}
+      >
+        <span className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-white/45" />
+      </span>
+      {/* soft shading toward the base for a bit of 3D weight */}
+      <span className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/20 to-transparent" />
+    </span>
+  )
+}
+
+/** A small kraft box for items already stowed in a bin (a simpler carton). */
 function Carton({ art, className }: { art: [string, string]; className?: string }) {
   return (
     <span
       aria-hidden
-      className={cn("relative shrink-0 overflow-hidden rounded-md shadow-sm", className)}
-      style={{ backgroundImage: `linear-gradient(135deg, ${art[0]}, ${art[1]})` }}
+      className={cn(
+        "relative block shrink-0 overflow-hidden rounded-[3px] ring-1 ring-black/15 shadow-sm",
+        className,
+      )}
+      style={{ backgroundImage: `linear-gradient(150deg, ${art[0]}, ${art[1]})` }}
     >
-      {/* tape seam */}
-      <span className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 bg-white/35" />
+      {/* top-flap crease */}
+      <span className="absolute inset-x-0 top-[42%] h-px bg-black/20" />
+      {/* vertical packing tape */}
+      <span className="absolute left-1/2 top-0 h-full w-[32%] -translate-x-1/2 bg-[#efe0b8]/70" />
     </span>
   )
 }

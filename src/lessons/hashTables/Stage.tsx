@@ -32,7 +32,7 @@ import {
   WarehousePage,
 } from "./warehouseChrome"
 
-/** The id of the draggable item tile on stow beats. */
+/** The id of the draggable key tile on the insert (drag) beats. */
 const KEY_SOURCE = "hash-key"
 
 export function HashTablesStage({
@@ -116,11 +116,11 @@ function TeachPart({
   return (
     <div className="flex flex-1 flex-col">
       <div className="mt-7 text-center">
-        <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#b45309]">
-          Warehouse
+        <p className="text-xs font-medium uppercase tracking-wide text-lilac-strong">
+          Hashing
         </p>
         <h2 className="mt-1 text-xl font-bold text-foreground">
-          {isCollision ? "Two codes, one bin" : "The index, not the aisle"}
+          {isCollision ? "Two keys, one bucket" : "One key, one bucket"}
         </h2>
         <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground">{q.prompt}</p>
       </div>
@@ -172,11 +172,11 @@ function BinHeader({ state }: { state: HashTablesState }) {
   const q = state.question
   const quota = partQuotaHash(state)
   const binLabel =
-    q?.bin === "hash" ? "Stow" : q?.bin === "collision" ? "Shared bin" : "Pick"
+    q?.bin === "hash" ? "Insert" : q?.bin === "collision" ? "Shared bin" : "Find"
   return (
     <div className="mt-7">
       {quota && (
-        <p className="text-center text-xs font-bold uppercase tracking-[0.15em] text-[#b45309]">
+        <p className="text-center text-xs font-medium uppercase tracking-wide text-lilac-strong">
           {binLabel} · {quota.done} / {quota.total} correct
         </p>
       )}
@@ -191,7 +191,7 @@ function feedbackCopy(q: HashQuestion) {
   return { prompt: q.prompt, hint: q.hint, nudge: q.nudge, correct: q.correct, why: q.why }
 }
 
-/* ------------------------------- stow beats -------------------------------- */
+/* ----------------------------- insert (drag) beats ------------------------- */
 
 function DragPart({
   state,
@@ -408,7 +408,7 @@ function LocatePart({
         {correct && q.cost && (
           <>
             <LabeledCost label="Index jump" cost={q.cost} />
-            {q.scanCost && <LabeledCost label="Aisle scan" cost={q.scanCost} />}
+            {q.scanCost && <LabeledCost label="Linear scan" cost={q.scanCost} />}
           </>
         )}
       </div>

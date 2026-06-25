@@ -51,7 +51,7 @@ export function HashBox({
 
   return (
     <div className="flex w-full max-w-[280px] flex-col items-center gap-3 rounded-2xl border border-border bg-card p-4 shadow-soft">
-      <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#b45309]">
+      <p className="text-xs font-bold uppercase tracking-[0.15em] text-lilac-strong">
         index · {key}
       </p>
 
