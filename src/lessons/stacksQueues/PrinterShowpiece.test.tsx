@@ -11,7 +11,7 @@ const JOBS: Cell[] = [
   { id: "j3", label: "photo" },
 ]
 
-describe("PrinterShowpiece", () => {
+describe("PrinterShowpiece (queue fallback skin)", () => {
   it("wraps the graded queue with every job in arrival order", () => {
     render(<PrinterShowpiece cells={JOBS} />)
     expect(screen.getByTestId("printer-showpiece")).toBeInTheDocument()
@@ -20,14 +20,11 @@ describe("PrinterShowpiece", () => {
     ).toHaveLength(3)
   })
 
-  it("medium tier marks the FRONT job as 'Now printing'; minimal omits it", () => {
-    const { rerender } = render(<PrinterShowpiece cells={JOBS} />)
+  it("marks the FRONT job as 'Now printing', never a later job", () => {
+    render(<PrinterShowpiece cells={JOBS} />)
     const indicator = screen.getByTestId("printer-now-printing")
     expect(indicator).toHaveTextContent("Now printing")
-    expect(indicator).toHaveTextContent("report") // the front, never a later job
-
-    rerender(<PrinterShowpiece cells={JOBS} tier="minimal" />)
-    expect(screen.queryByTestId("printer-now-printing")).toBeNull()
+    expect(indicator).toHaveTextContent("report")
   })
 
   it("offers no cancel control, keeping the queue a pure FIFO", () => {
@@ -53,6 +50,14 @@ describe("PrinterShowpiece", () => {
       .querySelector('[data-cell="j1"]') as HTMLElement
     fireEvent.click(cell)
     expect(onSelectCell).toHaveBeenCalledWith("j1")
+  })
+
+  it("on popping, the front job leaves and the next becomes 'Now printing'", () => {
+    render(<PrinterShowpiece cells={JOBS} answerId="j1" popping reducedMotion />)
+    const showpiece = screen.getByTestId("printer-showpiece")
+    expect(showpiece.querySelector('[data-cell="j1"]')).toBeNull()
+    expect(showpiece.querySelectorAll("[data-cell]")).toHaveLength(2)
+    expect(screen.getByTestId("printer-now-printing")).toHaveTextContent("essay")
   })
 
   it("snaps for reduced motion", () => {

@@ -8,10 +8,10 @@ import { FeedbackFooter } from "@/components/willow/FeedbackFooter"
 import { RewireSurface } from "@/components/rewire/RewireSurface"
 import type { LessonAction } from "@/features/lesson/engine"
 import {
+  bucketIndexOf,
   canCheckHash,
   chainAfter,
   currentPartHash,
-  isDragPart,
   isTapPart,
   isTerminalHash,
   legalBuckets,
@@ -23,8 +23,16 @@ import {
 } from "@/features/lesson/hashTablesEngine"
 import { HashBox } from "./HashBox"
 import { HashTable } from "./HashTable"
+import { WarehouseDemo } from "./WarehouseDemo"
+import { WarehouseShelf } from "./WarehouseShelf"
+import {
+  WarehouseButton,
+  WarehouseFooter,
+  WarehouseHeader,
+  WarehousePage,
+} from "./warehouseChrome"
 
-/** The id of the draggable key tile on drag beats. */
+/** The id of the draggable key tile on the insert (drag) beats. */
 const KEY_SOURCE = "hash-key"
 
 export function HashTablesStage({
@@ -35,19 +43,29 @@ export function HashTablesStage({
   dispatch: Dispatch<LessonAction>
 }) {
   const part = currentPartHash(state)
-  // Key each part so per-beat local state (a teach step, a lookup trace cursor)
+  // Key each part so per-beat local state (a teach step, a lookup scan cursor)
   // resets cleanly when the beat changes; two lookup beats render back to back.
-  if (part === "demo" || part === "teach-hash" || part === "teach-collision") {
-    return <IntroPart key={part} state={state} dispatch={dispatch} />
+  if (part === "demo") return <DemoPart key={part} state={state} dispatch={dispatch} />
+  if (part === "teach-hash" || part === "teach-collision") {
+    return <TeachPart key={part} state={state} dispatch={dispatch} />
   }
-  if (isDragPart(part)) return <DragPart key={part} state={state} dispatch={dispatch} />
+  // The real-world beat transforms the page into the warehouse (full-bleed).
+  if (part === "realworld") return <StowPart key={part} state={state} dispatch={dispatch} />
   if (isTapPart(part)) return <LocatePart key={part} state={state} dispatch={dispatch} />
+  if (part === "hash-cat" || part === "hash-dog") {
+    return <DragPart key={part} state={state} dispatch={dispatch} />
+  }
   return <CollisionPart key={part} state={state} dispatch={dispatch} />
 }
 
-/* --------------------------- intro / teach beats --------------------------- */
+/* ------------------------------- demo (race) ------------------------------- */
 
-function IntroPart({
+/**
+ * The full-bleed warehouse demo: a toggle between "shelve by type" and "chaotic
+ * + index", plus a retrieval race where the index wins instantly. Ungraded; the
+ * page transforms into the fulfilment center to sell the counterintuitive idea.
+ */
+function DemoPart({
   state,
   dispatch,
 }: {
@@ -55,13 +73,38 @@ function IntroPart({
   dispatch: Dispatch<LessonAction>
 }) {
   const q = state.question
-  // teach-collision: the second key joins the SAME bucket's chain on a step.
+  const reduced = useReducedMotion()
+  if (!q) return null
+  return (
+    <WarehousePage reduced={reduced}>
+      <WarehouseHeader title="Chaotic storage" meta="Live demo" prompt={q.prompt} />
+      <div className="flex flex-1 flex-col py-4">
+        <WarehouseDemo />
+      </div>
+      <div className="mt-auto shrink-0 pt-2">
+        <WarehouseButton onClick={() => dispatch({ type: "continue" })}>Continue</WarehouseButton>
+      </div>
+    </WarehousePage>
+  )
+}
+
+/* ------------------------------- teach beats ------------------------------- */
+
+function TeachPart({
+  state,
+  dispatch,
+}: {
+  state: HashTablesState
+  dispatch: Dispatch<LessonAction>
+}) {
+  const q = state.question
+  // teach-collision: the second item joins the SAME bin's chain on a step.
   const [joined, setJoined] = useState(false)
   if (!q) return null
   const isCollision = q.kind === "teach-collision"
 
-  // Split the colliding bucket's chain into the keys already there and the one
-  // that joins, so the step button animates only the newcomer (snaps if reduced).
+  // Split the colliding bin's chain into the items already there and the one that
+  // joins, so the step button animates only the newcomer (snaps if reduced).
   const collideBucket = 4
   const fullChain = q.table[collideBucket] ?? []
   const baseChain = fullChain.slice(0, -1)
@@ -73,10 +116,11 @@ function IntroPart({
   return (
     <div className="flex flex-1 flex-col">
       <div className="mt-7 text-center">
-        <h2 className="text-xl font-bold text-foreground">
-          {q.kind === "teach-collision"
-            ? "Two keys, one bucket"
-            : "Hash Tables: jump, don't search"}
+        <p className="text-xs font-medium uppercase tracking-wide text-lilac-strong">
+          Hashing
+        </p>
+        <h2 className="mt-1 text-xl font-bold text-foreground">
+          {isCollision ? "Two keys, one bucket" : "One key, one bucket"}
         </h2>
         <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground">{q.prompt}</p>
       </div>
@@ -94,20 +138,17 @@ function IntroPart({
             />
             {joined ? (
               <p className="max-w-xs text-center text-sm font-medium text-foreground">
-                {joiningKey} collides with {baseChain.join(", ")}, so it chains onto
-                the end of bucket {collideBucket}.
+                {joiningKey} collides with {baseChain.join(", ")}, so it chains onto the end
+                of bin {collideBucket}.
               </p>
             ) : (
               <Button variant="soft" size="sm" onClick={() => setJoined(true)}>
-                Drop the second key
+                Drop the second item
               </Button>
             )}
           </>
         ) : (
-          <>
-            {q.key && <HashBox question={q} revealBucket={q.kind === "demo"} />}
-            <HashTable bucketCount={q.bucketCount} table={q.table} mode="display" />
-          </>
+          <HashTable bucketCount={q.bucketCount} table={q.table} mode="display" />
         )}
       </div>
 
@@ -131,7 +172,7 @@ function BinHeader({ state }: { state: HashTablesState }) {
   const q = state.question
   const quota = partQuotaHash(state)
   const binLabel =
-    q?.bin === "hash" ? "Hash" : q?.bin === "collision" ? "Collision" : "Lookup"
+    q?.bin === "hash" ? "Insert" : q?.bin === "collision" ? "Shared bin" : "Find"
   return (
     <div className="mt-7">
       {quota && (
@@ -150,7 +191,7 @@ function feedbackCopy(q: HashQuestion) {
   return { prompt: q.prompt, hint: q.hint, nudge: q.nudge, correct: q.correct, why: q.why }
 }
 
-/* ------------------------------- drag beats -------------------------------- */
+/* ----------------------------- insert (drag) beats ------------------------- */
 
 function DragPart({
   state,
@@ -163,8 +204,8 @@ function DragPart({
   if (!q || q.key == null) return null
   const { feedback, showWhy } = state
   const correct = feedback === "correct"
-  // On a correct drop, show the key landed in its bucket (the table is "given",
-  // so append for the confirmation view only).
+  // On a correct drop, show the item landed in its bin (the table is "given", so
+  // append for the confirmation view only).
   const view = correct
     ? { ...q.table, [q.bucket]: chainAfter(q.table[q.bucket] ?? [], q.key) }
     : q.table
@@ -177,7 +218,7 @@ function DragPart({
         <RewireSurface
           legalTargets={legalBuckets(state)}
           onRewire={(from, to) => dispatch({ type: "rewire", from, to })}
-          label={`Run the hash, then drag ${q.key} into its ${q.contacts ? "slot" : "bucket"}`}
+          label={`Scan the index, then drag ${q.key} into its bin`}
           className="flex flex-col items-center gap-5"
         >
           <HashBox question={q} dragSourceId={KEY_SOURCE} />
@@ -188,7 +229,6 @@ function DragPart({
             highlightBucket={correct ? q.bucket : undefined}
             newestBucket={correct ? q.bucket : undefined}
             appendingBucket={correct ? q.bucket : undefined}
-            contacts={q.contacts}
           />
         </RewireSurface>
       </div>
@@ -212,7 +252,66 @@ function DragPart({
   )
 }
 
-/* ------------------------- tap-locate beats (lookup) ------------------------ */
+/* ------------------- real-world beat (full-bleed warehouse) ---------------- */
+
+function StowPart({
+  state,
+  dispatch,
+}: {
+  state: HashTablesState
+  dispatch: Dispatch<LessonAction>
+}) {
+  const q = state.question
+  const reduced = useReducedMotion()
+  if (!q || q.key == null) return null
+  const { feedback, showWhy } = state
+  const correct = feedback === "correct"
+  // The package sits in the bin the learner chose (placement), not the right one.
+  const placedBucket = state.placement != null ? bucketIndexOf(state.placement) : null
+  const quota = partQuotaHash(state)
+
+  return (
+    <WarehousePage reduced={reduced}>
+      <WarehouseHeader
+        title="Stow station"
+        meta={quota ? `${quota.done}/${quota.total} stowed` : "Inbound"}
+        prompt={q.prompt}
+      />
+
+      <div className="flex flex-1 flex-col justify-center py-3">
+        <RewireSurface
+          legalTargets={legalBuckets(state)}
+          onRewire={(from, to) => dispatch({ type: "rewire", from, to })}
+          label={`Scan ${q.key}, then drop the package in its bin`}
+        >
+          <WarehouseShelf
+            question={q}
+            placedBucket={placedBucket}
+            confirmed={correct}
+            reducedMotion={!!reduced}
+          />
+        </RewireSurface>
+      </div>
+
+      {/* Reserve the cost row so the verdict's readout slots in without a jump. */}
+      <div className="flex min-h-[92px] shrink-0 items-start justify-center">
+        {correct && q.cost && (
+          <CostReadout word={q.cost.word} count={q.cost.count} unit={q.cost.unit} />
+        )}
+      </div>
+
+      <WarehouseFooter
+        feedback={feedback}
+        showWhy={showWhy}
+        canCheck={canCheckHash(state)}
+        copy={feedbackCopy(q)}
+        dispatch={dispatch}
+      />
+    </WarehousePage>
+  )
+}
+
+/* ------------------------- tap-locate beats (pick) ------------------------- */
 
 function LocatePart({
   state,
@@ -223,7 +322,7 @@ function LocatePart({
 }) {
   const q = state.question
   const reduced = useReducedMotion() ?? false
-  // A LOCAL trace cursor over the bucket's chain (illustration only; the verdict
+  // A LOCAL scan cursor over the bin's chain (illustration only; the verdict
   // still comes from the engine). -1 means "not started".
   const [cursor, setCursor] = useState(-1)
   const [announce, setAnnounce] = useState("")
@@ -240,18 +339,18 @@ function LocatePart({
   const showFound = trail.foundIndex >= 0 && cursor >= trail.foundIndex
 
   // The cumulative readout up to `upto`: "checking owl, checking fox, found fox in
-  // bucket 0" on a hit, or "...checking elk, not in bucket 3, absent" when absent.
+  // bin 0" on a hit, or "...checking elk, not in bin 3, absent" when absent.
   const describe = (upto: number): string => {
     const parts: string[] = []
     for (let i = 0; i <= upto && i < trail.chain.length; i++) {
       parts.push(`checking ${trail.chain[i]}`)
       if (trail.foundIndex === i) {
-        parts.push(`found ${q.key} in bucket ${trail.bucket}`)
+        parts.push(`found ${q.key} in bin ${trail.bucket}`)
         return parts.join(", ")
       }
     }
     if (trail.foundIndex < 0 && upto >= trail.chain.length - 1) {
-      parts.push(`not in bucket ${trail.bucket}, absent`)
+      parts.push(`not in bin ${trail.bucket}, absent`)
     }
     return parts.join(", ")
   }
@@ -283,7 +382,7 @@ function LocatePart({
         {canTrace && (
           <div className="flex flex-col items-center gap-2">
             <Button variant="soft" size="sm" disabled={traceDone} onClick={trace}>
-              Trace the lookup
+              Scan the bin
             </Button>
             <p
               role="status"
@@ -297,18 +396,22 @@ function LocatePart({
         {correct && (
           <p className="text-center text-sm font-medium text-foreground">
             {q.present
-              ? `${q.key} is here — bucket ${q.bucket}.`
-              : `${q.key} is not in bucket ${q.bucket} — absent.`}
+              ? `${q.key} is here, in bin ${q.bucket}.`
+              : `${q.key} is not in bin ${q.bucket}: absent.`}
           </p>
         )}
       </div>
 
-      {correct && q.cost && (
-        <div className="mb-4 flex flex-wrap justify-center gap-2">
-          <LabeledCost label="Hash lookup" cost={q.cost} />
-          {q.scanCost && <LabeledCost label="List scan" cost={q.scanCost} />}
-        </div>
-      )}
+      {/* Reserve the cost row's height so the verdict's paired readouts slot in
+          without shoving the figure (free vs scales appear only once correct). */}
+      <div className="mb-4 flex min-h-[112px] flex-wrap items-start justify-center gap-2">
+        {correct && q.cost && (
+          <>
+            <LabeledCost label="Index jump" cost={q.cost} />
+            {q.scanCost && <LabeledCost label="Linear scan" cost={q.scanCost} />}
+          </>
+        )}
+      </div>
 
       <FeedbackFooter
         feedback={feedback}
@@ -403,11 +506,7 @@ function LabeledCost({ label, cost }: { label: string; cost: HashCost }) {
       <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
         {label}
       </span>
-      <CostReadout
-        word={cost.word as CostWord}
-        count={cost.count}
-        unit={cost.unit}
-      />
+      <CostReadout word={cost.word as CostWord} count={cost.count} unit={cost.unit} />
     </div>
   )
 }

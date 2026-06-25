@@ -3,7 +3,7 @@ import { X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 /**
- * A subtle, non-blocking, dismissible nudge to sign in mid-run — surfaced at a
+ * A subtle, non-blocking, dismissible nudge to sign in mid-run. Surfaced at a
  * natural moment (after the first correct answer), never a modal over a
  * prediction. See docs/prototype.md (auth/persistence model).
  */

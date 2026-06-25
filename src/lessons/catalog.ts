@@ -6,7 +6,7 @@ import type { LessonProgress } from "@/features/lesson/engine"
 /**
  * Static catalog for the platform. Course/lesson *metadata* lives here; all
  * progress-dependent state (course percentages, path node states, unlocks) is
- * DERIVED from real `LessonProgress` via the helpers below — never stored on the
+ * DERIVED from real `LessonProgress` via the helpers below. Never stored on the
  * catalog, never faked.
  */
 export type CourseState = "available" | "soon"
@@ -45,7 +45,7 @@ export const COURSES: Course[] = [
 
 /**
  * Single source of truth for the Data Structures lessons (id, display name, and
- * — for not-yet-playable previews — a lazy `load` thunk). A lesson WITHOUT a
+ * (for not-yet-playable previews) a lazy `load` thunk). A lesson WITHOUT a
  * `load` is playable (rendered eagerly by LessonPlayer); the lazy registry and
  * the derived path are both derived from this list, so adding a real lesson is
  * one entry here plus its module.
@@ -75,7 +75,7 @@ export function courseLessons(courseId: string): LessonDef[] {
   return COURSE_LESSONS[courseId] ?? []
 }
 
-/** The first eager, playable lesson — the descriptor with no lazy `load`. */
+/** The first eager, playable lesson: the descriptor with no lazy `load`. */
 export const LIVE_LESSON_ID: string =
   DATA_STRUCTURES_LESSONS.find((l) => !l.load)?.id ?? "stacks-and-queues"
 
@@ -94,7 +94,7 @@ export function isLessonPlayable(lessonId: string): boolean {
 /**
  * Is a lesson unlocked (the gating rule)? Sequential: the first lesson is always
  * unlocked, and each subsequent lesson unlocks once the previous one is
- * completed — so finishing Stacks & Queues really unlocks Arrays.
+ * completed, so finishing Stacks & Queues really unlocks Arrays.
  */
 export function isLessonUnlocked(
   lessonId: string,

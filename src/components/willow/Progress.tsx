@@ -28,7 +28,7 @@ export function ProgressBar({
   )
 }
 
-/** Segmented progress — one slim pill per part. Used in the lesson top bar. */
+/** Segmented progress: one slim pill per part. Used in the lesson top bar. */
 export function SegmentedProgress({
   total,
   filled,

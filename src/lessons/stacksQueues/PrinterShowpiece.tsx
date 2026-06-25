@@ -7,24 +7,25 @@ import type { Cell } from "@/features/lesson/stacksQueuesEngine"
 import { QueueTube } from "./QueueTube"
 
 /**
- * The print-queue skin for the queue real-world predict. The GRADED surface is a
- * plain QueueTube (front = the next file to print), so the data-answer hook and
- * the dequeue animation are unchanged. The MEDIUM tier adds a "Now printing"
- * indicator on the FRONT cell ONLY and no cancel control, so the skin stays a
- * pure FIFO: jobs only ever leave from the front, in arrival order. Reduced
- * motion snaps (no indicator animation).
+ * The print-queue skin for the queue real-world predict. Kept as the FALLBACK
+ * behind the Stage's REALWORLD_QUEUE_SKIN switch (the primary skin is
+ * DriveThruLane). The graded surface is a plain QueueTube (front = the next file
+ * to print), so the data-answer hook and the dequeue animation are unchanged. A
+ * "Now printing" indicator marks the FRONT job ONLY (no cancel control), so the
+ * skin stays a pure FIFO.
+ *
+ * Choreography is presentational and driven by `popping` (flipped a beat AFTER
+ * the verdict): the front job leaves the tube and the rest roll forward. Reduced
+ * motion snaps to the end-state.
  */
-export type ShowpieceTier = "minimal" | "medium"
-
 export function PrinterShowpiece({
   cells,
   selectable,
   cellState,
   onSelectCell,
   answerId,
-  leavingId,
+  popping = false,
   reducedMotion,
-  tier = "medium",
   className,
 }: {
   cells: Cell[] // container order: index 0 = the front (next to print)
@@ -32,16 +33,17 @@ export function PrinterShowpiece({
   cellState?: (id: string) => AnswerState
   onSelectCell?: (id: string) => void
   answerId?: string
-  leavingId?: string
+  popping?: boolean
   reducedMotion?: boolean
-  tier?: ShowpieceTier
   className?: string
 }) {
   const prefersReduced = useReducedMotion()
   const reduced = reducedMotion ?? prefersReduced ?? false
-  const medium = tier === "medium"
 
-  const front = cells[0]
+  // While popping, the front job leaves the tube; the rest roll forward.
+  const shown =
+    popping && answerId ? cells.filter((c) => c.id !== answerId) : cells
+  const front = shown[0]
 
   return (
     <div
@@ -54,7 +56,7 @@ export function PrinterShowpiece({
         Print queue
       </div>
 
-      {medium && front && (
+      {front && (
         <div
           data-testid="printer-now-printing"
           className="inline-flex items-center gap-1.5 rounded-full bg-success-soft px-2.5 py-1 text-xs font-semibold text-success"
@@ -73,12 +75,11 @@ export function PrinterShowpiece({
       )}
 
       <QueueTube
-        cells={cells}
+        cells={shown}
         selectable={selectable}
         cellState={cellState}
         onSelectCell={onSelectCell}
         answerId={answerId}
-        leavingId={leavingId}
       />
     </div>
   )

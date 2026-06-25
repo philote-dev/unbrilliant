@@ -12,7 +12,7 @@ import type { CostWord } from "@/components/willow/CostReadout"
  * shifts everything after it, and dynamic arrays occasionally resize. Reuses the
  * shared feedback machine + flame (`gradeAnswer`) and the same LessonProgress
  * shape; only the structure model, verdicts, and quota are Arrays-specific.
- * Deterministic (seeded) — same state always yields the same question/feedback.
+ * Deterministic (seeded): same state always yields the same question/feedback.
  */
 
 export const ARRAYS_PARTS = ["access", "shift", "cost", "resize"] as const
@@ -50,7 +50,9 @@ export interface ArrayResize {
 export interface ArraysQuestion {
   kind: ArraysPart
   prompt: string
-  array: string[] // the structure under consideration ([] for resize)
+  // The structure under consideration. For access/shift/cost it's the row of
+  // values; for resize it's the `size` filled cars of a `capacity`-sized block.
+  array: string[]
   highlight: number // index the op touches (-1 = none)
   options: ArraysOption[]
   answer: string // winning option id
@@ -121,12 +123,17 @@ function splice<T>(arr: T[], start: number, deleteCount: number, ...items: T[]):
 const join = (a: string[]) => a.join(" · ")
 const plural = (n: number) => (n === 1 ? "" : "s")
 
+/** Labels for `n` parked cars (A, B, C, …) so the resize block has a concrete,
+ * structured fill for the skin to render with no prompt-parsing required. */
+const fillCars = (n: number): string[] =>
+  Array.from({ length: n }, (_, i) => String.fromCharCode(65 + i))
+
 /* ------------------------------ question makers ------------------------------ */
 
 function makeAccess(): ArraysQuestion {
   return {
     kind: "access",
-    prompt: "Reading by index is direct — tap any cell to read it.",
+    prompt: "Reading by index is direct. Tap any bay to read it.",
     array: LETTERS.slice(0, 5),
     highlight: -1,
     options: [],
@@ -193,8 +200,8 @@ function makeShift(seed: number): { question: ArraysQuestion; next: number } {
   a = sh.next
 
   const why = insert
-    ? `Everything from index ${index} on slides right by one to make room — ${shifted} element${plural(shifted)} move.`
-    : `Everything after index ${index} slides left to close the gap — ${shifted} element${plural(shifted)} move.`
+    ? `Everything from index ${index} on slides right by one to make room: ${shifted} element${plural(shifted)} move.`
+    : `Everything after index ${index} slides left to close the gap, ${shifted} element${plural(shifted)} move.`
 
   return {
     question: {
@@ -205,8 +212,8 @@ function makeShift(seed: number): { question: ArraysQuestion; next: number } {
       options: sh.result,
       answer,
       hint: "Only the elements past the spot move. Tap the result, then check.",
-      nudge: "Watch the gap — each element after the spot shifts by exactly one.",
-      correct: `Right — ${shifted} element${plural(shifted)} shift.`,
+      nudge: "Watch the gap. Each element after the spot shifts by exactly one.",
+      correct: `Right, ${shifted} element${plural(shifted)} shift.`,
       why,
       cost: {
         word: "scales",
@@ -268,8 +275,8 @@ function makeCost(seed: number): { question: ArraysQuestion; next: number } {
       options: sh.result,
       answer: `n${shifted}`,
       hint: "Count the elements sitting after the spot.",
-      nudge: "Only elements after the index move — count exactly those.",
-      correct: `Right — ${shifted} shift.`,
+      nudge: "Only elements after the index move. Count exactly those.",
+      correct: `Right, ${shifted} shift.`,
       why: `Each element after index ${index} moves one step, so ${shifted} shift.`,
       cost: {
         word: "scales",
@@ -301,8 +308,8 @@ function makeResize(seed: number): { question: ArraysQuestion; next: number } {
   }
 
   const options: ArraysOption[] = [
-    { id: "yes", label: "Yes — grow the block and copy everything over" },
-    { id: "no", label: "No — there's still room" },
+    { id: "yes", label: "Yes, grow the block and copy everything over" },
+    { id: "no", label: "No, there's still room" },
   ]
   const sh = shuffle(options, a)
   a = sh.next
@@ -310,8 +317,10 @@ function makeResize(seed: number): { question: ArraysQuestion; next: number } {
   return {
     question: {
       kind: "resize",
-      prompt: `An array holds ${size} item${plural(size)} in a block sized for ${capacity}. Insert one more at the end — does it trigger a resize?`,
-      array: [],
+      prompt: `An array holds ${size} item${plural(size)} in a block sized for ${capacity}. Insert one more at the end. Does it trigger a resize?`,
+      // The block is structured (size cars filling a capacity-sized lot) so the
+      // skin can render it directly without parsing the prompt.
+      array: fillCars(size),
       highlight: -1,
       options: sh.result,
       answer: resizes ? "yes" : "no",

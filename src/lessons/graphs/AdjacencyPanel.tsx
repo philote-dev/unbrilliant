@@ -2,10 +2,10 @@ import { cn } from "@/lib/utils"
 import { neighbors, type Adjacency, type NodeId } from "@/features/lesson/graphsEngine"
 
 /**
- * The adjacency list — "the graph's actual data." Monospace rows with neighbors
+ * The adjacency list. "The graph's actual data." Monospace rows with neighbors
  * sorted (`A: B, C, E`), synced to the picture: a focused/affected row lights up
  * in lilac. Because the data is already text, a non-visual learner reads the
- * graph directly here — the first-class a11y win the lesson leans on.
+ * graph directly here. The first-class a11y win the lesson leans on.
  */
 export function AdjacencyPanel({
   nodes,
@@ -33,7 +33,7 @@ export function AdjacencyPanel({
       )}
     >
       <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-lilac-strong">
-        {title ?? (transit ? "Route list — the data" : "Adjacency list — the data")}
+        {title ?? (transit ? "Route list. The data" : "Adjacency list. The data")}
       </p>
       <div className="flex flex-col gap-1 font-mono text-sm">
         {nodes.map((n) => {
@@ -55,7 +55,7 @@ export function AdjacencyPanel({
                 {n}:
               </span>
               <span className={cn(lit.has(n) ? "text-lilac-strong" : "text-muted-foreground")}>
-                {ns.length ? ns.join(", ") : "—"}
+                {ns.length ? ns.join(", ") : "(none)"}
               </span>
             </div>
           )

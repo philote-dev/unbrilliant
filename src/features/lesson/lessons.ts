@@ -10,7 +10,7 @@ import { graphsModule } from "@/lessons/graphs"
 /**
  * The registry of playable lessons, keyed by id. The run provider, player
  * chrome, and persistence all look a lesson up here, so adding a real lesson is
- * a module plus one entry — never a change to the shared seam.
+ * a module plus one entry. Never a change to the shared seam.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const LESSONS: Record<string, LessonModule<any>> = {

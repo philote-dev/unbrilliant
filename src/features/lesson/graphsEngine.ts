@@ -4,10 +4,14 @@ import {
   type LessonAction,
   type LessonProgress,
 } from "@/features/lesson/engine"
+import {
+  TRANSIT_DIAGRAM_LAYOUT,
+  TRANSIT_GEO_LAYOUT,
+} from "@/lessons/graphs/transitData"
 
 /**
  * Pure, framework-agnostic Graphs lesson engine. One idea: a graph is arbitrary
- * connections (no root, no hierarchy, cycles allowed) — and the **adjacency list
+ * connections (no root, no hierarchy, cycles allowed), and the **adjacency list
  * is the data; the picture is just decoration**. Every verdict is a pure
  * function of a symmetric adjacency map; node positions never enter a verdict
  * (that property *is* the lesson). Edge-drawing consumes the shared rewire infra:
@@ -81,7 +85,7 @@ export interface GraphsQuestion {
   pair?: readonly [NodeId, NodeId] // read-path: the (X,Y) asked
   missingEdge?: Edge // draw beats: the one correct edge to add
   adjB?: Adjacency // same-graph: the second layout's adjacency
-  layout: Record<NodeId, Pt> // PRESENTATIONAL only — never read by a verdict
+  layout: Record<NodeId, Pt> // PRESENTATIONAL only. Never read by a verdict
   layoutB?: Record<NodeId, Pt> // same-graph / redraw: the alternate layout
   options: GraphOption[] // mcq / yesno / classify choices
   answer: string // winning option id (yesno/mcq/classify); else ""
@@ -102,7 +106,7 @@ export interface GraphsState {
   sameCorrect: number // 0..2
   attempts: number
   question: GraphsQuestion | null
-  // working state (TRANSIENT — never persisted):
+  // working state (TRANSIENT, never persisted):
   selectedNodes: NodeId[] // multi-select read set (toggled by `select`)
   selected: string | null // yes/no | mcq option | same/different | tree/graph
   pendingEdge: Edge | null // draw beat: the single drawn edge
@@ -130,7 +134,7 @@ export const degree = (adj: Adjacency, n: NodeId): number => (adj[n] ?? []).leng
 export const hasEdge = (adj: Adjacency, u: NodeId, v: NodeId): boolean =>
   (adj[u] ?? []).includes(v)
 
-/** The undirected edge set of an adjacency (each {u,v} once) — the canonical identity. */
+/** The undirected edge set of an adjacency (each {u,v} once): the canonical identity. */
 export function edgeSet(adj: Adjacency): Set<string> {
   const s = new Set<string>()
   for (const u of Object.keys(adj)) for (const v of adj[u]) s.add(edgeKey(u, v))
@@ -180,7 +184,7 @@ export function cloneAdj(adj: Adjacency): Adjacency {
   return out
 }
 
-/** Reachability (BFS over adjacency) — internal; the learner predicts yes/no only. */
+/** Reachability (BFS over adjacency): internal; the learner predicts yes/no only. */
 export function reachable(adj: Adjacency, start: NodeId): Set<NodeId> {
   const seen = new Set<NodeId>([start])
   const queue = [start]
@@ -217,7 +221,7 @@ function setEqualStr(a: Set<string>, b: Set<string>): boolean {
   return a.size === b.size && [...a].every((x) => b.has(x))
 }
 
-/** Two graphs are the SAME iff their edge sets are equal — provably position-free. */
+/** Two graphs are the SAME iff their edge sets are equal: provably position-free. */
 export const sameGraph = (a: Adjacency, b: Adjacency): boolean =>
   setEqualStr(edgeSet(a), edgeSet(b))
 
@@ -279,7 +283,7 @@ export function binOfPart(part: GraphsPart): GraphBin | null {
 export const G6_NODES: NodeId[] = ["A", "B", "C", "D", "E", "F"]
 
 /**
- * Base graph G6 — 6 nodes, 7 edges, connected, has a cycle (A-B-C) ⇒ a general
+ * Base graph G6: 6 nodes, 7 edges, connected, has a cycle (A-B-C) ⇒ a general
  * graph, not a tree. The worked-values fixture the build (and tests) grade on.
  */
 export const G6: Adjacency = {
@@ -291,7 +295,7 @@ export const G6: Adjacency = {
   F: ["E"],
 }
 
-/** Tree variant T6 — 6 nodes, 5 edges (= nodes − 1), connected ⇒ a tree. */
+/** Tree variant T6: 6 nodes, 5 edges (= nodes − 1), connected ⇒ a tree. */
 export const T6: Adjacency = {
   A: ["B", "C"],
   B: ["A"],
@@ -301,20 +305,27 @@ export const T6: Adjacency = {
   F: ["E"],
 }
 
-const TRANSIT_NODES: NodeId[] = ["A", "B", "C", "D", "E", "F"]
-/** Transit loop — a 6-station ring; the draw beat restores the one missing link. */
-const TRANSIT: Adjacency = {
-  A: ["B", "F"],
+export const TRANSIT_NODES: NodeId[] = ["A", "B", "C", "D", "E", "F", "G"]
+/**
+ * Transit network (the subway skin's data): a 5-station loop line (A-B-C-D-E-A)
+ * plus a short branch (F-C-G) meeting at the Central interchange (C). 7 stations,
+ * 7 segments, exactly one cycle, so it stays a general graph (not a tree). The
+ * draw beat restores the loop-closing A-E segment. Undirected and symmetric; the
+ * coordinates that draw it live in transitData (decoration), never here.
+ */
+export const TRANSIT: Adjacency = {
+  A: ["B", "E"],
   B: ["A", "C"],
-  C: ["B", "D"],
+  C: ["B", "D", "F", "G"],
   D: ["C", "E"],
-  E: ["D", "F"],
-  F: ["A", "E"],
+  E: ["A", "D"],
+  F: ["C"],
+  G: ["C"],
 }
 
 /* -------------------------------- layout maps -------------------------------- */
 
-/** Hand-authored positions (presentational only — no verdict reads them). */
+/** Hand-authored positions (presentational only: no verdict reads them). */
 const G6_LAYOUT: Record<NodeId, Pt> = {
   A: { x: 60, y: 50 },
   B: { x: 170, y: 44 },
@@ -324,16 +335,6 @@ const G6_LAYOUT: Record<NodeId, Pt> = {
   F: { x: 44, y: 150 },
 }
 
-/** The same G6, re-laid-out around a circle (the "moved-node" redraw). */
-const G6_LAYOUT_B: Record<NodeId, Pt> = {
-  A: { x: 140, y: 32 },
-  B: { x: 220, y: 78 },
-  C: { x: 220, y: 162 },
-  D: { x: 140, y: 208 },
-  E: { x: 60, y: 162 },
-  F: { x: 60, y: 78 },
-}
-
 const T6_LAYOUT: Record<NodeId, Pt> = {
   A: { x: 140, y: 38 },
   B: { x: 72, y: 120 },
@@ -341,15 +342,6 @@ const T6_LAYOUT: Record<NodeId, Pt> = {
   D: { x: 150, y: 200 },
   E: { x: 244, y: 196 },
   F: { x: 244, y: 96 },
-}
-
-const TRANSIT_LAYOUT: Record<NodeId, Pt> = {
-  A: { x: 60, y: 60 },
-  B: { x: 140, y: 48 },
-  C: { x: 220, y: 60 },
-  D: { x: 220, y: 180 },
-  E: { x: 140, y: 196 },
-  F: { x: 60, y: 180 },
 }
 
 const DRAW_DEMO_NODES: NodeId[] = ["A", "B", "C", "D"]
@@ -397,13 +389,13 @@ const treeOptions = (): GraphOption[] => [
 /** A compact one-line adjacency rendering (SR text + match-list fallback label). */
 function adjLabel(adj: Adjacency, nodes: NodeId[]): string {
   return nodes
-    .map((n) => `${n}: ${neighbors(adj, n).join(", ") || "—"}`)
+    .map((n) => `${n}: ${neighbors(adj, n).join(", ") || "(none)"}`)
     .join("   ·   ")
 }
 
 function makeDemo(): GraphsQuestion {
   return baseQuestion("demo", {
-    prompt: "Drag a node anywhere. The picture moves — the data doesn't.",
+    prompt: "Drag a node anywhere. The picture moves. The data doesn't.",
     nodes: G6_NODES,
     adj: G6,
     layout: G6_LAYOUT,
@@ -414,7 +406,7 @@ function makeDemo(): GraphsQuestion {
 function makeTeach(): GraphsQuestion {
   return baseQuestion("teach", {
     prompt:
-      "The adjacency list is the data; the picture is decoration. A graph has no root and may have cycles — that's how it's not a tree.",
+      "The adjacency list is the data; the picture is decoration. A graph has no root and may have cycles. That's how it's not a tree.",
     nodes: G6_NODES,
     adj: G6,
     layout: G6_LAYOUT,
@@ -434,9 +426,9 @@ function makeReadList(): GraphsQuestion {
     markedNodes: [focus],
     answerSet: set,
     hint: `Read ${focus}'s row in the list, then tap those nodes. Check when ready.`,
-    nudge: `Re-read ${focus}'s row — tap exactly the nodes listed there, no more, no less.`,
+    nudge: `Re-read ${focus}'s row. Tap exactly the nodes listed there, no more, no less.`,
     correct: `${focus} connects to ${set.join(", ")}.`,
-    why: `${focus}'s row in the data is ${set.join(", ")} — that's its connection list, whatever the picture looks like.`,
+    why: `${focus}'s row in the data is ${set.join(", ")}. That's its connection list, whatever the picture looks like.`,
   })
 }
 
@@ -453,8 +445,8 @@ function makeReadDegree(): GraphsQuestion {
     markedNodes: [focus],
     answerSet: set,
     hint: `Degree = how many connections ${focus} has. Tap each one, then check.`,
-    nudge: `Count only ${focus}'s direct connections — tap exactly those nodes.`,
-    correct: `${focus} has degree ${set.length} — it connects to ${set.join(", ")}.`,
+    nudge: `Count only ${focus}'s direct connections. Tap exactly those nodes.`,
+    correct: `${focus} has degree ${set.length}. It connects to ${set.join(", ")}.`,
     why: `${focus}'s row is ${set.join(", ")}, so its degree is the size of that set: ${set.length}.`,
   })
 }
@@ -476,12 +468,12 @@ function makeReadPath(seed: number): { question: GraphsQuestion; next: number } 
       options: result,
       answer: yes ? "yes" : "no",
       hint: "A path is any chain of edges, not a single direct link. Pick Yes or No, then check.",
-      nudge: "Trace the connections step by step — can you reach the other node at all?",
+      nudge: "Trace the connections step by step. Can you reach the other node at all?",
       correct: yes
-        ? `Yes — you can reach ${pair[1]} from ${pair[0]} by following the edges.`
-        : `No — no chain of edges links ${pair[0]} to ${pair[1]}.`,
+        ? `Yes: you can reach ${pair[1]} from ${pair[0]} by following the edges.`
+        : `No, no chain of edges links ${pair[0]} to ${pair[1]}.`,
       why: yes
-        ? `Walking the edges from ${pair[0]} eventually reaches ${pair[1]}, so a path exists — even though they're not directly connected.`
+        ? `Walking the edges from ${pair[0]} eventually reaches ${pair[1]}, so a path exists, even though they're not directly connected.`
         : `No chain of edges connects ${pair[0]} to ${pair[1]}, so there's no path.`,
     }),
     next,
@@ -519,7 +511,7 @@ function makeMatchList(seed: number): { question: GraphsQuestion; next: number }
       options: result,
       answer: "correct",
       hint: "Translate the whole picture into rows, then find the matching list.",
-      nudge: "Check each row against the picture — one wrong neighbor means the wrong list.",
+      nudge: "Check each row against the picture. One wrong neighbor means the wrong list.",
       correct: "That list is the picture's exact connection set.",
       why: "Every row matches the picture's edges. Each distractor changes exactly one real connection.",
     }),
@@ -531,7 +523,7 @@ function makeDrawDemo(): GraphsQuestion {
   const shown: Adjacency = { A: ["B"], B: ["A", "C"], C: ["B"], D: [] }
   return baseQuestion("draw-demo", {
     mode: "draw",
-    prompt: "Drag from one node to another to draw an edge — watch the list gain a neighbor.",
+    prompt: "Drag from one node to another to draw an edge. Watch the list gain a neighbor.",
     nodes: DRAW_DEMO_NODES,
     adj: shown,
     shownAdj: shown,
@@ -545,21 +537,21 @@ function makeDrawEdge(): GraphsQuestion {
   return baseQuestion("draw-edge", {
     bin: "draw",
     mode: "draw",
-    prompt: "The list is the data — draw the one edge the picture is missing.",
+    prompt: "The list is the data. Draw the one edge the picture is missing.",
     nodes: G6_NODES,
     adj: G6,
     shownAdj: shown,
     missingEdge: normalizeEdge("B", "D"),
     layout: G6_LAYOUT,
-    hint: "Compare each row to the picture — exactly one connection is missing. Drag between those two nodes.",
+    hint: "Compare each row to the picture. Exactly one connection is missing. Drag between those two nodes.",
     nudge: "One row in the list has a neighbor the picture doesn't show. Draw that edge.",
-    correct: "B–D drawn — the picture now matches the data.",
+    correct: "B–D drawn. The picture now matches the data.",
     why: "The list connects B and D, but the picture didn't. Drawing B–D adds each to the other's row.",
   })
 }
 
 function makeDrawTransit(): GraphsQuestion {
-  const shown = removeEdge(TRANSIT, "A", "F")
+  const shown = removeEdge(TRANSIT, "A", "E")
   return baseQuestion("draw-transit", {
     bin: "draw",
     mode: "draw",
@@ -568,22 +560,24 @@ function makeDrawTransit(): GraphsQuestion {
     nodes: TRANSIT_NODES,
     adj: TRANSIT,
     shownAdj: shown,
-    missingEdge: normalizeEdge("A", "F"),
-    layout: TRANSIT_LAYOUT,
+    missingEdge: normalizeEdge("A", "E"),
+    layout: TRANSIT_GEO_LAYOUT,
     hint: "The route list (the data) has a connection the map is missing. Drag between those two stations.",
-    nudge: "One station pair is connected in the list but not on the map — draw that line.",
-    correct: "A–F connected — the loop is complete.",
-    why: "The route list joins A and F, completing the loop; the map just hadn't drawn it yet.",
+    nudge: "One station pair is connected in the list but not on the map. Draw that line.",
+    correct: "A to E connected: the Harbor loop is complete.",
+    why: "The route list joins A and E, closing the loop; the map just had not drawn it yet.",
   })
 }
 
 function makeRedrawDemo(): GraphsQuestion {
   return baseQuestion("redraw-demo", {
-    prompt: "Same connections, new layout. The picture rearranges — the data doesn't move.",
-    nodes: G6_NODES,
-    adj: G6,
-    layout: G6_LAYOUT,
-    layoutB: G6_LAYOUT_B,
+    transit: true,
+    prompt:
+      "Watch the map become a clean diagram. Stations slide, lines re-bend, the route list never moves.",
+    nodes: TRANSIT_NODES,
+    adj: TRANSIT,
+    layout: TRANSIT_GEO_LAYOUT,
+    layoutB: TRANSIT_DIAGRAM_LAYOUT,
   })
 }
 
@@ -615,29 +609,34 @@ export function makeSameGraph(
   variant: SameGraphVariant,
   seed: number,
 ): { question: GraphsQuestion; next: number } {
-  const adjB = variant === "same" ? cloneAdj(G6) : removeEdge(G6, "E", "F")
-  const same = sameGraph(G6, adjB)
+  // Both panels render the SAME transit network: the first as a geographic map,
+  // the second as the clean diagram. "same" keeps the route set identical (only
+  // the layout differs); "different" drops the D-E segment. The verdict reads
+  // adjacency, so the wildly different pictures never decide it.
+  const adjB = variant === "same" ? cloneAdj(TRANSIT) : removeEdge(TRANSIT, "D", "E")
+  const same = sameGraph(TRANSIT, adjB)
   const { result, next } = shuffle(sameOptions(), seed)
   return {
     question: baseQuestion("same-graph", {
       bin: "same",
       mode: "classify",
-      prompt: "Is the second picture the same graph as the first?",
-      nodes: G6_NODES,
-      adj: G6,
+      transit: true,
+      prompt: "One is the street map, one is the clean diagram. Same network?",
+      nodes: TRANSIT_NODES,
+      adj: TRANSIT,
       adjB,
-      layout: G6_LAYOUT,
-      layoutB: G6_LAYOUT_B,
+      layout: TRANSIT_GEO_LAYOUT,
+      layoutB: TRANSIT_DIAGRAM_LAYOUT,
       options: result,
       answer: same ? "same" : "different",
       hint: "Compare the connections, not the positions. Tap your answer, then check.",
-      nudge: "Ignore where the dots sit — check whether the same pairs are connected.",
+      nudge: "Ignore where the stations sit. Check whether the same pairs of stations connect.",
       correct: same
-        ? "Same graph — the connections match, only the layout changed."
-        : "Different — one connection changed, so it's a different graph.",
+        ? "Same network: the connections match, only the layout changed."
+        : "Different: one connection changed, so it is a different network.",
       why: same
-        ? "Both pictures have the identical edge set; moving the nodes doesn't change the graph."
-        : "The second picture is missing the E–F connection, so its edge set differs — a different graph.",
+        ? "Both maps have the identical set of segments; bending the map into a diagram never changes the network."
+        : "The diagram is missing the D to E segment, so its route set differs: a different network.",
     }),
     next,
   }
@@ -661,13 +660,13 @@ export function makeTreeOrNot(
       layout,
       options: result,
       answer: tree ? "tree" : "graph",
-      hint: "A tree has no cycles — exactly one route between any two nodes. Tap your answer, then check.",
+      hint: "A tree has no cycles. Exactly one route between any two nodes. Tap your answer, then check.",
       nudge: "Look for a cycle: can you start at a node and get back to it without repeating an edge?",
       correct: tree
-        ? "A tree — no cycles, exactly one path between any two nodes."
-        : "A general graph — it has a cycle, so it's not a tree.",
+        ? "A tree. No cycles, exactly one path between any two nodes."
+        : "A general graph. It has a cycle, so it's not a tree.",
       why: tree
-        ? `Edges (${edgeSet(adj).size}) = nodes (${G6_NODES.length}) − 1 and it's connected, so it's a tree — no cycle.`
+        ? `Edges (${edgeSet(adj).size}) = nodes (${G6_NODES.length}) − 1 and it's connected, so it's a tree. No cycle.`
         : `It has a cycle (more edges than a tree allows), so it's a general graph, not a tree.`,
     }),
     next,
@@ -767,7 +766,7 @@ export function currentPartGraphs(state: GraphsState): GraphsPart {
   return GRAPHS_PARTS[state.partIndex]
 }
 
-/** A verdict is terminal once correct or failed — the question locks. */
+/** A verdict is terminal once correct or failed: the question locks. */
 export function isTerminalGraphs(state: GraphsState): boolean {
   return state.feedback === "correct" || state.feedback === "fail"
 }
@@ -803,7 +802,7 @@ export function currentBinLabel(state: GraphsState): string | null {
 }
 
 /** Every node is a legal (keyboard-reachable, highlightable) draw target; the
- * engine — not this flat set — enforces real legality (no self/dup). */
+ * engine (not this flat set) enforces real legality (no self/dup). */
 export function legalDrawTargets(state: GraphsState): Set<string> {
   return new Set(state.question?.nodes ?? [])
 }

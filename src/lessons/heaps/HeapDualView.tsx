@@ -1,46 +1,59 @@
+import type { ReactNode } from "react"
+import { Check, X } from "lucide-react"
 import { motion, useReducedMotion } from "motion/react"
 
 import { cn } from "@/lib/utils"
 import { leftIndex, parentIndex, rightIndex, type SwapStep } from "@/features/lesson/heapsEngine"
+import {
+  BAND_H,
+  CELL,
+  GAP,
+  NODE_R,
+  W,
+  arrayRowWidth,
+  cellCenter,
+  nodePositions,
+  treeHeight,
+} from "./heapLayout"
 
 /**
- * The signature Heaps figure — a **dual, synced tree + array** view. A node-link
+ * The signature Heaps figure: a dual, synced tree + array view. A node-link
  * complete-tree (top) sits over an index-ruled array strip (bottom); they are the
  * SAME data, so a highlighted slot lights in both panels and the index map is
- * *drawn*, not implied. Layout is hand-rolled by arithmetic (no `d3-hierarchy`):
- * slot `i` sits at depth `floor(log2(i+1))`, position `i-(2^depth-1)` in its row.
+ * drawn, not implied. Layout is hand-rolled by arithmetic in `heapLayout` (no
+ * `d3-hierarchy`): slot `i` sits at depth `floor(log2(i+1))`, position `i-(2^depth-1)`.
  *
  * Selecting a slot draws faint connectors to its children (`2i+1`/`2i+2`) and its
- * parent (`(i-1)/2`) in BOTH panels — the arithmetic made visible. A swap lifts
- * the two tree nodes and the two array cells together (synchronous), and the
- * whole figure honors `prefers-reduced-motion` by snapping (no lift, no draw).
- * Slot beats commit by tapping an array cell (≥44px); the synced tree node lights.
+ * parent (`(i-1)/2`) in BOTH panels (the arithmetic made visible). A swap lifts the
+ * two tree nodes and the two array cells together (synchronous), and the whole
+ * figure honors `prefers-reduced-motion` by snapping (no lift, no draw). Array
+ * cells are keyed by their stable 0-based SLOT (not value), so on a swap a cell
+ * morphs its value in place and the lift springs in sync with the tree node rather
+ * than hard-cutting. Slot beats commit by tapping an array cell (>=44px); the
+ * synced tree node lights, and selected/correct/fail cells carry an icon overlay
+ * (never colour alone). The 0-based index ruler is always shown.
  */
-
-const W = 320
-const ROW_H = 64
-const PAD_TOP = 20
-const NODE_R = 17
-const CELL = 44
-const GAP = 10
-const BAND_H = 30
 
 export type SlotTone = "selected" | "correct" | "fail" | "nudge"
 
-const depthOf = (i: number): number => Math.floor(Math.log2(i + 1))
-const rowStart = (depth: number): number => 2 ** depth - 1
-const colsInRow = (depth: number): number => 2 ** depth
-/** Horizontal fraction (0..1) of slot `i` within the complete-tree layout. */
-const xFracOf = (i: number): number => {
-  const d = depthOf(i)
-  return (i - rowStart(d) + 0.5) / colsInRow(d)
+/**
+ * The minimal prop contract a synced heap figure honours, shared by HeapDualView
+ * and the ER triage skin so the replay stepper can swap figures via `renderFigure`.
+ */
+export interface HeapFigureProps {
+  heap: number[]
+  /** Slots highlighted (lilac) in both panels: the question subject / family / replay pair. */
+  highlightSlots?: number[]
+  /** Two slots to lift together (a swap, synchronous in both panels). */
+  liftPair?: SwapStep | null
+  /** Subject slot whose `2i+1 / 2i+2 / (i-1)/2` connectors are drawn in both panels. */
+  connectorSlot?: number | null
+  reducedMotion?: boolean
+  srLabel?: string
+  className?: string
 }
 
-interface NodeGeom {
-  i: number
-  cx: number
-  cy: number
-}
+export type HeapFigureRenderer = (props: HeapFigureProps) => ReactNode
 
 const ARRAY_SURFACE: Record<SlotTone, string> = {
   selected: "border-lilac-strong bg-lilac-soft ring-4 ring-lilac-strong/15",
@@ -49,53 +62,74 @@ const ARRAY_SURFACE: Record<SlotTone, string> = {
   nudge: "border-warning bg-warning-soft",
 }
 
+/** A small corner badge so a cell's verdict reads without relying on colour. */
+function SlotBadge({ tone }: { tone: SlotTone }) {
+  if (tone === "correct") {
+    return (
+      <span
+        data-testid="heap-cell-icon"
+        className="absolute right-0.5 top-0.5 flex size-3.5 items-center justify-center rounded-full bg-success text-white"
+      >
+        <Check className="size-2.5" strokeWidth={3.5} />
+      </span>
+    )
+  }
+  if (tone === "fail" || tone === "nudge") {
+    return (
+      <span
+        data-testid="heap-cell-icon"
+        className={cn(
+          "absolute right-0.5 top-0.5 flex size-3.5 items-center justify-center rounded-full text-white",
+          tone === "fail" ? "bg-danger" : "bg-warning",
+        )}
+      >
+        <X className="size-2.5" strokeWidth={3.5} />
+      </span>
+    )
+  }
+  return (
+    <span
+      data-testid="heap-cell-icon"
+      aria-hidden
+      className="absolute right-0.5 top-0.5 flex size-3.5 items-center justify-center rounded-full bg-lilac"
+    >
+      <span className="size-1.5 rounded-full bg-lilac-foreground" />
+    </span>
+  )
+}
+
 export function HeapDualView({
   heap,
-  /** Slots highlighted (lilac) in both panels — the question subject / family / replay pair. */
   highlightSlots = [],
   /** A tree-only highlight (the "same data" beat lights a node; the learner finds its cell). */
   treeSlot = null,
-  /** Subject slot whose `2i+1 / 2i+2 / (i-1)/2` connectors are drawn in both panels. */
   connectorSlot = null,
-  /** Two slots to lift together (a swap, synchronous in both panels). */
   liftPair = null,
   /** The learner's tapped slot (slot beats). */
   selectedSlot = null,
   selectedTone = "selected",
   /** When set, paint this slot green (the revealed answer). */
   revealSlot = null,
-  /** The correct slot — exposes a DEV-only test hook on its cell (slot beats). */
+  /** The correct slot: exposes a DEV-only test hook on its cell (slot beats). */
   correctSlot = null,
   onTapSlot,
   reducedMotion,
   srLabel,
   className,
-}: {
-  heap: number[]
-  highlightSlots?: number[]
+}: HeapFigureProps & {
   treeSlot?: number | null
-  connectorSlot?: number | null
-  liftPair?: SwapStep | null
   selectedSlot?: number | null
   selectedTone?: SlotTone
   revealSlot?: number | null
   correctSlot?: number | null
   onTapSlot?: (index: number) => void
-  reducedMotion?: boolean
-  srLabel?: string
-  className?: string
 }) {
   const prefersReduced = useReducedMotion()
   const reduced = reducedMotion ?? prefersReduced ?? false
 
   const n = heap.length
-  const rows = n > 0 ? depthOf(n - 1) + 1 : 1
-  const svgH = PAD_TOP + rows * ROW_H + 6
-  const nodes: NodeGeom[] = heap.map((_, i) => ({
-    i,
-    cx: xFracOf(i) * W,
-    cy: PAD_TOP + depthOf(i) * ROW_H + NODE_R,
-  }))
+  const svgH = treeHeight(n)
+  const nodes = nodePositions(n)
 
   const lifted = (i: number): boolean => liftPair != null && (liftPair.a === i || liftPair.b === i)
 
@@ -110,8 +144,7 @@ export function HeapDualView({
     return null
   }
 
-  const rowWidth = n * CELL + Math.max(0, n - 1) * GAP
-  const cellCenter = (i: number): number => i * (CELL + GAP) + CELL / 2
+  const rowWidth = arrayRowWidth(n)
 
   // The connectors drawn in the ARRAY panel for the subject slot (children + parent).
   const arcTargets: number[] = []
@@ -230,8 +263,10 @@ export function HeapDualView({
       </p>
 
       {/* ----------------------------- array panel ---------------------------- */}
-      <div className="flex justify-center">
-        <div className="relative" style={{ width: rowWidth }}>
+      {/* `overflow-x-auto` + `mx-auto`: centers when it fits, scrolls a wide (7-cell)
+          strip instead of clipping it past the 360px wrapper (LAYOUT guard). */}
+      <div className="w-full overflow-x-auto">
+        <div className="relative mx-auto" style={{ width: rowWidth }}>
           {/* drawn index connectors (children + parent) above the strip */}
           <svg
             width={rowWidth}
@@ -261,15 +296,18 @@ export function HeapDualView({
           <div className="flex" style={{ gap: GAP }}>
             {heap.map((v, i) => {
               const tone = slotTone(i)
-              const toneClass =
+              const badgeTone: SlotTone | null =
                 tone === "correct" || tone === "fail" || tone === "selected" || tone === "nudge"
-                  ? ARRAY_SURFACE[tone]
-                  : tone === "highlight"
-                    ? "border-lilac-strong bg-lilac-soft"
-                    : "border-border bg-card"
+                  ? tone
+                  : null
+              const toneClass = badgeTone
+                ? ARRAY_SURFACE[badgeTone]
+                : tone === "highlight"
+                  ? "border-lilac-strong bg-lilac-soft"
+                  : "border-border bg-card"
               return (
                 <motion.button
-                  key={`${i}-${v}`}
+                  key={`slot-${i}`}
                   type="button"
                   data-testid="heap-cell"
                   data-slot={i}
@@ -284,7 +322,7 @@ export function HeapDualView({
                   animate={{ y: lifted(i) && !reduced ? -7 : 0 }}
                   transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 360, damping: 24 }}
                   className={cn(
-                    "flex flex-col items-center justify-center rounded-lg border-2 font-bold text-foreground outline-none transition-colors",
+                    "relative flex flex-col items-center justify-center rounded-lg border-2 font-bold text-foreground outline-none transition-colors",
                     "focus-visible:ring-2 focus-visible:ring-lilac-strong/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                     onTapSlot ? "cursor-pointer" : "cursor-default",
                     toneClass,
@@ -293,6 +331,7 @@ export function HeapDualView({
                 >
                   <span className="text-[15px] leading-none">{v}</span>
                   <span className="mt-0.5 text-[9px] font-medium leading-none text-faint">{i}</span>
+                  {badgeTone && <SlotBadge tone={badgeTone} />}
                 </motion.button>
               )
             })}

@@ -1,53 +1,58 @@
 import { cn } from "@/lib/utils"
 import type { Adjacency, NodeId, Pt } from "@/features/lesson/graphsEngine"
 import { AdjacencyPanel } from "./AdjacencyPanel"
-import { GraphCanvas } from "./GraphCanvas"
+import { SubwayMap } from "./SubwayMap"
+import { METRO } from "./transitData"
 
-export interface GraphView {
+export interface SubwayView {
   nodes: NodeId[]
   adj: Adjacency
   layout: Record<NodeId, Pt>
 }
 
 /**
- * Two node-link pictures side by side for the same-graph + redraw beats: the
- * "first" and the re-laid-out "second". The learner decides identity by the
- * **connections**, never the layout, so both panels render plain display canvases
- * and the verdict (in the engine) reads only adjacency. With `showData`, each
- * picture also carries its adjacency list underneath (the redraw "show the data"
- * reveal); by default the layout is the original two-picture view, unchanged.
+ * The same-graph beat, subway-skinned: the SAME network shown two ways, a
+ * geographic street map beside the clean diagram. The learner decides identity by
+ * the connections (the route list), never the layout, so the engine's verdict
+ * reads only adjacency. The two pictures are deliberately, wildly different to
+ * make "the picture is decoration, adjacency is the data" land. On reveal each
+ * map carries its route list, so the connections can be compared directly.
  */
 export function SameGraphView({
   before,
   after,
   reducedMotion,
-  showData,
+  revealLists,
   className,
 }: {
-  before: GraphView
-  after: GraphView
+  /** Geographic map (the irregular "first" picture). */
+  before: SubwayView
+  /** Diagrammatic map (the schematic "second" picture). */
+  after: SubwayView
   reducedMotion?: boolean
-  /** Render each picture's adjacency list under its canvas (redraw reveal). */
-  showData?: boolean
+  /** Render each map's route list underneath (the classify reveal). */
+  revealLists?: boolean
   className?: string
 }) {
   return (
-    <div className={cn("flex w-full flex-col gap-3 sm:flex-row", className)}>
-      <Panel label="First" view={before} showData={showData}>
-        <GraphCanvas
+    <div className={cn("flex w-full gap-2", className)}>
+      <Panel label="Street map" view={before} revealLists={revealLists}>
+        <SubwayMap
           mode="display"
           nodes={before.nodes}
           adj={before.adj}
           layout={before.layout}
+          variant="geographic"
           reducedMotion={reducedMotion}
         />
       </Panel>
-      <Panel label="Second" view={after} showData={showData}>
-        <GraphCanvas
+      <Panel label="Clean diagram" view={after} revealLists={revealLists}>
+        <SubwayMap
           mode="display"
           nodes={after.nodes}
           adj={after.adj}
           layout={after.layout}
+          variant="diagrammatic"
           reducedMotion={reducedMotion}
         />
       </Panel>
@@ -58,21 +63,26 @@ export function SameGraphView({
 function Panel({
   label,
   view,
-  showData,
+  revealLists,
   children,
 }: {
   label: string
-  view: GraphView
-  showData?: boolean
+  view: SubwayView
+  revealLists?: boolean
   children: React.ReactNode
 }) {
   return (
-    <div className="flex flex-1 flex-col items-center gap-1.5 rounded-2xl border border-border bg-card/40 p-2">
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+    <div
+      className="flex flex-1 flex-col items-center gap-1.5 rounded-2xl p-2"
+      style={{ background: METRO.paper, border: `1px solid ${METRO.cardEdge}` }}
+    >
+      <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: METRO.muted }}>
         {label}
       </span>
       {children}
-      {showData && <AdjacencyPanel nodes={view.nodes} adj={view.adj} />}
+      {revealLists && (
+        <AdjacencyPanel nodes={view.nodes} adj={view.adj} transit title={`${label} route list`} />
+      )}
     </div>
   )
 }

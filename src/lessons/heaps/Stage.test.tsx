@@ -51,25 +51,49 @@ function Harness({ initial }: { initial: HeapsState }) {
 }
 
 const cells = () => screen.getAllByTestId("heap-cell")
+const triageCells = () => screen.getAllByTestId("triage-cell")
+const triageCellAt = (slot: number) =>
+  triageCells().find((c) => c.getAttribute("data-slot") === String(slot))
 
-describe("teach-extract intro frame (compact-array invariant)", () => {
-  it("prepends the 'top leaves, last fills it' frame, then steps into the sift", () => {
+describe("teach-extract intro frame (compact-array invariant, ER skin)", () => {
+  it("prepends the 'top leaves, last fills it' frame on the triage board, then steps into the sift", () => {
     render(<HeapsStage state={stateAt("teach-extract")} dispatch={vi.fn()} />)
-    // intro: the original 5-slot heap [9,7,6,3,2] with the why-caption.
-    expect(cells()).toHaveLength(5)
+    // intro: the original 5-patient board [9,7,6,3,2] with the why-caption.
+    expect(triageCells()).toHaveLength(5)
     expect(screen.getByRole("status")).toHaveTextContent(
       "Take the top out (9). To keep the array packed with no gaps, the last item (2) moves up to fill the root, then it sinks.",
     )
-    // Next: the last item (2) has filled the root, the array is packed to 4 slots.
+    // Next: the last patient (2) has filled the top spot, the board packs to 4 slots.
     fireEvent.click(screen.getByRole("button", { name: "Next" }))
-    expect(cells()).toHaveLength(4)
-    expect(screen.getByLabelText("slot 0, value 2")).toBeInTheDocument()
+    expect(triageCells()).toHaveLength(4)
+    expect(triageCellAt(0)).toHaveAttribute("data-value", "2")
   })
 
   it("highlights both the leaving root (0) and the filler (last) slot in the intro", () => {
     render(<HeapsStage state={stateAt("teach-extract")} dispatch={vi.fn()} />)
-    const lit = cells().filter((c) => c.getAttribute("data-lit") === "1")
+    const lit = triageCells().filter((c) => c.getAttribute("data-lit") === "1")
     expect(lit.map((c) => c.getAttribute("data-slot")).sort()).toEqual(["0", "4"])
+  })
+})
+
+describe("slot beats: neutral pre-verdict screen-reader label (no answer leak)", () => {
+  it("voices the task without naming the mapped slot until the verdict", () => {
+    const s = stateAt("map-child")
+    const { rerender } = render(<HeapsStage state={s} dispatch={vi.fn()} />)
+    // pre-verdict: the figure status states the subject + task, never the target slot.
+    const status = screen.getByRole("status")
+    expect(status).toHaveTextContent(
+      "Slot 0 holds 9. Tap the array cell you think is its larger child.",
+    )
+    expect(status).not.toHaveTextContent("the larger is slot 1")
+
+    // once correct, the mapped slot is safe to voice.
+    const correct = heapsReducer(
+      heapsReducer(s, { type: "select", letter: s.question!.answer }),
+      { type: "check" },
+    )
+    rerender(<HeapsStage state={correct} dispatch={vi.fn()} />)
+    expect(screen.getByRole("status")).toHaveTextContent("the larger is slot 1")
   })
 })
 

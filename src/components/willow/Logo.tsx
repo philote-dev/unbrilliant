@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils"
 /**
  * Single-color weeping-willow mark. Inherits `currentColor`, so color it with
  * a text-* utility (e.g. text-lilac-strong). Drooping strands + leaf teardrops
- * over a flared trunk — see docs/design/assets/willow-logo-tree.png.
+ * over a flared trunk. See docs/design/assets/willow-logo-tree.png.
  */
 export function WillowMark({
   className,

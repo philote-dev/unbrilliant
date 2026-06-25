@@ -8,7 +8,7 @@ import { WillowMark } from "@/components/willow/Logo"
 /**
  * Routes a lessonId to its player. Any playable lesson (Stacks & Queues, Arrays)
  * renders eagerly via the shared LessonPlayer; not-yet-built lessons resolve
- * from the lazy registry — separate chunks, loaded on demand.
+ * from the lazy registry. Separate chunks, loaded on demand.
  */
 export function LessonHost({ lessonId }: { lessonId: string }) {
   if (isLessonPlayable(lessonId)) {

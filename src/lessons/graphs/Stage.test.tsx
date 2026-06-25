@@ -10,6 +10,7 @@ import {
   type GraphsState,
 } from "@/features/lesson/graphsEngine"
 import { GraphCanvas } from "./GraphCanvas"
+import { SubwayMap } from "./SubwayMap"
 import { GraphsStage } from "./Stage"
 
 /**
@@ -110,7 +111,7 @@ describe("draw-edge (rewire: node is both source and target)", () => {
     const src = sourceEl("B")
     src.focus()
     fireEvent.keyDown(src, { key: "Enter" }) // arm B
-    // targets register in node order A,B,C,D,E,F — cycle to D and confirm
+    // targets register in node order A,B,C,D,E,F, cycle to D and confirm
     fireEvent.keyDown(src, { key: "ArrowRight" }) // A
     fireEvent.keyDown(src, { key: "ArrowRight" }) // B
     fireEvent.keyDown(src, { key: "ArrowRight" }) // C
@@ -190,19 +191,57 @@ describe("teach beat: hide-the-picture toggle (visual, no dispatch)", () => {
   })
 })
 
-describe("redraw demo: SameGraphView shows both layouts at once", () => {
-  it("renders two canvases over the same data, with a 'Show the data' reveal", () => {
+describe("redraw demo: one subway map morphs geo to diagram over fixed data", () => {
+  it("renders a single SubwayMap with a layout toggle and a stable route list", () => {
     render(<Harness initial={stateAt("redraw-demo")} />)
-    expect(screen.getAllByTestId("graph-canvas")).toHaveLength(2)
+    expect(screen.getAllByTestId("subway-map")).toHaveLength(1)
+    // The route list (the data) is present; it never changes through the morph.
+    expect(screen.getByText(/Route list/)).toBeInTheDocument()
 
-    // Default: a single shared adjacency list under the two pictures.
-    expect(screen.getAllByText(/Adjacency list/)).toHaveLength(1)
+    // The toggle flips the layout label; the single map + route list persist.
+    fireEvent.click(screen.getByRole("button", { name: "Straighten to diagram" }))
+    expect(screen.getByRole("button", { name: "Back to street map" })).toBeInTheDocument()
+    expect(screen.getAllByTestId("subway-map")).toHaveLength(1)
+    expect(screen.getByText(/Route list/)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Continue" })).toBeInTheDocument()
+  })
+})
 
-    // Reveal puts each picture's (identical) list beneath it.
-    fireEvent.click(screen.getByRole("button", { name: "Show the data" }))
-    expect(screen.getAllByText(/Adjacency list/)).toHaveLength(2)
-    // ...still two pictures, the Continue gate intact.
-    expect(screen.getAllByTestId("graph-canvas")).toHaveLength(2)
+describe("subway map (reduced motion + draw DEV hooks)", () => {
+  it("exposes data-reduced-motion when reduced motion is requested", () => {
+    render(
+      <SubwayMap
+        mode="display"
+        nodes={["A", "B"]}
+        adj={{ A: ["B"], B: ["A"] }}
+        layout={{ A: { x: 60, y: 60 }, B: { x: 200, y: 200 } }}
+        variant="geographic"
+        reducedMotion
+      />,
+    )
+    expect(screen.getByTestId("subway-map")).toHaveAttribute("data-reduced-motion", "1")
+  })
+
+  it("same-graph renders two subway maps side by side", () => {
+    render(<Harness initial={stateAt("same-graph")} />)
+    expect(screen.getAllByTestId("subway-map")).toHaveLength(2)
+  })
+
+  it("the subway draw beat keeps the DEV hooks and commits the missing segment", () => {
+    render(<Harness initial={stateAt("draw-transit", { read: 4, draw: 1 })} />)
+
+    // The station markers carry the SAME hooks as GraphCanvas's DrawNode.
+    if (import.meta.env.DEV) {
+      const marker = document.querySelector("[data-graph-correct-target]")
+      expect(marker).not.toBeNull()
+      expect(marker).toHaveAttribute("data-rewire-source", "A")
+      expect(marker?.getAttribute("data-graph-correct-target")).toBe("E")
+    }
+
+    // Commit A to E by tap (arm A, drop on E); the beat clears.
+    fireEvent.click(sourceEl("A"))
+    fireEvent.click(targetEl("E"))
+    fireEvent.click(checkBtn())
     expect(screen.getByRole("button", { name: "Continue" })).toBeInTheDocument()
   })
 })

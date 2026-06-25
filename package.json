@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "gallery": "vite --mode frozen --port 5174 --strictPort --open /gallery.html",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",

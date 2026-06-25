@@ -1,5 +1,5 @@
 import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react"
-import { useReducedMotion } from "motion/react"
+import { motion, useReducedMotion } from "motion/react"
 
 import { cn } from "@/lib/utils"
 import { RewireContext } from "@/components/rewire/RewireContext"
@@ -32,6 +32,10 @@ type Mode = "rewire" | "walk" | "demo"
 export type ChainLayout = "row" | "column" | "wrap"
 
 const clamp01 = (n: number) => Math.min(1, Math.max(0, n))
+/** Length of the "lifted" stub drawn when an arrow is grabbed but not yet aimed. */
+const STUB_LEN = 30
+/** Per-hop delay (ms) for the sequential traverse fill: felt as a walk, not a jump. */
+const HOP_FILL_MS = 60
 
 /**
  * The literal-arrow figure, in three modes:
@@ -63,6 +67,7 @@ export function NodeGraph({
   onTapNode,
   reducedMotion,
   layout = "row",
+  spotlight = false,
 }: {
   mode: Mode
   nodes: string[]
@@ -81,6 +86,9 @@ export function NodeGraph({
   reducedMotion?: boolean
   /** How the chain is laid out: a row (default), a vertical column, or wrapped. */
   layout?: ChainLayout
+  /** Walk mode: highlight only the `cursor` node (no lit path), mirroring a single
+   * highlighted array cell for the insert contrast, not a traversal. */
+  spotlight?: boolean
 }) {
   const prefersReduced = useReducedMotion()
   const reduced = reducedMotion ?? prefersReduced ?? false
@@ -96,6 +104,8 @@ export function NodeGraph({
         answerIndex={answerIndex}
         onTapNode={onTapNode}
         layout={layout}
+        spotlight={spotlight}
+        reduced={reduced}
       />
     )
   }
@@ -257,6 +267,8 @@ function LayoutWalkGraph({
   answerIndex,
   onTapNode,
   layout,
+  spotlight = false,
+  reduced = false,
 }: {
   nodes: string[]
   cursor: number
@@ -264,6 +276,9 @@ function LayoutWalkGraph({
   answerIndex?: number
   onTapNode?: (index: number) => void
   layout: "column" | "wrap"
+  /** Highlight only the `cursor` node, with no lit path (insert contrast). */
+  spotlight?: boolean
+  reduced?: boolean
 }) {
   const outerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ w: 320, h: 360 })
@@ -309,22 +324,29 @@ function LayoutWalkGraph({
           style={{ width: figW, height: figH, transform: `scale(${scale})`, transformOrigin: "top left" }}
         >
           <svg className="pointer-events-none absolute inset-0" width={figW} height={figH} aria-hidden>
-            {chain.slice(0, -1).map((node, i) => (
-              <Arrow
-                key={node}
-                geom={directArrow(boxes.get(node)!, boxes.get(chain[i + 1])!)}
-                className={i < cursor ? "text-lilac-strong" : "text-faint"}
-              />
-            ))}
+            {chain.slice(0, -1).map((node, i) => {
+              const lit = !spotlight && i < cursor
+              return (
+                <Arrow
+                  key={node}
+                  geom={directArrow(boxes.get(node)!, boxes.get(chain[i + 1])!)}
+                  className={cn("transition-colors", lit ? "text-lilac-strong" : "text-faint")}
+                  // Stagger each hop's fill so the walk reads left-to-right instead
+                  // of lighting all at once (CSS transition; the reduced-motion
+                  // reset zeroes the duration, so it snaps).
+                  style={reduced || !lit ? undefined : { transitionDelay: `${i * HOP_FILL_MS}ms` }}
+                />
+              )
+            })}
           </svg>
 
           {nodes.map((node, i) => (
             <Positioned key={node} box={boxes.get(node)!}>
               <ChainNode
                 node={node}
-                visited={i <= cursor}
+                visited={spotlight ? true : i <= cursor}
                 isCurrent={i === cursor}
-                isNext={i === cursor + 1}
+                isNext={spotlight ? false : i === cursor + 1}
                 clickable={!!onTapNode}
                 tone={cursorTone}
                 isAnswer={answerIndex === i}
@@ -501,7 +523,7 @@ function StructuredGraph({
               if (orphanSet.has(node)) return <OrphanNode key={node} node={node} box={box} reduced={reduced} />
               return (
                 <Positioned key={node} box={box}>
-                  <RewireNode node={node} orderHint={orderHintFor(rewires, node)} />
+                  <RewireNode node={node} orderHint={orderHintFor(rewires, node)} scale={scale} />
                 </Positioned>
               )
             }
@@ -524,7 +546,7 @@ function StructuredGraph({
           {/* the new node — rewire only (also a grab handle + drop target) */}
           {mode === "rewire" && newNode && !orphanSet.has(newNode) && (
             <Positioned box={boxes.get(newNode)!}>
-              <RewireNode node={newNode} isNew orderHint={orderHintFor(rewires, newNode)} />
+              <RewireNode node={newNode} isNew orderHint={orderHintFor(rewires, newNode)} scale={scale} />
             </Positioned>
           )}
 
@@ -638,10 +660,12 @@ function RewireNode({
   node,
   isNew,
   orderHint,
+  scale,
 }: {
   node: string
   isNew?: boolean
   orderHint: { to: string; order: number } | null
+  scale: number
 }) {
   const { ref, armed, showLegal, hovered, rootProps } = useRewireNode({
     sourceId: pointerId(node),
@@ -649,6 +673,12 @@ function RewireNode({
     sourceLabel: `${node}'s next pointer`,
     targetLabel: `node ${node}`,
   })
+
+  // The whole figure is scaled down to fit a phone, shrinking each node below the
+  // 44px min tap target. Lay an invisible hit area over it sized so it reads >=44px
+  // ON SCREEN once scaled (capped at the slot pitch so neighbours never overlap).
+  // The visual circle stays scaled; drag drops still use the rim + DROP_TOLERANCE.
+  const hitPx = Math.max(NODE_W, Math.min(Math.ceil(44 / (scale || 1)), NODE_W + GAP_X))
 
   return (
     <button
@@ -663,7 +693,7 @@ function RewireNode({
             : `node ${node}, drag its arrow to connect`
       }
       className={cn(
-        "flex size-full touch-none select-none items-center justify-center rounded-full border-2 text-base font-bold text-foreground outline-none transition-colors",
+        "relative flex size-full touch-none select-none items-center justify-center rounded-full border-2 text-base font-bold text-foreground outline-none transition-colors",
         "focus-visible:ring-2 focus-visible:ring-lilac-strong/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         armed
           ? "cursor-grabbing border-lilac-strong bg-lilac-soft ring-4 ring-lilac-strong/20"
@@ -689,6 +719,11 @@ function RewireNode({
           data-write-order={orderHint.order}
         />
       )}
+      <span
+        aria-hidden
+        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 touch-none"
+        style={{ width: hitPx, height: hitPx }}
+      />
     </button>
   )
 }
@@ -705,9 +740,17 @@ function NilNode({ box }: { box: Box }) {
   )
 }
 
-function Arrow({ geom, className }: { geom: ReturnType<typeof arrowGeom>; className?: string }) {
+function Arrow({
+  geom,
+  className,
+  style,
+}: {
+  geom: ReturnType<typeof arrowGeom>
+  className?: string
+  style?: React.CSSProperties
+}) {
   return (
-    <g className={cn("text-muted-foreground", className)}>
+    <g className={cn("text-muted-foreground", className)} style={style}>
       <path d={geom.d} fill="none" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" />
       <g transform={`translate(${geom.tip.x} ${geom.tip.y}) rotate(${geom.angleDeg})`}>
         <path d={`M0 0 L${-HEAD_LEN} ${-HEAD_HALF} L${-HEAD_LEN} ${HEAD_HALF} Z`} fill="currentColor" />
@@ -730,11 +773,34 @@ function LiveStretch({
   if (!armedSource) return null
   const src = boxes.get(sourceNode(armedSource))
   if (!src) return null
+  const c = center(src)
   const hovered = hoveredTarget && boxes.has(hoveredTarget) ? boxes.get(hoveredTarget)! : null
   const end = cursor ?? (hovered ? center(hovered) : null)
-  if (!end) return null
 
-  const c = center(src)
+  // Armed but with no endpoint yet: the single frame right after a grab (cursor
+  // not tracked yet), or a keyboard-arm before the learner cycles to a target.
+  // Draw a short "lifted" stub off the source's top rim so the grabbed arrow
+  // stays visible instead of vanishing. The pointer is in your hand.
+  if (!end) {
+    const start = { x: c.x, y: c.y - radius(src) }
+    const tip = { x: start.x, y: start.y - STUB_LEN }
+    return (
+      <g data-testid="armed-arrow" className="text-lilac-strong">
+        <path
+          d={`M ${start.x} ${start.y} L ${tip.x} ${tip.y + 7}`}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2.6}
+          strokeLinecap="round"
+          strokeDasharray="1 7"
+        />
+        <g transform={`translate(${tip.x} ${tip.y}) rotate(-90)`}>
+          <path d={`M0 0 L${-HEAD_LEN} ${-HEAD_HALF} L${-HEAD_LEN} ${HEAD_HALF} Z`} fill="currentColor" />
+        </g>
+      </g>
+    )
+  }
+
   const len = Math.hypot(end.x - c.x, end.y - c.y) || 1
   const dir = { x: (end.x - c.x) / len, y: (end.y - c.y) / len }
   const start = { x: c.x + dir.x * radius(src), y: c.y + dir.y * radius(src) }
@@ -742,7 +808,7 @@ function LiveStretch({
   const tip = !cursor && hovered ? { x: end.x - dir.x * radius(hovered), y: end.y - dir.y * radius(hovered) } : end
   const angle = (Math.atan2(dir.y, dir.x) * 180) / Math.PI
   return (
-    <g className="text-lilac-strong">
+    <g data-testid="armed-arrow" className="text-lilac-strong">
       <path
         d={`M ${start.x} ${start.y} L ${tip.x - dir.x * 7} ${tip.y - dir.y * 7}`}
         fill="none"
@@ -758,23 +824,24 @@ function LiveStretch({
   )
 }
 
+/**
+ * An orphaned node: the tail the list just lost. It mounts at its in-row spot and
+ * drifts down/away as it greys out, so the "lost tail" is a felt moment rather
+ * than an instant swap (the bug: it used to mount already at the end-state). Under
+ * reduced motion `initial={false}` snaps it straight to the drifted state.
+ */
 function OrphanNode({ node, box, reduced }: { node: string; box: Box; reduced: boolean }) {
   return (
-    <div
-      className={cn(
-        "absolute flex items-center justify-center rounded-full border-2 border-dashed border-faint bg-card/40 text-base font-bold text-faint opacity-60",
-        reduced ? "" : "transition-all duration-500",
-      )}
-      style={{
-        left: box.x,
-        top: box.y,
-        width: box.w,
-        height: box.h,
-        transform: "translate(10px, 28px) rotate(-4deg)",
-      }}
+    <motion.div
+      data-reduced-motion={reduced ? "1" : undefined}
+      className="absolute flex items-center justify-center rounded-full border-2 border-dashed border-faint bg-card/40 text-base font-bold text-faint"
+      style={{ left: box.x, top: box.y, width: box.w, height: box.h }}
+      initial={reduced ? false : { x: 0, y: 0, rotate: 0, opacity: 1 }}
+      animate={{ x: 10, y: 28, rotate: -4, opacity: 0.6 }}
+      transition={reduced ? { duration: 0 } : { duration: 0.5, ease: "easeOut" }}
       aria-label={`${node}, orphaned`}
     >
       {node}
-    </div>
+    </motion.div>
   )
 }

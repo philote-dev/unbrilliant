@@ -1,13 +1,13 @@
-# Willow — Architecture & Codebase Flow
+# Willow: Architecture & Codebase Flow
 
 > Orientation map for the repo: how a learner's tap travels from the UI down to a
-> pure engine and back up through persistence. This is the *flow* doc — for the
+> pure engine and back up through persistence. This is the *flow* doc, for the
 > shared vocabulary see [`CONTEXT.md`](../CONTEXT.md).
 
 ## What Willow is
 
 A mobile-first, **deterministic, no-AI** "learn data structures by doing" web app.
-The same state always yields the same feedback — all grading is pure functions, no
+The same state always yields the same feedback. All grading is pure functions, no
 model calls. You can play signed-out (a transient in-memory **run**); signing in
 saves a thin durable **progress** slice.
 
@@ -37,10 +37,10 @@ saves a thin durable **progress** slice.
 - **Engine** is the deep, pure core: a `(state, action) → state` reducer plus
   selectors. No React, Firebase, or animation deps, so it is fully testable and is
   the project's primary **test surface**.
-- **Renderer** is shallow presentation over engine state — it animates snapshots
+- **Renderer** is shallow presentation over engine state: it animates snapshots
   and holds no rule logic.
 - **Persistence boundary** (`ProgressRepository`) is the only seam the app
-  reads/writes progress through — never Firestore directly. There are two adapters:
+  reads/writes progress through. Never Firestore directly. There are two adapters:
   a Firestore one for the app and an in-memory one for tests.
 
 ## Runtime composition (the provider stack)
@@ -49,12 +49,12 @@ saves a thin durable **progress** slice.
 
 ```mermaid
 flowchart TD
-    Root["createRoot(#root)"] --> Theme["ThemeProvider — light/dark"]
-    Theme --> Auth["AuthProvider — Firebase Auth user"]
-    Auth --> Nav["NavigationProvider — client-side router stack"]
-    Nav --> Run["LessonRunProvider — in-memory runs + persistence"]
-    Run --> Course["CourseProgressProvider — derived progress + streak"]
-    Course --> App["App — renders the active screen"]
+    Root["createRoot(#root)"] --> Theme["ThemeProvider: light/dark"]
+    Theme --> Auth["AuthProvider: Firebase Auth user"]
+    Auth --> Nav["NavigationProvider: client-side router stack"]
+    Nav --> Run["LessonRunProvider: in-memory runs + persistence"]
+    Run --> Course["CourseProgressProvider: derived progress + streak"]
+    Course --> App["App: renders the active screen"]
 ```
 
 Why this order matters: `LessonRunProvider` sits **above** the screen router, so an
@@ -88,7 +88,7 @@ flowchart LR
 A lesson is a self-contained **module** behind one interface
 (`features/lesson/lessonModule.ts`): `create`, `reducer`, `toProgress`, `resume`,
 `hasProgress`, selectors, and a presentational `Stage`. The shared chrome stays
-lesson-agnostic, so **adding a lesson is one catalog entry plus one module** — never
+lesson-agnostic, so **adding a lesson is one catalog entry plus one module**: never
 a change to the seam.
 
 ```mermaid
@@ -104,15 +104,15 @@ flowchart TD
     Engine -->|new state| Player
 ```
 
-- **`catalog.ts`** — the static list of courses/lessons and all the *derived*
+- **`catalog.ts`**: the static list of courses/lessons and all the *derived*
   helpers (`isLessonUnlocked`, `derivePathNodes`, `deriveCourseProgress`,
   `currentLessonId`). Progress-dependent state is always derived from real
   `LessonProgress`, never stored on the catalog.
-- **`registry.tsx`** — turns every lesson with a `load` thunk into a `React.lazy`
+- **`registry.tsx`**: turns every lesson with a `load` thunk into a `React.lazy`
   chunk so heavy libs (`@xyflow/react`, `d3-*`, `gsap`) stay out of the main bundle.
-- **`features/lesson/lessons.ts`** — maps each *playable* lesson id to its
+- **`features/lesson/lessons.ts`**: maps each *playable* lesson id to its
   `LessonModule` (currently Stacks & Queues, Arrays, Linked Lists).
-- **`engine.ts`** — the shared engine core: `LessonAction`/`LessonProgress` shapes,
+- **`engine.ts`**, the shared engine core: `LessonAction`/`LessonProgress` shapes,
   the feedback machine, and `gradeAnswer` (the on-fire combo + mastery counters)
   reused by every lesson engine.
 
@@ -129,9 +129,9 @@ flowchart TD
 
 Two shapes, one boundary (see `CONTEXT.md` for the full definitions):
 
-- **Run** (`LessonState`) — the transient, full in-memory lesson. Lives while you
+- **Run** (`LessonState`): the transient, full in-memory lesson. Lives while you
   play; a refresh wipes an anonymous run.
-- **Progress** (`LessonProgress`) — the thin durable slice saved per signed-in user.
+- **Progress** (`LessonProgress`): the thin durable slice saved per signed-in user.
 
 `LessonRunProvider` keeps one run per lesson id and persists durable changes
 optimistically (off the hot path). On sign-in it **reconciles** local run vs.
@@ -163,7 +163,7 @@ sequenceDiagram
 
 `CourseProgressProvider` then overlays the live run on top of the server snapshot so
 the Home dashboard, course path, and Progress tab always show honest, derived
-numbers — including for anonymous runs that never persist.
+numbers: including for anonymous runs that never persist.
 
 ## Repository map
 
@@ -179,7 +179,7 @@ numbers — including for anonymous runs that never persist.
 | `src/components/rewire/`      | Drag-to-rewire interaction primitives (linked lists)      |
 | `src/components/ui/`          | shadcn/Radix primitives (button, card, input)             |
 | `src/lib/`                    | Cross-cutting providers: auth, navigation, theme, firebase |
-| `src/dev/`                    | Dev-only design gallery (entry: `gallery.html`)           |
+| `src/dev/`                    | Dev-only Dev Gallery (entry: `gallery.html`)              |
 | `src/test/`                   | Test setup                                                 |
 | `e2e/`                        | Playwright end-to-end specs                               |
 
@@ -196,9 +196,13 @@ selectors rather than the React tree.
 
 ## Build & deploy notes
 
-- `index.html` → app entry (`src/main.tsx`). `gallery.html` → dev-only design
-  gallery (`src/dev/gallery.tsx`); it is served by Vite in dev but is **not** a
+- `index.html` → app entry (`src/main.tsx`). `gallery.html` → the dev-only Dev
+  Gallery (`src/dev/gallery.tsx`); it is served by Vite in dev but is **not** a
   build input, so production only ships the app.
+- `npm run dev` runs the gallery with HMR (it reloads on every edit). For a stable
+  view that doesn't refresh while an agent edits files, run `npm run gallery`: a
+  second dev server on port 5174 with HMR off. It shares the same source, so a
+  manual browser refresh re-syncs it to the latest.
 - `npm run build` = `tsc -b && vite build` → `dist/` → Firebase Hosting
   (`firebase.json` serves `dist` with SPA rewrites).
 - Dev/test always talk to the **emulators** via a `demo-` project id, so the app can

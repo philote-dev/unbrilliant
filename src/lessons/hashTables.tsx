@@ -12,7 +12,7 @@ import type { LessonModule } from "@/features/lesson/lessonModule"
 import { HashTablesStage } from "./hashTables/Stage"
 
 /**
- * Hash Tables as a LessonModule — the fourth real lesson on the shared engine
+ * Hash Tables as a LessonModule. The fourth real lesson on the shared engine
  * seam. Reuses the feedback machine + flame, the rewire infra (key→bucket), and
  * the durable LessonProgress shape; only the hash engine, figures, and verdicts
  * are lesson-specific.

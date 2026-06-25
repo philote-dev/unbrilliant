@@ -1,6 +1,6 @@
 import { Fragment, useState, type Dispatch } from "react"
 import { ArrowLeft, ArrowRight, Check } from "lucide-react"
-import { motion } from "motion/react"
+import { motion, useReducedMotion } from "motion/react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -280,6 +280,7 @@ function PlaylistPart({
   dispatch: Dispatch<LessonAction>
 }) {
   const q = state.question
+  const reduced = useReducedMotion()
   if (!q) return null
   const { feedback, showWhy } = state
   const canCheck = state.writes.length > 0
@@ -287,9 +288,9 @@ function PlaylistPart({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 16 }}
+      initial={reduced ? false : { opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.45, ease: "easeOut" }}
+      transition={reduced ? { duration: 0 } : { duration: 0.45, ease: "easeOut" }}
       className="-mx-5 -mb-6 flex flex-1 flex-col bg-[#121212] px-5 pb-6 pt-7 text-white"
     >
       <div className="flex items-start justify-between">
@@ -503,7 +504,11 @@ function ContrastPart({
   const isInsert = currentPartLL(state) === "contrast-insert"
   const items = q.array ?? q.nodes
   const arrayHighlight = isInsert ? Math.floor(items.length / 2) : items.length - 1
-  const listCursor = isInsert ? q.nodes.length : q.targetIndex
+  // Insert is a "rewire 2 pointers" beat: spotlight only the middle insertion
+  // point (mirroring the array's single highlighted cell) instead of lighting the
+  // whole head->cursor path, which would read like a full traversal. Reach still
+  // walks to the asked node, so its lit path is the honest cost.
+  const listCursor = isInsert ? Math.floor(q.nodes.length / 2) : q.targetIndex
 
   const cardState = (id: string): AnswerState => {
     if (feedback === "correct") return id === q.answer ? "correct" : "default"
@@ -532,7 +537,7 @@ function ContrastPart({
         </div>
         <div className="flex flex-col items-center gap-1.5">
           <CompareLabel>List</CompareLabel>
-          <NodeGraph mode="walk" nodes={q.nodes} cursor={listCursor} layout="wrap" />
+          <NodeGraph mode="walk" nodes={q.nodes} cursor={listCursor} layout="wrap" spotlight={isInsert} />
         </div>
       </div>
 

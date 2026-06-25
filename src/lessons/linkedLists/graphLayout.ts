@@ -102,6 +102,23 @@ export function looseBox(centerX: number): Box {
   return { x: centerX - NODE_W / 2, y: ROW_Y + NODE_H + LOOSE_GAP, w: NODE_W, h: NODE_H }
 }
 
+/**
+ * The playlist queue draws each `next` pointer as an elbow that drops down a
+ * right-side rail. With one shared rail, two pointers that land on the same track
+ * (the transient save-first state, where both prev->at and X->at exist at once)
+ * stack their arrowheads at a single point. Fan each elbow into its own lane by
+ * the SOURCE row index: a distinct vertical rail x plus a small staggered entry
+ * height, so every arrowhead lands somewhere unique. Pure and deterministic.
+ */
+export function elbowLane(
+  baseRailX: number,
+  sourceRowIndex: number,
+  step = 5,
+): { railX: number; entryDy: number } {
+  const i = Math.max(0, Math.trunc(sourceRowIndex))
+  return { railX: baseRailX - i * step, entryDy: (i % 3) * 6 }
+}
+
 export function center(b: Box): Pt {
   return { x: b.x + b.w / 2, y: b.y + b.h / 2 }
 }

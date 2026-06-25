@@ -1,22 +1,22 @@
 import { inorder, type TreeNode } from "@/features/lesson/treesEngine"
 
 /**
- * Pure, hand-rolled tree geometry — no DOM, no React, no `d3-hierarchy`. Owning
+ * Pure, hand-rolled tree geometry. No DOM, no React, no `d3-hierarchy`. Owning
  * the x-coordinate is the whole point: it lets the SEQUENCE beats draw a
  * deliberately **compact, non-monotonic** layout (pixel-x ≠ in-order, so the
  * sorted order can't be read off the row) and then **straighten** that layout
  * into the tidy in-order positions during the Why-replay (each node slides from
- * its compact slot to its sorted x). Grading never touches this file — the engine
+ * its compact slot to its sorted x). Grading never touches this file. The engine
  * grades off `inorder` (`docs/lessons/trees-bst.md` Determinism), so a layout bug
  * can never change a verdict. jsdom zeroes `getBoundingClientRect`, so the math
  * lives here (node-tested), not in the figure.
  *
- * Two layouts share one rule — each child sits locally down-left / down-right of
+ * Two layouts share one rule. Each child sits locally down-left / down-right of
  * its parent (`x(left) < x(node) < x(right)`):
- *  - `tidyLayout`   — `x = in-order index` → strictly sorted by x (readable; used
+ *  - `tidyLayout`: `x = in-order index` → strictly sorted by x (readable; used
  *    for descend/teach where reading order doesn't matter, and as the straighten
  *    target).
- *  - `compactLayout`— `x` from a depth-weighted offset whose spread is NOT
+ *  - `compactLayout`: `x` from a depth-weighted offset whose spread is NOT
  *    monotonically shrinking, so deep nodes cross over shallow ones: globally
  *    non-monotonic vs in-order, yet still locally correct (used for sequence).
  */
@@ -46,7 +46,7 @@ export const COMPACT_UNIT = 30
 
 /**
  * Per-level horizontal spread for the compact layout. It rises at depth 1 then
- * eases, so it is NOT monotonically shrinking — that non-monotonicity is exactly
+ * eases, so it is NOT monotonically shrinking. That non-monotonicity is exactly
  * what scrambles global pixel-x away from in-order while every child stays on the
  * correct local side of its parent.
  */
@@ -109,7 +109,7 @@ function compactRaw(root: TreeNode): Map<string, number> {
 
 /**
  * Compact layout: the same depth-level `y`, but `x` from the non-monotonic
- * offset scheme — globally NOT sorted by in-order, while each child still sits
+ * offset scheme. Globally NOT sorted by in-order, while each child still sits
  * down-left / down-right of its parent.
  */
 export function compactLayout(root: TreeNode): TreeLayout {
@@ -139,7 +139,7 @@ const lerp = (a: number, b: number, t: number): number => a + (b - a) * t
 
 /**
  * Interpolate from compact (t = 0) to tidy (t = 1): the Why-replay "straighten"
- * where each node slides to its sorted in-order x. Endpoints are exact — `t = 1`
+ * where each node slides to its sorted in-order x. Endpoints are exact. `T = 1`
  * equals the tidy positions, so the row visibly assembles into sorted order.
  */
 export function straighten(t: number, compact: TreeLayout, tidy: TreeLayout): Map<string, NodePos> {

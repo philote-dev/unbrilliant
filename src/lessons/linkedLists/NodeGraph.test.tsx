@@ -108,4 +108,37 @@ describe("NodeGraph", () => {
     expect(document.querySelector('[data-rewire-source="p:D"]')).toBeNull()
     expect(document.querySelector('[data-rewire-source="p:B"]')).not.toBeNull()
   })
+
+  it("keeps the grabbed arrow visible when armed with no cursor/hover (keyboard-arm)", () => {
+    const { getByTestId } = renderGraph()
+    const source = document.querySelector<HTMLElement>('[data-rewire-source="p:X"]')!
+    source.focus()
+    // Arm via the keyboard: there is no pointer, so the live stretch has no
+    // endpoint, so the figure must still draw a "lifted" stub, not vanish.
+    fireEvent.keyDown(source, { key: "Enter" })
+    expect(getByTestId("armed-arrow")).toBeInTheDocument()
+  })
+
+  it("snaps an orphaned node to its drifted end-state under reduced motion", () => {
+    render(
+      <RewireSurface legalTargets={new Set(["A", "B", "X"])} onRewire={vi.fn()}>
+        <NodeGraph
+          mode="rewire"
+          nodes={NODES}
+          newNode="X"
+          prev="B"
+          at="C"
+          workingNext={{ ...WORKING, [pointerId("B")]: "X" }}
+          orphaned={["C", "D"]}
+          rewires={REWIRES}
+          reducedMotion
+        />
+      </RewireSurface>,
+    )
+    const orphan = document.querySelector('[aria-label="C, orphaned"]')!
+    expect(orphan).not.toBeNull()
+    expect(orphan).toHaveAttribute("data-reduced-motion", "1")
+    // initial={false} renders straight at the drifted end-state (faded), no tween.
+    expect(orphan).toHaveStyle({ opacity: "0.6" })
+  })
 })

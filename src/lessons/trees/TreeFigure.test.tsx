@@ -3,13 +3,15 @@ import { render, fireEvent, within } from "@testing-library/react"
 
 import type { LessonAction } from "@/features/lesson/engine"
 import {
+  T_BAL,
   createTrees,
   currentPartTrees,
+  inorder,
   treesReducer,
   type TreesPart,
   type TreesState,
 } from "@/features/lesson/treesEngine"
-import { TreeFigure } from "./TreeFigure"
+import { DisplayTree, TreeFigure } from "./TreeFigure"
 
 /**
  * DOM tests for the figure. jsdom can't measure geometry (zeroed rects), but the
@@ -85,7 +87,7 @@ function atPart(target: TreesPart): TreesState {
   return s
 }
 
-describe("TreeFigure — descend", () => {
+describe("TreeFigure: descend", () => {
   it("makes only the cursor's two children tappable (no jumping)", () => {
     const s = atPart("find-hit") // cursor = root n8
     const { container } = render(<TreeFigure state={s} dispatch={vi.fn()} />)
@@ -128,9 +130,65 @@ describe("TreeFigure — descend", () => {
     const { getByTestId } = render(<TreeFigure state={s} dispatch={vi.fn()} reducedMotion />)
     expect(getByTestId("tree-figure")).toHaveAttribute("data-reduced-motion", "1")
   })
+
+  it("drops every ghost once a slot is committed (no overlap with the filled slot)", () => {
+    // find-miss: descend 7 → n8 → n4 → n6, a leaf with both sides empty.
+    let s = atPart("find-miss")
+    s = run(s, { type: "select", letter: "n4" }, { type: "select", letter: "n6" })
+    const before = render(<TreeFigure state={s} dispatch={vi.fn()} />)
+    expect(before.container.querySelectorAll("[data-ghost-side]")).toHaveLength(2)
+    before.unmount()
+
+    // Commit the correct (right) ghost: every ghost vanishes; the filled slot (7) stands in.
+    s = run(s, { type: "select", letter: "ghost:right" })
+    const after = render(<TreeFigure state={s} dispatch={vi.fn()} />)
+    expect(after.container.querySelectorAll("[data-ghost-side]")).toHaveLength(0)
+    expect(after.container).toHaveTextContent("7") // the committed slot, not a tree key
+  })
 })
 
-describe("TreeFigure — sequence", () => {
+describe("TreeFigure: straighten payoff", () => {
+  it("straightens the sequence layout on a correct in-order tap (data-straightened)", () => {
+    let s = atPart("sequence-a")
+    const idle = render(<TreeFigure state={s} dispatch={vi.fn()} />)
+    expect(idle.getByTestId("tree-figure")).toHaveAttribute("data-straightened", "0")
+    idle.unmount()
+
+    for (const id of s.question!.order) s = run(s, { type: "select", letter: id })
+    s = run(s, { type: "check" })
+    expect(s.feedback).toBe("correct")
+    const done = render(<TreeFigure state={s} dispatch={vi.fn()} />)
+    expect(done.getByTestId("tree-figure")).toHaveAttribute("data-straightened", "1")
+  })
+
+  it("also straightens on Why after a fail (the answer is shown)", () => {
+    let s = atPart("sequence-a")
+    const order = s.question!.order
+    const swapped = [order[1], order[0], ...order.slice(2)]
+    for (const id of swapped) s = run(s, { type: "select", letter: id })
+    s = run(s, { type: "check" }, { type: "check" }, { type: "reveal" })
+    expect(s.feedback).toBe("fail")
+    const { getByTestId } = render(<TreeFigure state={s} dispatch={vi.fn()} />)
+    expect(getByTestId("tree-figure")).toHaveAttribute("data-straightened", "1")
+  })
+})
+
+describe("DisplayTree: in-order ranks (teach-inorder order)", () => {
+  it("badges every node with its 1..n visit order so left → node → right is visible", () => {
+    const { container } = render(<DisplayTree tree={T_BAL} orderRanks={inorder(T_BAL)} />)
+    // inorder = n2,n4,n6,n8,n10,n12,n14 → the root (n8) is visited 4th, after its left subtree.
+    expect(container.querySelector('[data-node-id="n2"]')).toHaveAttribute("data-order-rank", "1")
+    expect(container.querySelector('[data-node-id="n8"]')).toHaveAttribute("data-order-rank", "4")
+    expect(container.querySelector('[data-node-id="n14"]')).toHaveAttribute("data-order-rank", "7")
+  })
+
+  it("omits rank badges when no order is given (descend / compare reuse)", () => {
+    const { container } = render(<DisplayTree tree={T_BAL} />)
+    expect(container.querySelector("[data-order-rank]")).toBeNull()
+  })
+})
+
+describe("TreeFigure: sequence", () => {
   it("makes every node tappable and stamps its in-order rank", () => {
     const s = atPart("sequence-a") // T_BAL, inorder n2,n4,n6,n8,n10,n12,n14
     const { container } = render(<TreeFigure state={s} dispatch={vi.fn()} />)
@@ -173,5 +231,33 @@ describe("TreeFigure halving meter", () => {
     expect(onPips(within(getByTestId("halving-meter")).getAllByTestId("halving-pip"))).toHaveLength(3)
     expect(getByTestId("halving-meter")).toHaveTextContent("3 in play")
     expect(container.querySelector('[role="status"]')).toHaveTextContent("3 nodes in play")
+  })
+})
+
+describe("TreeFigure bracket variant", () => {
+  it("keeps the descend hooks (tappable set + data-answer) byte-for-byte", () => {
+    const s = atPart("find-hit") // descend 10: n8 -> n12 -> n10
+    const { container } = render(<TreeFigure state={s} dispatch={vi.fn()} variant="bracket" />)
+    const tappable = [...container.querySelectorAll("[data-tappable]")]
+      .map((el) => el.getAttribute("data-node-id"))
+      .sort()
+    expect(tappable).toEqual(["n12", "n4"])
+    expect(container.querySelector('[data-node-id="n12"]')).toHaveAttribute("data-answer", "1")
+    expect(container.querySelector('[data-node-id="n4"]')).not.toHaveAttribute("data-answer")
+  })
+
+  it("folds the pip meter into the greying but keeps the SR halving count", () => {
+    const s = atPart("find-hit")
+    const { container } = render(<TreeFigure state={s} dispatch={vi.fn()} variant="bracket" />)
+    expect(container.querySelector('[data-testid="halving-meter"]')).toBeNull()
+    expect(container).toHaveTextContent("7 seeds still in")
+    expect(container.querySelector('[role="status"]')).toHaveTextContent("7 nodes in play")
+  })
+
+  it("keeps the sequence in-order ranks in bracket mode", () => {
+    const s = atPart("sequence-a")
+    const { container } = render(<TreeFigure state={s} dispatch={vi.fn()} variant="bracket" />)
+    expect(container.querySelectorAll("[data-inorder-rank]")).toHaveLength(7)
+    expect(container.querySelector('[data-node-id="n2"]')).toHaveAttribute("data-inorder-rank", "0")
   })
 })

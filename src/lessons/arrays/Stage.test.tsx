@@ -11,10 +11,12 @@ import { ArraysStage } from "./Stage"
 
 /**
  * DOM tests for the Arrays stage. Reduced motion is forced (matchMedia matches),
- * so the post-verdict step players park on their snapped end-state with no
- * timers, keeping these deterministic. They cover the seams that matter: the
- * idle-only regenerate gate, the POST-VERDICT wave + transport (never before),
- * and the locked cost-chip words.
+ * so the parking-lot wave parks on its snapped end-state with no timers, keeping
+ * these deterministic. They cover the seams that matter: that the ParkingLot skin
+ * is actually wired into the Stage (a revert canary, since a Dropbox `.git` sync
+ * once silently reverted the wiring while the isolated unit tests stayed green),
+ * the idle-only regenerate gate, the POST-VERDICT wave + announcement (never
+ * before), and the locked cost-chip words rendered from the engine verbatim.
  */
 beforeAll(() => {
   window.matchMedia = (query: string): MediaQueryList =>
@@ -44,6 +46,11 @@ function stateAt(part: "shift" | "cost" | "resize"): ArraysState {
   return resumeArrays({ counters, currentPart: part, completed: false }, SEED)
 }
 
+/** The access intro state (the lot is interactive there). */
+function accessState(): ArraysState {
+  return resumeArrays({ counters: {}, currentPart: "access", completed: false }, SEED)
+}
+
 /** Re-roll (in idle) until the resize instance lands on a chosen verdict. */
 function resizeStateAnswering(answer: "yes" | "no"): ArraysState {
   let s = stateAt("resize")
@@ -56,6 +63,35 @@ const clickCorrect = () => {
   fireEvent.click(card)
   fireEvent.click(screen.getByRole("button", { name: "Check" }))
 }
+
+describe("Arrays stage — the ParkingLot skin is actually wired in (revert canary)", () => {
+  it("renders the parking lot (not the abstract array) across every beat", () => {
+    // access intro
+    const access = render(<Harness initial={accessState()} />)
+    expect(screen.getByTestId("parking-lot")).toBeInTheDocument()
+    expect(screen.getAllByTestId("bay").length).toBeGreaterThan(0)
+    access.unmount()
+
+    // shift / cost predicts
+    for (const part of ["shift", "cost"] as const) {
+      const r = render(<Harness initial={stateAt(part)} />)
+      expect(screen.getByTestId("parking-lot")).toBeInTheDocument()
+      expect(screen.getAllByTestId("car").length).toBeGreaterThan(0)
+      r.unmount()
+    }
+
+    // resize (was blank before the skin): the lot draws bays AND its filled cars,
+    // so this also guards the engine's structured array fill from reverting.
+    render(<Harness initial={stateAt("resize")} />)
+    expect(screen.getByTestId("parking-lot")).toBeInTheDocument()
+    expect(screen.getAllByTestId("bay").length).toBeGreaterThan(0)
+    expect(screen.getAllByTestId("car").length).toBeGreaterThan(0)
+
+    // and the OLD abstract step-player viz must be gone.
+    expect(screen.queryByTestId("shift-wave")).toBeNull()
+    expect(screen.queryByTestId("resize-block")).toBeNull()
+  })
+})
 
 describe("Arrays stage — regenerate is gated to idle", () => {
   it("offers a re-roll while idle, and hides it once a verdict lands", () => {
@@ -76,36 +112,43 @@ describe("Arrays stage — regenerate is gated to idle", () => {
   })
 })
 
-describe("Arrays stage — shift wave mounts post-verdict", () => {
-  it("shows no wave or transport before the verdict", () => {
+describe("Arrays stage — the parking-lot wave fires post-verdict", () => {
+  it("shows the lot but no arrival car or spoken result before the verdict", () => {
     render(<Harness initial={stateAt("shift")} />)
-    expect(screen.queryByTestId("shift-wave")).toBeNull()
-    expect(screen.queryByRole("group", { name: "Shift playback" })).toBeNull()
-  })
-
-  it("reveals the wave, the playback transport, and the 'scales' chip once correct", () => {
-    render(<Harness initial={stateAt("shift")} />)
-    clickCorrect()
-
-    expect(screen.getByTestId("shift-wave")).toBeInTheDocument()
-    expect(screen.getByRole("group", { name: "Shift playback" })).toBeInTheDocument()
-    expect(screen.getByText("scales")).toBeInTheDocument()
-  })
-})
-
-describe("Arrays stage — resize chip reads the house word", () => {
-  it("a triggered resize shows the doubling block and the 'usually free' chip", () => {
-    render(<Harness initial={resizeStateAnswering("yes")} />)
-    clickCorrect()
-
-    expect(screen.getByTestId("resize-block")).toBeInTheDocument()
-    expect(screen.getByText("usually free")).toBeInTheDocument()
+    // the lot (the live structure) is always present, with its cars parked…
+    expect(screen.getByTestId("parking-lot")).toBeInTheDocument()
+    expect(screen.getAllByTestId("car").length).toBeGreaterThan(0)
+    // …but the wave's tells (arrival car, spoken result, cost chip) wait for the verdict.
+    expect(document.querySelector('[data-arrival="1"]')).toBeNull()
+    expect(screen.queryByText(/rolled (forward|back)/)).toBeNull()
     expect(screen.queryByText("scales")).toBeNull()
   })
 
-  it("a no-resize insert shows the 'free' chip", () => {
+  it("announces the result and shows the 'scales' chip once correct", () => {
+    render(<Harness initial={stateAt("shift")} />)
+    clickCorrect()
+
+    expect(screen.getByText("scales")).toBeInTheDocument()
+    expect(screen.getByText(/rolled (forward|back)/)).toBeInTheDocument()
+  })
+})
+
+describe("Arrays stage — resize chip reads the locked house word", () => {
+  it("a triggered resize shows the doubling lot and the 'usually free' chip", () => {
+    render(<Harness initial={resizeStateAnswering("yes")} />)
+    clickCorrect()
+
+    expect(screen.getByTestId("parking-lot")).toBeInTheDocument()
+    expect(screen.getByText("usually free")).toBeInTheDocument()
+    expect(screen.queryByText("scales")).toBeNull()
+    expect(screen.getByText(/Doubled to \d+ bays/)).toBeInTheDocument()
+  })
+
+  it("a no-resize insert shows the 'free' chip and parks the new car", () => {
     render(<Harness initial={resizeStateAnswering("no")} />)
     clickCorrect()
+
     expect(screen.getByText("free")).toBeInTheDocument()
+    expect(screen.getByText(/parks in bay \d+/)).toBeInTheDocument()
   })
 })

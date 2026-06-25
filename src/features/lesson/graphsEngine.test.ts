@@ -10,6 +10,8 @@ import {
   READ_QUOTA,
   SAME_QUOTA,
   T6,
+  TRANSIT,
+  TRANSIT_NODES,
   addEdge,
   canCheckGraphs,
   createGraphs,
@@ -43,6 +45,7 @@ import {
   type GraphsPart,
   type GraphsState,
 } from "@/features/lesson/graphsEngine"
+import { TRANSIT_DIAGRAM_LAYOUT, TRANSIT_GEO_LAYOUT } from "@/lessons/graphs/transitData"
 
 const SEED = 12345
 
@@ -212,7 +215,7 @@ describe("flow + structure", () => {
 
 /* --------------------------------- read bin --------------------------------- */
 
-describe("read bin — connection list & degree (multi-select, set equality)", () => {
+describe("read bin: connection list & degree (multi-select, set equality)", () => {
   it("read-list: the exact neighbor set of C clears the beat and climbs the combo", () => {
     const s = advanceTo("read-list")
     expect(s.question!.answerSet).toEqual(["A", "B", "E"])
@@ -259,7 +262,7 @@ describe("read bin — connection list & degree (multi-select, set equality)", (
   })
 })
 
-describe("read bin — match-list MCQ", () => {
+describe("read bin: match-list MCQ", () => {
   it("the correct option is the picture's exact set; each distractor differs by one real edge", () => {
     const s = advanceTo("match-list")
     const q = s.question!
@@ -295,7 +298,7 @@ describe("read bin — match-list MCQ", () => {
 
 /* --------------------------------- draw bin --------------------------------- */
 
-describe("draw bin — undirected edge-draw (rewire normalized to a set)", () => {
+describe("draw bin: undirected edge-draw (rewire normalized to a set)", () => {
   it("draw-edge: drawing {B,D} matches the data and clears the beat", () => {
     const s = advanceTo("draw-edge")
     expect(s.question!.missingEdge).toEqual(["B", "D"])
@@ -338,16 +341,58 @@ describe("draw bin — undirected edge-draw (rewire normalized to a set)", () =>
   it("draw-transit: drawing the missing loop link grades identically", () => {
     const s = advanceTo("draw-transit")
     expect(s.question!.transit).toBe(true)
-    expect(s.question!.missingEdge).toEqual(["A", "F"])
-    const ok = draw(s, "F", "A")
+    expect(s.question!.missingEdge).toEqual(["A", "E"])
+    const ok = draw(s, "E", "A")
     expect(ok.feedback).toBe("correct")
     expect(ok.drawCorrect).toBe(2)
   })
 })
 
+/* ------------------------- transit skin (decoration only) ------------------------- */
+
+describe("transit skin: decoration only, verdicts read adjacency", () => {
+  it("TRANSIT is 7 stations, 7 segments, one cycle (a general graph)", () => {
+    expect(TRANSIT_NODES).toHaveLength(7)
+    expect(edgeSet(TRANSIT).size).toBe(7)
+    expect(isConnected(TRANSIT, TRANSIT_NODES)).toBe(true)
+    expect(isTree(TRANSIT, TRANSIT_NODES)).toBe(false) // the loop is a cycle
+    expect(degree(TRANSIT, "C")).toBe(4) // Central: where the loop meets the branch
+  })
+
+  it("draw-transit closes the loop at A-E, either drag direction", () => {
+    const s = advanceTo("draw-transit")
+    expect(s.question!.missingEdge).toEqual(["A", "E"])
+    expect(draw(s, "A", "E").feedback).toBe("correct")
+    expect(draw(s, "E", "A").feedback).toBe("correct") // undirected
+  })
+
+  it("scrambling either transit layout never changes a verdict (position-free)", () => {
+    const scramble = (m: Record<string, { x: number; y: number }>) =>
+      Object.fromEntries(Object.keys(m).map((k, i) => [k, { x: i * 17, y: 100 - i * 9 }]))
+    const geo = scramble(TRANSIT_GEO_LAYOUT)
+    const diagram = scramble(TRANSIT_DIAGRAM_LAYOUT)
+    expect(Object.keys(geo).sort()).toEqual(TRANSIT_NODES)
+    expect(Object.keys(diagram).sort()).toEqual(TRANSIT_NODES)
+    // Layouts are decoration: the same network under any coordinates is the same graph,
+    // and the draw verdict is computed from adjacency, never from positions.
+    expect(sameGraph(TRANSIT, TRANSIT)).toBe(true)
+    const s = advanceTo("draw-transit")
+    expect(sameGraph(draw(s, "A", "E").workingAdj, TRANSIT)).toBe(true)
+  })
+
+  it("same-graph (transit): 'same' is geo-vs-diagram identical, 'different' drops D-E", () => {
+    const same = makeSameGraph("same", SEED).question
+    expect(same.transit).toBe(true)
+    expect(sameGraph(same.adj, same.adjB!)).toBe(true)
+    expect(same.layout).not.toEqual(same.layoutB) // geo and diagram look nothing alike
+    const diff = makeSameGraph("different", SEED).question
+    expect(sameGraph(diff.adj, diff.adjB!)).toBe(false)
+  })
+})
+
 /* --------------------------------- same bin --------------------------------- */
 
-describe("same bin — same-graph identity & tree-or-not", () => {
+describe("same bin: same-graph identity & tree-or-not", () => {
   it("same-graph: a moved-node redraw is the SAME; a one-edge change is DIFFERENT", () => {
     const same = makeSameGraph("same", SEED).question
     expect(same.answer).toBe("same")
@@ -370,7 +415,7 @@ describe("same bin — same-graph identity & tree-or-not", () => {
         Object.keys(question.layoutB!).map((k, i) => [k, { x: 99 - i, y: i }]),
       ),
     }
-    // The verdict reads ONLY adjacency — relabeling positions cannot change it.
+    // The verdict reads ONLY adjacency; relabeling positions cannot change it.
     expect(sameGraph(scrambled.adj, scrambled.adjB!)).toBe(true)
     expect(scrambled.answer).toBe("same")
   })
@@ -482,7 +527,7 @@ describe("gate, completion, determinism, persistence", () => {
     expect(isCompleteGraphs({ ...createGraphs(SEED), readCorrect: 4, drawCorrect: 2, sameCorrect: 2 })).toBe(true)
   })
 
-  it("is deterministic — same seed yields the same questions", () => {
+  it("is deterministic: same seed yields the same questions", () => {
     const a = advanceTo("match-list", SEED)
     const b = advanceTo("match-list", SEED)
     expect(a.question!.options.map((o) => o.id)).toEqual(b.question!.options.map((o) => o.id))
@@ -499,7 +544,7 @@ describe("gate, completion, determinism, persistence", () => {
     const resumed = resumeGraphs(progress, SEED)
     expect(currentPartGraphs(resumed)).toBe<GraphsPart>("read-path")
     expect(resumed.readCorrect).toBe(2)
-    expect(resumed.combo).toBe(0) // flame is transient — cold on resume
+    expect(resumed.combo).toBe(0) // flame is transient, cold on resume
     expect(resumed.pendingEdge).toBeNull() // working state not persisted
   })
 

@@ -6,13 +6,13 @@
 @custom-variant dark (&:is(.dark *));
 
 /* =========================================================================
-   Willow design tokens — cool-neutral base + one faded-lilac accent +
+   Willow design tokens. Cool-neutral base + one faded-lilac accent +
    muted Nord pastel feedback. All components author against these tokens
    so light + dark come for free. See docs/design/design-brief.md §4–7.
    ========================================================================= */
 
 :root {
-  /* base palette — light (default) */
+  /* base palette. Light (default) */
   --background: #f2f4f7;
   --foreground: #0f1115;
   --card: #ffffff;
@@ -27,7 +27,7 @@
   --ring: #8b7fd6;
 
   /* lilac accent */
-  --lilac: #d6d2f1; /* pale FILL only — dark text on it */
+  --lilac: #d6d2f1; /* pale FILL only. Dark text on it */
   --lilac-foreground: #2a2540; /* text on the pale fill */
   --lilac-strong: #8b7fd6; /* text / links / active / outlines */
   --lilac-soft: #eef0fb; /* faint tint for hovers + selected fill */
@@ -42,14 +42,14 @@
   --accent: #eef0fb;
   --accent-foreground: #2a2540;
 
-  /* feedback — muted Nord pastels */
+  /* feedback. Muted Nord pastels */
   --success: #a7c5a1;
   --success-foreground: #2c3a2a;
   --success-soft: #eaf2e8;
   --warning: #e6d28b;
   --warning-foreground: #4a4220;
   --warning-soft: #f7f1dd;
-  --danger: #d99a9a; /* FAIL state only — never decorative */
+  --danger: #d99a9a; /* FAIL state only. Never decorative */
   --danger-foreground: #4a2626;
   --danger-soft: #f7e8e8;
   --destructive: #d99a9a;
@@ -149,12 +149,12 @@
   --color-danger-soft: var(--danger-soft);
 
   /* iOS-style large continuous corners */
-  --radius-sm: calc(var(--radius) * 0.5); /* 8px  — tags */
+  --radius-sm: calc(var(--radius) * 0.5); /* 8px. Tags */
   --radius-md: calc(var(--radius) * 0.75); /* 12px */
-  --radius-lg: var(--radius); /* 16px — inputs */
-  --radius-xl: calc(var(--radius) * 1.25); /* 20px — cards */
-  --radius-2xl: calc(var(--radius) * 1.5); /* 24px — grouped */
-  --radius-3xl: calc(var(--radius) * 1.75); /* 28px — containers */
+  --radius-lg: var(--radius); /* 16px. Inputs */
+  --radius-xl: calc(var(--radius) * 1.25); /* 20px. Cards */
+  --radius-2xl: calc(var(--radius) * 1.5); /* 24px. Grouped */
+  --radius-3xl: calc(var(--radius) * 1.75); /* 28px. Containers */
   --radius-4xl: calc(var(--radius) * 2.25); /* 36px */
 
   --shadow-soft: var(--shadow-soft);
@@ -275,7 +275,7 @@
   }
 }
 
-/* Respect reduced-motion everywhere — including the flame. */
+/* Respect reduced-motion everywhere. Including the flame. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

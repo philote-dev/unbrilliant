@@ -1,4 +1,4 @@
-import { StrictMode, Suspense, lazy, type ReactNode } from "react"
+import { StrictMode } from "react"
 import { createRoot } from "react-dom/client"
 
 import "./index.css"
@@ -9,44 +9,18 @@ import { AuthProvider } from "@/lib/auth"
 import { LessonRunProvider } from "@/features/lesson/useLessonRun"
 import { CourseProgressProvider } from "@/features/progress/CourseProgressProvider"
 
-/**
- * Dev-only design gallery for visual + animation review, reachable at
- * `/?gallery`. Lazy-loaded so it never ships in the production bundle; normal
- * navigation (no query param) renders the real app unchanged.
- */
-const showGallery =
-  import.meta.env.DEV &&
-  typeof window !== "undefined" &&
-  new URLSearchParams(window.location.search).has("gallery")
-
-const Gallery = lazy(() =>
-  import("@/dev/GalleryApp").then((m) => ({ default: m.Gallery })),
-)
-
-function Providers({ children }: { children: ReactNode }) {
-  return (
+createRoot(document.getElementById("root")!).render(
+  <StrictMode>
     <ThemeProvider>
       <AuthProvider>
         <NavigationProvider initial={{ name: "home" }}>
           <LessonRunProvider>
-            <CourseProgressProvider>{children}</CourseProgressProvider>
+            <CourseProgressProvider>
+              <App />
+            </CourseProgressProvider>
           </LessonRunProvider>
         </NavigationProvider>
       </AuthProvider>
     </ThemeProvider>
-  )
-}
-
-createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <Providers>
-      {showGallery ? (
-        <Suspense fallback={null}>
-          <Gallery />
-        </Suspense>
-      ) : (
-        <App />
-      )}
-    </Providers>
   </StrictMode>,
 )

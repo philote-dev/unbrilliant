@@ -91,7 +91,7 @@ export function CoursePath({
               className="group absolute"
               style={{ left: x - R, top: ROW_H / 2 - R, width: R * 2, height: R * 2 }}
             >
-              {/* glow — shows where the learner is looking (hover / keyboard focus) */}
+              {/* glow. Shows where the learner is looking (hover / keyboard focus) */}
               <span
                 aria-hidden
                 className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-focus-within:opacity-100"

@@ -23,8 +23,8 @@ import type { LessonAction } from "@/features/lesson/engine"
 /**
  * Wraps the pure lesson modules with persistence. Lives ABOVE the screen router
  * so the in-memory run survives a detour to the sign-in screen (carry-up). It
- * keeps one run per lessonId (a Map), so switching lessons — Stacks & Queues to
- * the now-unlocked Arrays — never loses progress, and the active lesson follows
+ * keeps one run per lessonId (a Map), so switching lessons. Stacks & Queues to
+ * the now-unlocked Arrays. Never loses progress, and the active lesson follows
  * navigation. Writes are optimistic/off the hot path; reconcile resumes a
  * returning account or carries up a brand-new one, once per signed-in user/lesson.
  */
@@ -117,7 +117,7 @@ export function LessonRunProvider({ children }: { children: ReactNode }) {
   }, [user, lessonId, repo, module, dispatch])
 
   // Persist durable changes once reconciled (optimistic, off the hot path). The
-  // serialized progress signature drives when to write — lesson-agnostic.
+  // serialized progress signature drives when to write. Lesson-agnostic.
   const progressSig = JSON.stringify(module.toProgress(state))
   useEffect(() => {
     if (!user || reconciledKey.current !== `${user.uid}:${lessonId}`) return
