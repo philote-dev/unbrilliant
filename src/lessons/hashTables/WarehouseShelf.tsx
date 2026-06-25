@@ -42,7 +42,7 @@ function viewportPoint(
  * (`placedBucket`) until Check; only a correct verdict (`confirmed`) settles it
  * on `question.bucket`. Motion is opacity/transform only and never picks the bin;
  * reduced motion snaps every item to rest. The single `data-hash-correct-bucket`
- * and the `data-rewire-source` / `data-rewire-target="bin-as-bucket-N"` hooks are
+ * and the `data-rewire-source` / `data-rewire-target="bucket-N"` hooks are
  * preserved for the e2e tracer.
  */
 export function WarehouseShelf({
