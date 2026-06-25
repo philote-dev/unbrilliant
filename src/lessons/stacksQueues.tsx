@@ -13,7 +13,7 @@ import { StacksQueuesStage } from "./stacksQueues/Stage"
 
 /**
  * Stacks & Queues as a LessonModule. The redesigned lesson
- * (docs/lessons/stacks-queues-redesign.md). Distinct bin/tube containers, a
+ * (docs/lessons/stacks-queues.md). Distinct bin/tube containers, a
  * de-cued predict, drag-to-construct, and a compare gate, behind the same shared
  * seam (LessonModule / LessonAction / LessonProgress) as every other lesson.
  */

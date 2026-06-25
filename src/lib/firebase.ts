@@ -17,8 +17,8 @@ import {
 /**
  * Firebase wiring. In development we ALWAYS talk to the local emulators using a
  * `demo-` project id — the Firebase SDK treats demo projects as offline-only, so
- * the app/dev/tests can never reach a real Firebase project (a hard requirement
- * from docs/prototype.md). Production builds read real config from VITE_ env.
+ * the app/dev/tests can never reach a real Firebase project (a hard
+ * requirement). Production builds read real config from VITE_ env.
  */
 const useEmulator =
   import.meta.env.DEV || import.meta.env.VITE_USE_EMULATOR === "true"

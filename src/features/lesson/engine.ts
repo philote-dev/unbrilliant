@@ -3,7 +3,7 @@ import { SCENARIO_POOL, type Scenario } from "@/features/lesson/scenarios"
 /**
  * Pure, framework-agnostic Stacks & Queues lesson engine. No React, no
  * Firebase, no animation lib. Same state always yields the same feedback
- * (the deterministic, no-AI guarantee). See docs/prototype.md.
+ * (the deterministic, no-AI guarantee). See CONTEXT.md.
  */
 
 export type PartId =
@@ -403,7 +403,7 @@ export function questionCopy(question: Question): QuestionCopy {
 
 /* ----------------------------- resume / completion ----------------------------- */
 
-/** The hard mastery gate (see docs/prototype.md): 3 pops + 3 dequeues + 4 scenarios. */
+/** The hard mastery gate (see CONTEXT.md): 3 pops + 3 dequeues + 4 scenarios. */
 export function isComplete(state: LessonState): boolean {
   return (
     state.popsCorrect >= POP_QUOTA &&

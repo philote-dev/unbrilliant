@@ -23,7 +23,7 @@ import type {
 } from "@/features/progress/ProgressRepository"
 
 /**
- * Firestore-backed persistence. Schema (signed-in only) — see docs/prototype.md:
+ * Firestore-backed persistence. Schema (signed-in only) — see CONTEXT.md:
  *   users/{uid}                                  displayName, createdAt, updatedAt
  *   users/{uid}/lessonProgress/{lessonId}        counts, currentPart, completed, …
  */

@@ -2,7 +2,7 @@
 
 Names for the concepts and seams in the codebase. Use this vocabulary in code,
 test names, and reviews so the language stays shared. Product scope lives in
-`docs/prd/mvp-final.md`; visual/UX in `docs/design/design-brief.md`.
+`docs/plans/mvp-final.md`; visual/UX in `docs/design/design-system.md`.
 
 ## Core modules & seams
 

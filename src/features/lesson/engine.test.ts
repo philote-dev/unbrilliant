@@ -18,7 +18,7 @@ import {
 import { SCENARIO_POOL } from "./scenarios"
 
 /**
- * Behavior-focused tests for the Willow lesson engine (docs/prototype.md).
+ * Behavior-focused tests for the Willow lesson engine (see CONTEXT.md).
  *
  * Everything is driven through dispatched actions and asserted via external
  * behavior — feedback verdict, revealed/showWhy flags, correct-counts, combo,

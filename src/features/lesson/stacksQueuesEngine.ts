@@ -7,7 +7,7 @@ import {
 
 /**
  * Pure, framework-agnostic Stacks & Queues engine (the redesign, see
- * docs/lessons/stacks-queues-redesign.md). One idea: LIFO vs FIFO, who gets
+ * docs/lessons/stacks-queues.md). One idea: LIFO vs FIFO, who gets
  * served next. The shipped lesson let a learner ace it by "tapping the tagged
  * top card"; this version never tags the exit and tests the rule through four
  * question types across an 11-beat flow, gated on all 8 graded beats.

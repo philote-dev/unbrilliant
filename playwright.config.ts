@@ -1,7 +1,7 @@
 import { defineConfig, devices } from "@playwright/test"
 
 /**
- * One happy-path E2E tracer (see docs/prd/mvp-proto.md "Testing Decisions"). Run
+ * One happy-path E2E tracer. Run
  * via `npm run e2e`, which wraps this in `firebase emulators:exec` so Auth +
  * Firestore emulators are up. Playwright runs its OWN Vite dev server on a
  * dedicated port (5273, via `npm run dev:e2e`) so it never collides with your
