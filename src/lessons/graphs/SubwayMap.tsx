@@ -174,8 +174,8 @@ export function SubwayMap({
             <g clipPath={`url(#${clipId})`}>
               <GridLines />
               {/* Neighborhood geography: a park and a waterfront, like a city map. */}
-              <ellipse cx={SUBWAY_W - 56} cy={60} rx={48} ry={34} fill={METRO.park} opacity={0.55} />
-              <rect x={6} y={SUBWAY_H - 76} width={96} height={70} rx={16} fill={METRO.water} opacity={0.5} />
+              <ellipse cx={SUBWAY_W - 56} cy={60} rx={48} ry={34} fill={METRO.park} opacity={0.5} />
+              <rect x={6} y={SUBWAY_H - 76} width={96} height={70} rx={16} fill={METRO.water} opacity={0.45} />
               <NeighborhoodLabel x={12} y={22} anchor="start">
                 RIVERSIDE
               </NeighborhoodLabel>
@@ -214,13 +214,13 @@ export function SubwayMap({
             }
             return (
               <g key={k}>
-                {/* Thin white casing lifts the route off the map + breaks crossings. */}
+                {/* White casing breaks crossings + keeps a clean edge on the white map. */}
                 <motion.line
                   initial={false}
                   animate={{ x1: a.x, y1: a.y, x2: b.x, y2: b.y }}
                   transition={transition}
                   stroke={METRO.station}
-                  strokeWidth={glow ? 12 : 10.5}
+                  strokeWidth={glow ? 12.5 : 11}
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
@@ -229,7 +229,7 @@ export function SubwayMap({
                   animate={{ x1: a.x, y1: a.y, x2: b.x, y2: b.y }}
                   transition={transition}
                   stroke={color}
-                  strokeWidth={glow ? 8 : 7}
+                  strokeWidth={glow ? 9.5 : 8}
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
@@ -331,13 +331,13 @@ const FOCUSABLE =
 /** Resting marker fill/outline per role: white circle, colored terminus, etc. */
 function restingStyle(role: Role, termColor: string, fontSize: number): CSSProperties {
   if (role === "terminus") {
-    return { background: termColor, borderColor: METRO.ink, color: "#ffffff", borderWidth: 2.5, fontSize }
+    return { background: termColor, borderColor: METRO.ink, color: "#ffffff", borderWidth: 3, fontSize }
   }
   return {
     background: METRO.station,
     borderColor: METRO.ink,
     color: METRO.ink,
-    borderWidth: role === "interchange" ? 3.5 : 2,
+    borderWidth: role === "interchange" ? 4.5 : 2,
     fontSize,
   }
 }

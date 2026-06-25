@@ -758,7 +758,7 @@ function MetroLegend() {
       <span className="flex items-center gap-2 text-[11px] font-bold" style={{ color: METRO.ink }}>
         <span
           className="size-4 rounded-full"
-          style={{ background: METRO.station, border: `2.5px solid ${METRO.ink}` }}
+          style={{ background: METRO.station, border: `3px solid ${METRO.ink}` }}
         />
         Transfer station
       </span>
