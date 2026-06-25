@@ -271,7 +271,7 @@ describe("lookup bin (locate + cost)", () => {
   })
 })
 
-describe("real-world beat (cloakroom skin)", () => {
+describe("real-world beat (warehouse skin)", () => {
   function atRealworld(): HashTablesState {
     let s = createHashTables(SEED)
     while (currentPartHash(s) !== "realworld") {
@@ -284,24 +284,24 @@ describe("real-world beat (cloakroom skin)", () => {
     return s
   }
 
-  it("wears the coatcheck skin but still hashes purely (bucket, answer, free cost)", () => {
+  it("wears the warehouse skin but still hashes purely (bucket, answer, free cost)", () => {
     const q = atRealworld().question!
-    expect(q.skin).toBe("coatcheck")
+    expect(q.skin).toBe("warehouse")
     expect(q.mode).toBe("drag")
-    // The skin never touches the math: the hook is the pure bucket.
+    // The skin never touches the math: the bin is the pure bucket.
     expect(q.bucket).toBe(bucketOf(q.key!))
     expect(q.answer).toBe(bucketTargetId(q.bucket))
     expect(q.cost?.word).toBe("free")
   })
 
-  it("hanging the coat on its true hook clears the last lookup slot", () => {
+  it("stowing the package in its true bin clears the last lookup slot", () => {
     const s = atRealworld()
     const ok = place(s, s.question!.bucket)
     expect(ok.feedback).toBe("correct")
     expect(ok.lookupCorrect).toBe(BIN_QUOTA)
   })
 
-  it("hanging it on the wrong hook does not clear (the skin doesn't grade)", () => {
+  it("stowing it in the wrong bin does not clear (the skin doesn't grade)", () => {
     const s = atRealworld()
     const wrong = (s.question!.bucket + 1) % BUCKET_COUNT
     const r = place(s, wrong)

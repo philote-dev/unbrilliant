@@ -69,7 +69,7 @@ describe("HashBox", () => {
     // Run the box letter by letter.
     addAllLetters()
 
-    // The full sum (cat = 24) is revealed; the bucket is withheld — the box
+    // The full sum (cat = 24) is revealed; the bin is withheld. The box
     // scaffolds the sum, never the `mod` result (the learner supplies that).
     expect(screen.getAllByText("24").length).toBeGreaterThan(0)
     expect(screen.getByText("?")).toBeInTheDocument()
@@ -92,15 +92,15 @@ describe("HashBox", () => {
 
     addAllLetters()
 
-    // cat → 24 mod 5 = 4: the "?" is replaced and the key flies to its bucket.
+    // cat → 24 mod 5 = 4: the "?" is replaced and the key flies to its bin.
     expect(screen.queryByText("?")).toBeNull()
-    expect(screen.getByText("bucket 4")).toBeInTheDocument()
+    expect(screen.getByText("bin 4")).toBeInTheDocument()
     expect(screen.getByTestId("hash-fly")).toBeInTheDocument()
   })
 
   it("offers no draggable key in tap mode (no rewire source)", () => {
     const { container } = render(<HashBox question={tapQuestion("dog")} />)
     expect(container.querySelector("[data-rewire-source]")).toBeNull()
-    expect(screen.getByText(/Tap the bucket it lands in/)).toBeInTheDocument()
+    expect(screen.getByText(/Tap the bin it lands in/)).toBeInTheDocument()
   })
 })

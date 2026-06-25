@@ -51,7 +51,7 @@ function Harness({ initial }: { initial: HashTablesState }) {
   return <HashTablesStage state={state} dispatch={dispatch} />
 }
 
-const traceBtn = () => screen.getByRole("button", { name: "Trace the lookup" })
+const traceBtn = () => screen.getByRole("button", { name: "Scan the bin" })
 
 describe("lookup trace (illustration only)", () => {
   it("walks the chain step by step and announces the hit", () => {
@@ -62,7 +62,7 @@ describe("lookup trace (illustration only)", () => {
 
     fireEvent.click(traceBtn()) // check fox → found
     expect(
-      screen.getByText("checking owl, checking fox, found fox in bucket 0"),
+      screen.getByText("checking owl, checking fox, found fox in bin 0"),
     ).toBeInTheDocument()
 
     // the matched node is flagged for assistive tech, and the trail is complete
@@ -73,12 +73,12 @@ describe("lookup trace (illustration only)", () => {
   it("an absent lookup ends with 'absent'", () => {
     render(<Harness initial={stateAt("lookup-absent")} />)
     fireEvent.click(traceBtn())
-    expect(screen.getByText(/not in bucket 3, absent/)).toBeInTheDocument()
+    expect(screen.getByText(/not in bin 3, absent/)).toBeInTheDocument()
     expect(traceBtn()).toBeDisabled()
   })
 
-  it("does not offer the trace on a non-lookup tap beat (hash-cat-again)", () => {
+  it("does not offer the scan on a non-lookup tap beat (hash-cat-again)", () => {
     render(<Harness initial={stateAt("hash-cat-again", { hash: 1 })} />)
-    expect(screen.queryByRole("button", { name: "Trace the lookup" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "Scan the bin" })).toBeNull()
   })
 })

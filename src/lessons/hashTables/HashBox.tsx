@@ -51,8 +51,8 @@ export function HashBox({
 
   return (
     <div className="flex w-full max-w-[280px] flex-col items-center gap-3 rounded-2xl border border-border bg-card p-4 shadow-soft">
-      <p className="text-xs font-semibold uppercase tracking-wide text-lilac-strong">
-        hash( {key} )
+      <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#b45309]">
+        index · {key}
       </p>
 
       <div className="flex flex-wrap items-end justify-center gap-1.5">
@@ -116,7 +116,7 @@ export function HashBox({
           </motion.span>
           <ArrowRight className="size-3 shrink-0 text-faint" aria-hidden />
           <span className="rounded-lg border-2 border-lilac-strong bg-lilac-soft px-2 py-1 text-sm font-bold text-lilac-strong">
-            bucket {question.bucket}
+            bin {question.bucket}
           </span>
         </div>
       )}
@@ -133,14 +133,14 @@ export function HashBox({
         </div>
       ) : reveal ? null : (
         <p className="text-center text-xs text-muted-foreground">
-          Tap the bucket it lands in.
+          Tap the bin it lands in.
         </p>
       )}
 
       <p className="sr-only" role="status">
         {key}: {steps.map((s) => `${s.ch} is ${s.value}`).join(", ")}; sum {question.sum};{" "}
         {question.sum} mod {B}
-        {showBucket ? ` = ${question.bucket}; ${key} lands in bucket ${question.bucket}` : ""}.
+        {showBucket ? ` = ${question.bucket}; ${key} lands in bin ${question.bucket}` : ""}.
       </p>
     </div>
   )

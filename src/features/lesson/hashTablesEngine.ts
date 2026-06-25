@@ -33,7 +33,7 @@ export const HASH_PARTS = [
   "collide-pig", // 9  H3 pig → bucket 2 (bee→pig, squash)               Collision ✓
   "lookup-found", // 10 H4 find fox: free (1 jump) vs scales              Lookup    ✓
   "lookup-absent", // 11 H4 is bat here? absent in one jump (free)         Lookup    ✓
-  "realworld", // 12 H5 cloakroom: hang a coat on its hook               Lookup    ✓
+  "realworld", // 12 H5 warehouse: stow a package in its bin               Lookup    ✓
 ] as const
 export type HashPart = (typeof HASH_PARTS)[number]
 export const HASH_TOTAL_PARTS = HASH_PARTS.length
@@ -47,11 +47,11 @@ export type HashBin = "hash" | "collision" | "lookup"
 /** How the learner answers a beat. */
 export type HashMode = "intro" | "drag" | "tap" | "mcq"
 /**
- * The figure dressing for a beat: the bare bucket array, or the cloakroom
- * real-world skin (numbered hooks, hung coats). Purely presentational; the
- * bucket math is identical for both.
+ * The figure dressing for a beat: the bare bin array, or the warehouse real-world
+ * skin (Amazon-style chaotic storage: numbered bins, stowed packages, an index).
+ * Purely presentational; the bin math is identical for both.
  */
-export type HashSkin = "abstract" | "coatcheck"
+export type HashSkin = "abstract" | "warehouse"
 
 export interface HashOption {
   id: string
@@ -81,7 +81,7 @@ export interface HashQuestion {
   answer: string
   /** H4 membership: is `key` present in its bucket's chain? */
   present: boolean
-  /** The figure dressing: bare buckets, or the cloakroom (coat-check) skin. */
+  /** The figure dressing: bare bins, or the warehouse (chaotic-storage) skin. */
   skin: HashSkin
   cost: HashCost | null
   /** The "scales" scan a plain list would run, shown paired against `free`. */
@@ -253,10 +253,10 @@ const chainText = (chain: string[]): string => chain.join(" → ")
 function makeIntro(kind: "demo" | "teach-hash" | "teach-collision"): HashQuestion {
   const prompt =
     kind === "demo"
-      ? "Run the box on a key and watch it fly to its bucket."
+      ? "Two ways to store a million items. See which one finds yours first."
       : kind === "teach-hash"
-        ? "A hash turns a key into a location: add the letters, then mod the buckets."
-        : "Two keys, one bucket. That's a collision. A bucket chains them in a little list."
+        ? "An index turns a code into a bin: add the letters, then mod the bins."
+        : "Two codes, one bin. That's a collision. The bin holds them both, in a little chain."
   return {
     kind,
     bin: null,
@@ -280,7 +280,7 @@ function makeIntro(kind: "demo" | "teach-hash" | "teach-collision"): HashQuestio
   }
 }
 
-/** Hash-bin locate: run the rule, then place/locate the key in its bucket. */
+/** Hash-bin locate: run the index, then stow/locate the item in its bin. */
 function makeHash(part: "hash-cat" | "hash-cat-again" | "hash-dog"): HashQuestion {
   const { key, table } = BEATS[part]!
   const bucket = bucketOf(key)
@@ -291,10 +291,10 @@ function makeHash(part: "hash-cat" | "hash-cat-again" | "hash-dog"): HashQuestio
     bin: "hash",
     mode: drag ? "drag" : "tap",
     prompt: again
-      ? `Hash ${key} again. Which bucket does it land in?`
+      ? `Scan ${key} again. Which bin does it land in?`
       : drag
-        ? `Run the hash on ${key}, then drop it in its bucket.`
-        : `Run the hash on ${key}. Which bucket?`,
+        ? `Scan ${key}, then stow it in its bin.`
+        : `Scan ${key}. Which bin?`,
     key,
     bucketCount: BUCKET_COUNT,
     sum: keySum(key),
@@ -307,19 +307,19 @@ function makeHash(part: "hash-cat" | "hash-cat-again" | "hash-dog"): HashQuestio
     cost: null,
     scanCost: null,
     hint: again
-      ? "Same key, same letters, same sum, so the same bucket."
+      ? "Same code, same letters, same sum, so the same bin."
       : `Add the letters of ${key}, then take the remainder mod ${BUCKET_COUNT}.`,
     nudge: `Re-add the letter values, then take the remainder when you divide by ${BUCKET_COUNT}.`,
     correct: again
-      ? `Same key → same bucket. ${key} always lands in bucket ${bucket}.`
-      : `${keySum(key)} mod ${BUCKET_COUNT} = ${bucket}, ${key} lives in bucket ${bucket}.`,
+      ? `Same code, same bin. ${key} always lands in bin ${bucket}.`
+      : `${keySum(key)} mod ${BUCKET_COUNT} = ${bucket}, ${key} lives in bin ${bucket}.`,
     why: again
       ? `A hash is deterministic: ${key}'s letters always sum to ${keySum(key)}, and ${keySum(key)} mod ${BUCKET_COUNT} is always ${bucket}. That's why a lookup can jump straight there.`
       : `${[...key].map((c) => letterValue(c)).join(" + ")} = ${keySum(key)}; ${keySum(key)} mod ${BUCKET_COUNT} = ${bucket}.`,
   }
 }
 
-/** Collision predict-next-state: where does the new key go in an occupied bucket? */
+/** Collision predict-next-state: where does the new code go in an occupied bin? */
 function makeCollision(
   part: "collide-sun" | "collide-ant" | "collide-pig",
   seed: number,
@@ -332,8 +332,8 @@ function makeCollision(
   const options: HashOption[] = [
     { id: "append", label: chainText(appended) },
     { id: "overwrite", label: `${key} (replaces ${chainText(chain)})` },
-    { id: "reject", label: `${chainText(chain)} (the new key is dropped)` },
-    { id: "probe", label: `${key} jumps to the next empty bucket` },
+    { id: "reject", label: `${chainText(chain)} (the new item is dropped)` },
+    { id: "probe", label: `${key} jumps to the next empty bin` },
   ]
   const sh = shuffle(options, seed)
 
@@ -342,7 +342,7 @@ function makeCollision(
       kind: part,
       bin: "collision",
       mode: "mcq",
-      prompt: `${key} hashes to bucket ${bucket}, where ${chainText(chain)} already sits. What's in bucket ${bucket} now?`,
+      prompt: `${key} hashes to bin ${bucket}, where ${chainText(chain)} already sits. What's in bin ${bucket} now?`,
       key,
       bucketCount: BUCKET_COUNT,
       sum: keySum(key),
@@ -354,16 +354,16 @@ function makeCollision(
       skin: "abstract",
       cost: null,
       scanCost: null,
-      hint: "A bucket doesn't overwrite. It keeps both, in a little chain.",
-      nudge: "The old key stays. The new one links onto the end of the chain.",
+      hint: "A bin doesn't overwrite. It keeps both, in a little chain.",
+      nudge: "The old item stays. The new one links onto the end of the chain.",
       correct: `Right, ${key} chains onto the end: ${chainText(appended)}.`,
-      why: `A collision doesn't replace or reject. The bucket holds a mini linked list, so ${key} is appended: ${chainText(appended)}. (Jumping to another bucket is a different scheme we're not using.)`,
+      why: `A collision doesn't replace or reject. The bin holds a mini linked list, so ${key} is appended: ${chainText(appended)}. (Jumping to another bin is a different scheme we're not using.)`,
     },
     next: sh.next,
   }
 }
 
-/** Lookup locate + cost: jump to the bucket; found or absent, both in one jump. */
+/** Lookup locate + cost: jump to the bin; found or absent, both in one jump. */
 function makeLookup(part: "lookup-found" | "lookup-absent"): HashQuestion {
   const { key, table } = BEATS[part]!
   const bucket = bucketOf(key)
@@ -375,8 +375,8 @@ function makeLookup(part: "lookup-found" | "lookup-absent"): HashQuestion {
     bin: "lookup",
     mode: "tap",
     prompt: isPresent
-      ? `Where is ${key} stored? Tap its bucket.`
-      : `Is ${key} here? Tap the bucket it would be in.`,
+      ? `Where is ${key} stored? Tap its bin.`
+      : `Is ${key} here? Tap the bin it would be in.`,
     key,
     bucketCount: BUCKET_COUNT,
     sum: keySum(key),
@@ -386,24 +386,24 @@ function makeLookup(part: "lookup-found" | "lookup-absent"): HashQuestion {
     answer: bucketTargetId(bucket),
     present: isPresent,
     skin: "abstract",
-    cost: { word: "free", count: 1, unit: "jump to the bucket" },
+    cost: { word: "free", count: 1, unit: "jump to the bin" },
     scanCost: {
       word: "scales",
       count: scanLen,
       unit: scanLen === 1 ? "item scanned" : "items scanned",
     },
-    hint: `Hash ${key} first. That's the bucket to check.`,
-    nudge: `Run the rule on ${key}; the remainder is the only bucket to look in.`,
+    hint: `Scan ${key} first. That's the bin to check.`,
+    nudge: `Run the rule on ${key}; the remainder is the only bin to look in.`,
     correct: isPresent
-      ? `Found ${key} in bucket ${bucket}. One jump, no scan.`
-      : `${key} isn't in bucket ${bucket}. Absent in one jump, no scan.`,
+      ? `Found ${key} in bin ${bucket}. One jump, no scan.`
+      : `${key} isn't in bin ${bucket}. Absent in one jump, no scan.`,
     why: isPresent
-      ? `Hashing ${key} jumps straight to bucket ${bucket}; you check only its short chain. Free, never the whole table.`
-      : `Hashing ${key} jumps to bucket ${bucket}; ${key} isn't in that chain, so it's absent. Known in one jump, not a scan of everything.`,
+      ? `Scanning ${key} jumps straight to bin ${bucket}; you check only its short chain. Free, never the whole warehouse.`
+      : `Scanning ${key} jumps to bin ${bucket}; ${key} isn't in that chain, so it's absent. Known in one jump, not a scan of everything.`,
   }
 }
 
-/** Real-world skin (cloakroom): hang a coat on the hook the name hashes to. */
+/** Real-world skin (warehouse): stow a package in the bin its code hashes to. */
 function makeRealworld(): HashQuestion {
   const { key, table } = BEATS["realworld"]!
   const bucket = bucketOf(key)
@@ -411,7 +411,7 @@ function makeRealworld(): HashQuestion {
     kind: "realworld",
     bin: "lookup",
     mode: "drag",
-    prompt: `Hang ${key}'s coat on its hook.`,
+    prompt: `Stow ${key}'s package in its bin.`,
     key,
     bucketCount: BUCKET_COUNT,
     sum: keySum(key),
@@ -420,13 +420,13 @@ function makeRealworld(): HashQuestion {
     options: [],
     answer: bucketTargetId(bucket),
     present: false,
-    skin: "coatcheck",
-    cost: { word: "free", count: 1, unit: "jump to the hook" },
+    skin: "warehouse",
+    cost: { word: "free", count: 1, unit: "jump to the bin" },
     scanCost: null,
-    hint: `A cloakroom routes a coat the same way: sum the letters of ${key}, then mod ${BUCKET_COUNT}.`,
-    nudge: `Run the rule on ${key}; the remainder is the hook number.`,
-    correct: `${keySum(key)} mod ${BUCKET_COUNT} = ${bucket}: ${key}'s coat hangs on hook ${bucket}, fetched in one jump.`,
-    why: `A cloakroom hashes the name to a hook, so checking a coat in and fetching it are both one jump, never a walk down the whole rail.`,
+    hint: `Chaotic storage routes a package the same way: sum the letters of ${key}, then mod ${BUCKET_COUNT}.`,
+    nudge: `Run the rule on ${key}; the remainder is the bin number.`,
+    correct: `${keySum(key)} mod ${BUCKET_COUNT} = ${bucket}: ${key}'s package goes in bin ${bucket}, pulled in one jump.`,
+    why: `Chaotic storage hashes the code to a bin, so stowing a package and finding it are both one jump, never a walk down every aisle.`,
   }
 }
 

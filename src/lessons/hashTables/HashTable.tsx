@@ -99,7 +99,7 @@ export function HashTable({
 
         return (
           <div key={i} className="flex items-center gap-2">
-            <span className="w-4 shrink-0 text-right text-[11px] font-semibold text-faint">
+            <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-[#ff9900] font-mono text-[11px] font-extrabold text-[#232f3e]">
               {i}
             </span>
 
