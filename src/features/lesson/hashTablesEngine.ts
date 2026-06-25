@@ -306,9 +306,7 @@ function makeHash(part: "hash-cat" | "hash-cat-again" | "hash-dog"): HashQuestio
     skin: "abstract",
     cost: null,
     scanCost: null,
-    hint: again
-      ? "Same code, same letters, same sum, so the same bin."
-      : `Add the letters of ${key}, then take the remainder mod ${BUCKET_COUNT}.`,
+    hint: "",
     nudge: `Re-add the letter values, then take the remainder when you divide by ${BUCKET_COUNT}.`,
     correct: again
       ? `Same code, same bin. ${key} always lands in bin ${bucket}.`
@@ -354,7 +352,7 @@ function makeCollision(
       skin: "abstract",
       cost: null,
       scanCost: null,
-      hint: "A bin doesn't overwrite. It keeps both, in a little chain.",
+      hint: "",
       nudge: "The old item stays. The new one links onto the end of the chain.",
       correct: `Right, ${key} chains onto the end: ${chainText(appended)}.`,
       why: `A collision doesn't replace or reject. The bin holds a mini linked list, so ${key} is appended: ${chainText(appended)}. (Jumping to another bin is a different scheme we're not using.)`,
@@ -392,7 +390,7 @@ function makeLookup(part: "lookup-found" | "lookup-absent"): HashQuestion {
       count: scanLen,
       unit: scanLen === 1 ? "item scanned" : "items scanned",
     },
-    hint: `Scan ${key} first. That's the bin to check.`,
+    hint: "",
     nudge: `Run the rule on ${key}; the remainder is the only bin to look in.`,
     correct: isPresent
       ? `Found ${key} in bin ${bucket}. One jump, no scan.`
@@ -423,7 +421,7 @@ function makeRealworld(): HashQuestion {
     skin: "warehouse",
     cost: { word: "free", count: 1, unit: "jump to the bin" },
     scanCost: null,
-    hint: `Chaotic storage routes a package the same way: sum the letters of ${key}, then mod ${BUCKET_COUNT}.`,
+    hint: "",
     nudge: `Run the rule on ${key}; the remainder is the bin number.`,
     correct: `${keySum(key)} mod ${BUCKET_COUNT} = ${bucket}: ${key}'s package goes in bin ${bucket}, pulled in one jump.`,
     why: `Chaotic storage hashes the code to a bin, so stowing a package and finding it are both one jump, never a walk down every aisle.`,

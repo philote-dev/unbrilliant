@@ -9,7 +9,7 @@ export function Settings() {
   const isDark = theme === "dark"
 
   return (
-    <div className="flex flex-1 flex-col px-5 pb-28 pt-6">
+    <div className="flex flex-1 flex-col px-5 pb-28 pt-6 lg:mx-auto lg:w-full lg:max-w-lg lg:px-0 lg:pb-0 lg:pt-0">
       <div className="relative flex items-center justify-center">
         <button
           type="button"
@@ -50,7 +50,7 @@ export function Settings() {
       </div>
 
       <p className="mt-6 text-center text-xs text-faint">
-        Willow · learn-by-doing data structures
+        Willow · algorithmic thinking, by doing
       </p>
     </div>
   )

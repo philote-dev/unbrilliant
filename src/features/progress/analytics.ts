@@ -4,11 +4,7 @@ import {
   SCENARIO_QUOTA,
   type LessonProgress,
 } from "@/features/lesson/engine"
-import {
-  COST_QUOTA,
-  RESIZE_QUOTA,
-  SHIFT_QUOTA,
-} from "@/features/lesson/arraysEngine"
+import { ARRAYS_GATE } from "@/features/lesson/arraysEngine"
 
 /**
  * Pure per-lesson analytics for the Progress drill-down — derived entirely from
@@ -17,7 +13,7 @@ import {
  */
 const MASTERY_TOTAL: Record<string, number> = {
   "stacks-and-queues": POP_QUOTA + DEQUEUE_QUOTA + SCENARIO_QUOTA,
-  arrays: SHIFT_QUOTA + COST_QUOTA + RESIZE_QUOTA,
+  arrays: ARRAYS_GATE,
 }
 
 export interface LessonStats {

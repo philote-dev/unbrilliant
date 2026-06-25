@@ -141,7 +141,11 @@ export function BrowserShowpiece({
           <h1 className="text-lg font-bold text-neutral-900">History</h1>
           <span className="text-[11px] font-medium text-neutral-400">newest on top</span>
         </div>
-        {prompt && <p className="mt-0.5 text-sm leading-snug text-neutral-600">{prompt}</p>}
+        {prompt && (
+          <div className="mt-2 rounded-xl bg-[#e8f0fe] px-3.5 py-2.5 ring-1 ring-inset ring-[#1a73e8]/30">
+            <p className="text-[15px] font-semibold leading-snug text-neutral-900">{prompt}</p>
+          </div>
+        )}
 
         <div data-testid="browser-history" className="mt-3 flex flex-col gap-1.5">
           <AnimatePresence initial={false} mode="popLayout">
@@ -279,6 +283,20 @@ function PageRow({
 }
 
 function Favicon({ page, className }: { page: BrowserPage | null; className?: string }) {
+  if (page?.icon) {
+    const Icon = page.icon
+    return (
+      <span
+        aria-hidden
+        className={cn(
+          "inline-flex shrink-0 items-center justify-center overflow-hidden rounded-md bg-white",
+          className,
+        )}
+      >
+        <Icon className="size-full" />
+      </span>
+    )
+  }
   return (
     <span
       aria-hidden

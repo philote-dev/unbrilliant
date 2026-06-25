@@ -10,13 +10,11 @@ import {
 import { ArraysStage } from "./Stage"
 
 /**
- * DOM tests for the Arrays stage. Reduced motion is forced (matchMedia matches),
- * so the parking-lot wave parks on its snapped end-state with no timers, keeping
- * these deterministic. They cover the seams that matter: that the ParkingLot skin
- * is actually wired into the Stage (a revert canary, since a Dropbox `.git` sync
- * once silently reverted the wiring while the isolated unit tests stayed green),
- * the idle-only regenerate gate, the POST-VERDICT wave + announcement (never
- * before), and the locked cost-chip words rendered from the engine verbatim.
+ * DOM tests for the redesigned Arrays stage. Reduced motion is forced (matchMedia
+ * matches) so animations snap to their end-state with no timers. They cover the
+ * seams that matter: the de-cued access (no pre-highlight; the jump/scan overlay
+ * fires only POST-verdict), the A5 construct commits via tap AND keyboard through
+ * the shared rewire surface, and the SR-only fail copy (no visible fail sentence).
  */
 beforeAll(() => {
   window.matchMedia = (query: string): MediaQueryList =>
@@ -39,116 +37,76 @@ function Harness({ initial }: { initial: ArraysState }) {
   return <ArraysStage state={state} dispatch={dispatch} />
 }
 
-/** A live state seeded at a chosen part with the prior quotas already met. */
-function stateAt(part: "shift" | "cost" | "resize"): ArraysState {
-  const counters: Record<string, number> = { shiftPredict: 3, costCount: 3 }
-  if (part === "shift") return resumeArrays({ counters: {}, currentPart: "shift", completed: false }, SEED)
-  return resumeArrays({ counters, currentPart: part, completed: false }, SEED)
-}
+const at = (part: string): ArraysState =>
+  resumeArrays({ counters: {}, currentPart: part, completed: false }, SEED)
 
-/** The access intro state (the lot is interactive there). */
-function accessState(): ArraysState {
-  return resumeArrays({ counters: {}, currentPart: "access", completed: false }, SEED)
-}
+describe("Arrays stage — de-cued access (overlay is post-verdict only)", () => {
+  it("draws no jump/scan overlay until a verdict lands, then reveals it", () => {
+    const { container } = render(<Harness initial={at("a1-access")} />)
+    // de-cued: the access overlay (the only <path> here) is absent before the verdict
+    expect(container.querySelector("svg path")).toBeNull()
+    expect(screen.getByRole("button", { name: "Check" })).toBeDisabled()
 
-/** Re-roll (in idle) until the resize instance lands on a chosen verdict. */
-function resizeStateAnswering(answer: "yes" | "no"): ArraysState {
-  let s = stateAt("resize")
-  while (s.question!.answer !== answer) s = arraysReducer(s, { type: "reattempt" })
-  return s
-}
+    fireEvent.click(document.querySelector('[data-answer="1"]') as HTMLElement)
+    fireEvent.click(screen.getByRole("button", { name: "Check" }))
 
-const clickCorrect = () => {
-  const card = document.querySelector('[data-answer="1"]') as HTMLElement
-  fireEvent.click(card)
-  fireEvent.click(screen.getByRole("button", { name: "Check" }))
-}
+    // correct → the jump arc overlay is drawn and the lesson can continue
+    expect(container.querySelector("svg path")).not.toBeNull()
+    expect(screen.getByRole("button", { name: "Continue" })).toBeInTheDocument()
+  })
+})
 
-describe("Arrays stage — the ParkingLot skin is actually wired in (revert canary)", () => {
-  it("renders the parking lot (not the abstract array) across every beat", () => {
-    // access intro
-    const access = render(<Harness initial={accessState()} />)
-    expect(screen.getByTestId("parking-lot")).toBeInTheDocument()
-    expect(screen.getAllByTestId("bay").length).toBeGreaterThan(0)
-    access.unmount()
+describe("Arrays stage — A5 construct commits via tap and keyboard", () => {
+  it("appending the loose cells in order (tap) clears the beat", () => {
+    const init = at("a5-construct")
+    const ops = init.question!.correctOps!
+    render(<Harness initial={init} />)
 
-    // shift / cost predicts
-    for (const part of ["shift", "cost"] as const) {
-      const r = render(<Harness initial={stateAt(part)} />)
-      expect(screen.getByTestId("parking-lot")).toBeInTheDocument()
-      expect(screen.getAllByTestId("car").length).toBeGreaterThan(0)
-      r.unmount()
+    expect(screen.getByRole("button", { name: "Check" })).toBeDisabled()
+    for (const id of ops) {
+      fireEvent.click(screen.getByLabelText(`cell ${id}`)) // arm the source
+      fireEvent.click(screen.getByLabelText(/^the open end of the row/)) // drop on the end
     }
+    fireEvent.click(screen.getByRole("button", { name: "Check" }))
+    expect(screen.getByRole("button", { name: "Continue" })).toBeInTheDocument()
+  })
 
-    // resize (was blank before the skin): the lot draws bays AND its filled cars,
-    // so this also guards the engine's structured array fill from reverting.
-    render(<Harness initial={stateAt("resize")} />)
-    expect(screen.getByTestId("parking-lot")).toBeInTheDocument()
-    expect(screen.getAllByTestId("bay").length).toBeGreaterThan(0)
-    expect(screen.getAllByTestId("car").length).toBeGreaterThan(0)
+  it("keyboard parity: a source can be armed and dropped on the end with the keys", () => {
+    const init = at("a5-construct")
+    const first = init.question!.correctOps![0]
+    render(<Harness initial={init} />)
 
-    // and the OLD abstract step-player viz must be gone.
-    expect(screen.queryByTestId("shift-wave")).toBeNull()
-    expect(screen.queryByTestId("resize-block")).toBeNull()
+    const looseBefore = screen.getAllByLabelText(/^cell /).length
+    const src = screen.getByLabelText(`cell ${first}`)
+    fireEvent.keyDown(src, { key: "Enter" }) // arm
+    fireEvent.keyDown(src, { key: "ArrowRight" }) // hover the end target
+    fireEvent.keyDown(src, { key: "Enter" }) // commit
+
+    // one loose cell was appended, so there is one fewer source
+    expect(screen.getAllByLabelText(/^cell /).length).toBe(looseBefore - 1)
   })
 })
 
-describe("Arrays stage — regenerate is gated to idle", () => {
-  it("offers a re-roll while idle, and hides it once a verdict lands", () => {
-    render(<Harness initial={stateAt("shift")} />)
-    expect(screen.getByLabelText("Regenerate this example")).toBeInTheDocument()
+describe("Arrays stage — minimal fail UX (SR-only, no fail sentence)", () => {
+  it("hides the fail sentence until Why, keeping the answer withheld", () => {
+    const init = at("a2-shift")
+    render(<Harness initial={init} />)
 
-    clickCorrect()
-    // post-verdict: the re-roll is gone, so it can never dodge the mastery wall.
-    expect(screen.queryByLabelText("Regenerate this example")).toBeNull()
-  })
+    const wrongCard = () =>
+      Array.from(document.querySelectorAll('[data-testid="answer-card"]')).find(
+        (c) => c.getAttribute("data-answer") !== "1",
+      ) as HTMLElement
+    fireEvent.click(wrongCard())
+    fireEvent.click(screen.getByRole("button", { name: "Check" }))
+    fireEvent.click(wrongCard())
+    fireEvent.click(screen.getByRole("button", { name: "Check" }))
 
-  it("a re-roll keeps the learner on the same part (no quota skip)", () => {
-    render(<Harness initial={stateAt("shift")} />)
-    fireEvent.click(screen.getByLabelText("Regenerate this example"))
-    // still a fresh, ungraded shift predict: Check is back and re-roll is offered.
-    expect(screen.getByRole("button", { name: "Check" })).toBeInTheDocument()
-    expect(screen.getByLabelText("Regenerate this example")).toBeInTheDocument()
-  })
-})
+    // full fail: no visible fail sentence, but Why?/Reattempt carry it
+    expect(screen.queryByText(/Not quite/)).toBeNull()
+    expect(screen.getByRole("button", { name: "Why?" })).toBeInTheDocument()
+    expect(screen.queryByText(init.question!.why)).toBeNull()
 
-describe("Arrays stage — the parking-lot wave fires post-verdict", () => {
-  it("shows the lot but no arrival car or spoken result before the verdict", () => {
-    render(<Harness initial={stateAt("shift")} />)
-    // the lot (the live structure) is always present, with its cars parked…
-    expect(screen.getByTestId("parking-lot")).toBeInTheDocument()
-    expect(screen.getAllByTestId("car").length).toBeGreaterThan(0)
-    // …but the wave's tells (arrival car, spoken result, cost chip) wait for the verdict.
-    expect(document.querySelector('[data-arrival="1"]')).toBeNull()
-    expect(screen.queryByText(/rolled (forward|back)/)).toBeNull()
-    expect(screen.queryByText("scales")).toBeNull()
-  })
-
-  it("announces the result and shows the 'scales' chip once correct", () => {
-    render(<Harness initial={stateAt("shift")} />)
-    clickCorrect()
-
-    expect(screen.getByText("scales")).toBeInTheDocument()
-    expect(screen.getByText(/rolled (forward|back)/)).toBeInTheDocument()
-  })
-})
-
-describe("Arrays stage — resize chip reads the locked house word", () => {
-  it("a triggered resize shows the doubling lot and the 'usually free' chip", () => {
-    render(<Harness initial={resizeStateAnswering("yes")} />)
-    clickCorrect()
-
-    expect(screen.getByTestId("parking-lot")).toBeInTheDocument()
-    expect(screen.getByText("usually free")).toBeInTheDocument()
-    expect(screen.queryByText("scales")).toBeNull()
-    expect(screen.getByText(/Doubled to \d+ bays/)).toBeInTheDocument()
-  })
-
-  it("a no-resize insert shows the 'free' chip and parks the new car", () => {
-    render(<Harness initial={resizeStateAnswering("no")} />)
-    clickCorrect()
-
-    expect(screen.getByText("free")).toBeInTheDocument()
-    expect(screen.getByText(/parks in bay \d+/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Why?" }))
+    expect(screen.getByText(init.question!.why)).toBeInTheDocument()
   })
 })

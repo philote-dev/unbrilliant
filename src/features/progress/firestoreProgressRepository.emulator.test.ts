@@ -8,7 +8,10 @@ import {
 import type { Firestore } from "firebase/firestore"
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
 
+import { doc, setDoc, type Firestore as FirestoreClient } from "firebase/firestore"
+
 import { createFirestoreProgressRepository } from "@/features/progress/firestoreProgressRepository"
+import { dayKeyToUTCDate } from "@/features/progress/activityDate"
 import type { LessonProgress } from "@/features/progress/ProgressRepository"
 import {
   DATA_STRUCTURES_LESSONS,
@@ -53,9 +56,11 @@ beforeAll(async () => {
   testEnv = await initializeTestEnvironment({
     projectId: PROJECT_ID,
     firestore: {
-      rules: readFileSync("firestore.rules", "utf8"),
+      // RULES_PATH / FIRESTORE_EMULATOR_PORT let this run against an isolated
+      // emulator (CI or a dev box already running one on the default ports).
+      rules: readFileSync(process.env.RULES_PATH ?? "firestore.rules", "utf8"),
       host: "127.0.0.1",
-      port: 8080,
+      port: Number(process.env.FIRESTORE_EMULATOR_PORT) || 8080,
     },
   })
 })
@@ -106,6 +111,32 @@ describe("FirestoreProgressRepository (emulator)", () => {
     }
     await repo.saveProgress("nina", LESSON, progress)
     expect(await repo.getProgress("nina", LESSON)).toEqual(progress)
+  })
+
+  it("round-trips the redesigned Arrays counters on a mid-lesson beat and resumes there", async () => {
+    const repo = repoFor("ada")
+    await repo.ensureUser("ada", { displayName: "Ada" })
+    const progress: LessonProgress = {
+      counters: {
+        a1: 1,
+        a3: 1,
+        a2: 0,
+        a2Skin: 0,
+        a4: 0,
+        a5: 0,
+        a6Grow: 0,
+        a6Cheap: 0,
+        attempts: 4,
+      },
+      currentPart: "a2-shift",
+      completed: false,
+    }
+    await repo.saveProgress("ada", "arrays", progress)
+    expect(await repo.getProgress("ada", "arrays")).toEqual(progress)
+    // A fresh handle (page reload) resumes on the same beat with the same counts.
+    const resumed = await repoFor("ada").getProgress("ada", "arrays")
+    expect(resumed?.currentPart).toBe("a2-shift")
+    expect(resumed?.counters.a3).toBe(1)
   })
 
   it("round-trips the Linked Lists counters on a mid-lesson beat and resumes there", async () => {
@@ -320,5 +351,81 @@ describe("FirestoreProgressRepository (emulator)", () => {
       testEnv.authenticatedContext("mallory").firestore() as unknown as Firestore,
     )
     await assertFails(mallory.getProgress("alice", LESSON))
+  })
+
+  it("accumulates same-day activity via atomic increments and reads it back", async () => {
+    const repo = repoFor("nora")
+    await repo.recordActivity("nora", "20260114", { attempted: 3, correct: 2 })
+    await repo.recordActivity("nora", "20260114", { attempted: 1, correct: 1 })
+    expect(await repo.getActivity("nora", "20260101")).toEqual([
+      { date: dayKeyToUTCDate("20260114"), attempted: 4, correct: 3 },
+    ])
+  })
+
+  it("returns activity on/after the since key, ascending by day", async () => {
+    const repo = repoFor("omar")
+    await repo.recordActivity("omar", "20260103", { attempted: 2, correct: 2 })
+    await repo.recordActivity("omar", "20260120", { attempted: 1, correct: 0 })
+    await repo.recordActivity("omar", "20260114", { attempted: 5, correct: 4 })
+    const dates = (await repo.getActivity("omar", "20260112")).map((d) => d.date)
+    expect(dates).toEqual([
+      dayKeyToUTCDate("20260114"),
+      dayKeyToUTCDate("20260120"),
+    ])
+  })
+
+  it("denies reading another learner's activity", async () => {
+    await repoFor("alice").recordActivity("alice", "20260114", {
+      attempted: 1,
+      correct: 1,
+    })
+    const mallory = createFirestoreProgressRepository(
+      testEnv.authenticatedContext("mallory").firestore() as unknown as Firestore,
+    )
+    await assertFails(mallory.getActivity("alice", "20260101"))
+  })
+
+  // Raw writes (bypassing the repo) prove the rules reject malformed activity,
+  // not just that the repo happens to send well-formed payloads.
+  function activityDoc(uid: string, dayKey: string) {
+    const db = testEnv
+      .authenticatedContext(uid)
+      .firestore() as unknown as FirestoreClient
+    return doc(db, "users", uid, "activity", dayKey)
+  }
+
+  it("rejects an activity write with more correct than attempted", async () => {
+    await assertFails(
+      setDoc(activityDoc("pat", "20260114"), {
+        date: dayKeyToUTCDate("20260114"),
+        attempted: 1,
+        correct: 5,
+        updatedAt: 0,
+      }),
+    )
+  })
+
+  it("rejects an activity write with a negative count", async () => {
+    // attempted stays valid so only the `correct >= 0` clause is exercised.
+    await assertFails(
+      setDoc(activityDoc("pat", "20260114"), {
+        date: dayKeyToUTCDate("20260114"),
+        attempted: 5,
+        correct: -3,
+        updatedAt: 0,
+      }),
+    )
+  })
+
+  it("rejects an activity write with an unexpected field", async () => {
+    await assertFails(
+      setDoc(activityDoc("pat", "20260114"), {
+        date: dayKeyToUTCDate("20260114"),
+        attempted: 2,
+        correct: 1,
+        updatedAt: 0,
+        hacked: true,
+      }),
+    )
   })
 })

@@ -26,6 +26,7 @@ import {
   type HeapsState,
   type SwapStep,
 } from "@/features/lesson/heapsEngine"
+import { StageSplit, StageCenter } from "@/components/willow/lesson/StageLayout"
 import { HeapDualView, type HeapFigureRenderer, type SlotTone } from "./HeapDualView"
 import { ERTriageBoard, PATIENT_ICON } from "./ERTriageBoard"
 import { patientFor } from "./triagePatients"
@@ -468,50 +469,56 @@ function ArrangementBody({
   }
 
   return (
-    <>
-      <BinHeader state={state} />
+    <StageSplit
+      header={<BinHeader state={state} />}
+      figure={
+        <>
+          <div className="flex flex-col items-center gap-3 py-4">
+            {reveal ? (
+              <StepReplay spec={replay.spec} intro={replay.intro} reduced={reduced} />
+            ) : (
+              <>
+                <HeapDualView heap={q.heap} reducedMotion={reduced} srLabel={givenSentence(q)} />
+                <DeCue q={q} />
+              </>
+            )}
+          </div>
 
-      <div className="flex flex-col items-center gap-3 py-4">
-        {reveal ? (
-          <StepReplay spec={replay.spec} intro={replay.intro} reduced={reduced} />
-        ) : (
-          <>
-            <HeapDualView heap={q.heap} reducedMotion={reduced} srLabel={givenSentence(q)} />
-            <DeCue q={q} />
-          </>
-        )}
-      </div>
+          {correct && q.cost && (
+            <div className="mb-4 flex flex-wrap justify-center gap-2">
+              <LabeledCost label="Sift" cost={q.cost} />
+              {q.sortCost && <LabeledCost label="Full sort" cost={q.sortCost} />}
+            </div>
+          )}
+        </>
+      }
+      interaction={
+        <>
+          <div className="flex flex-col gap-3">
+            {q.options.map((o, i) => (
+              <ArrangementCard
+                key={o.id}
+                letter={LETTERS[i] ?? String(i + 1)}
+                heap={o.heap}
+                state={cardState(o.id)}
+                disabled={terminal}
+                answerMarker={o.id === q.answer}
+                onSelect={() => dispatch({ type: "select", letter: o.id })}
+              />
+            ))}
+          </div>
 
-      {correct && q.cost && (
-        <div className="mb-4 flex flex-wrap justify-center gap-2">
-          <LabeledCost label="Sift" cost={q.cost} />
-          {q.sortCost && <LabeledCost label="Full sort" cost={q.sortCost} />}
-        </div>
-      )}
-
-      <div className="flex flex-col gap-3">
-        {q.options.map((o, i) => (
-          <ArrangementCard
-            key={o.id}
-            letter={LETTERS[i] ?? String(i + 1)}
-            heap={o.heap}
-            state={cardState(o.id)}
-            disabled={terminal}
-            answerMarker={o.id === q.answer}
-            onSelect={() => dispatch({ type: "select", letter: o.id })}
+          <FeedbackFooter
+            feedback={feedback}
+            selected={selected}
+            showWhy={showWhy}
+            hideFailHint
+            copy={feedbackCopy(q)}
+            dispatch={dispatch}
           />
-        ))}
-      </div>
-
-      <FeedbackFooter
-        feedback={feedback}
-        selected={selected}
-        showWhy={showWhy}
-        hideFailHint
-        copy={feedbackCopy(q)}
-        dispatch={dispatch}
-      />
-    </>
+        </>
+      }
+    />
   )
 }
 
@@ -522,11 +529,7 @@ function ArrangementPart({
   state: HeapsState
   dispatch: Dispatch<LessonAction>
 }) {
-  return (
-    <div className="flex flex-1 flex-col">
-      <ArrangementBody state={state} dispatch={dispatch} />
-    </div>
-  )
+  return <ArrangementBody state={state} dispatch={dispatch} />
 }
 
 /* ----------------------------- ER triage skin ----------------------------- */
@@ -771,51 +774,53 @@ function TriagePart({
       className="-mx-5 -mb-6 flex flex-1 flex-col px-5 pb-6 pt-7 text-slate-100"
       style={{ background: MONITOR_BG }}
     >
-      <MonitorHeader />
-      <VitalsLane reduced={reduced} />
-      <MonitorBanner label="Seen next" sublabel="most urgent" heap={boardHeap} />
-      <p className="mt-3 text-center text-sm text-slate-300">{q.prompt}</p>
+      <StageCenter>
+        <MonitorHeader />
+        <VitalsLane reduced={reduced} />
+        <MonitorBanner label="Seen next" sublabel="most urgent" heap={boardHeap} />
+        <p className="mt-3 text-center text-sm text-slate-300">{q.prompt}</p>
 
-      <div className="flex flex-1 flex-col items-center justify-center gap-3 py-3">
-        {reveal ? (
-          <StepReplay
-            spec={replay.spec}
-            intro={replay.intro}
-            reduced={reduced}
-            renderFigure={triageFigure}
-            surface="clinical"
-          />
-        ) : (
-          <>
-            <ERTriageBoard heap={q.heap} reducedMotion={reduced} srLabel={idleSr} />
-            <TriageAdmitCue q={q} />
-          </>
-        )}
-      </div>
-
-      {correct && q.cost && (
-        <div className="mb-4 flex flex-wrap justify-center gap-2">
-          <ClinicalCost label="Place the patient" cost={q.cost} />
-          {q.sortCost && <ClinicalCost label="Re-sort the board" cost={q.sortCost} />}
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 py-3">
+          {reveal ? (
+            <StepReplay
+              spec={replay.spec}
+              intro={replay.intro}
+              reduced={reduced}
+              renderFigure={triageFigure}
+              surface="clinical"
+            />
+          ) : (
+            <>
+              <ERTriageBoard heap={q.heap} reducedMotion={reduced} srLabel={idleSr} />
+              <TriageAdmitCue q={q} />
+            </>
+          )}
         </div>
-      )}
 
-      <div className="flex flex-col gap-2.5">
-        {q.options.map((o, i) => (
-          <ArrangementCard
-            key={o.id}
-            clinical
-            letter={LETTERS[i] ?? String(i + 1)}
-            heap={o.heap}
-            state={cardState(o.id)}
-            disabled={terminal}
-            answerMarker={o.id === q.answer}
-            onSelect={() => dispatch({ type: "select", letter: o.id })}
-          />
-        ))}
-      </div>
+        {correct && q.cost && (
+          <div className="mb-4 flex flex-wrap justify-center gap-2">
+            <ClinicalCost label="Place the patient" cost={q.cost} />
+            {q.sortCost && <ClinicalCost label="Re-sort the board" cost={q.sortCost} />}
+          </div>
+        )}
 
-      <TriageFooter state={state} dispatch={dispatch} />
+        <div className="flex flex-col gap-2.5">
+          {q.options.map((o, i) => (
+            <ArrangementCard
+              key={o.id}
+              clinical
+              letter={LETTERS[i] ?? String(i + 1)}
+              heap={o.heap}
+              state={cardState(o.id)}
+              disabled={terminal}
+              answerMarker={o.id === q.answer}
+              onSelect={() => dispatch({ type: "select", letter: o.id })}
+            />
+          ))}
+        </div>
+
+        <TriageFooter state={state} dispatch={dispatch} />
+      </StageCenter>
     </motion.div>
   )
 }
@@ -865,7 +870,7 @@ function SlotLocatePart({
     feedback === "correct" ? "correct" : feedback === "nudge" ? "nudge" : feedback === "fail" ? "fail" : "selected"
 
   return (
-    <div className="flex flex-1 flex-col">
+    <StageCenter>
       <BinHeader state={state} />
 
       <div className="flex flex-1 flex-col items-center justify-center gap-4 py-5">
@@ -895,7 +900,7 @@ function SlotLocatePart({
         copy={feedbackCopy(q)}
         dispatch={dispatch}
       />
-    </div>
+    </StageCenter>
   )
 }
 
@@ -940,7 +945,7 @@ function DemoPart({
   }
 
   return (
-    <div className="flex flex-1 flex-col">
+    <StageCenter>
       <div className="mt-7 text-center">
         <h2 className="text-xl font-bold text-foreground">Heaps: the best is always on top</h2>
         <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground">{q.prompt}</p>
@@ -967,7 +972,7 @@ function DemoPart({
         )}
         <ContinueButton dispatch={dispatch} />
       </div>
-    </div>
+    </StageCenter>
   )
 }
 
@@ -984,7 +989,7 @@ function TeachArrayPart({
   if (!q) return null
 
   return (
-    <div className="flex flex-1 flex-col">
+    <StageCenter>
       <div className="mt-7 text-center">
         <h2 className="text-xl font-bold text-foreground">It secretly lives in an array</h2>
         <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground">{q.prompt}</p>
@@ -1012,7 +1017,7 @@ function TeachArrayPart({
       <div className="mt-auto">
         <ContinueButton dispatch={dispatch} />
       </div>
-    </div>
+    </StageCenter>
   )
 }
 
@@ -1028,7 +1033,7 @@ function TeachRulePart({
   if (!q) return null
 
   return (
-    <div className="flex flex-1 flex-col">
+    <StageCenter>
       <div className="mt-7 text-center">
         <h2 className="text-xl font-bold text-foreground">The heap rule</h2>
         <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground">{q.prompt}</p>
@@ -1053,7 +1058,7 @@ function TeachRulePart({
       <div className="mt-auto">
         <ContinueButton dispatch={dispatch} />
       </div>
-    </div>
+    </StageCenter>
   )
 }
 
@@ -1077,33 +1082,35 @@ function TeachExtractPart({
       className="-mx-5 -mb-6 flex flex-1 flex-col px-5 pb-6 pt-7 text-slate-100"
       style={{ background: MONITOR_BG }}
     >
-      <MonitorHeader />
-      <VitalsLane reduced={reduced} />
-      <MonitorBanner label="Discharging" sublabel="top of board" heap={q.heap} />
-      <div className="mt-3 text-center">
-        <h2 className="text-lg font-bold text-slate-50">Discharging the top patient</h2>
-        <p className="mx-auto mt-1 max-w-xs text-sm text-slate-300">{q.prompt}</p>
-      </div>
+      <StageCenter>
+        <MonitorHeader />
+        <VitalsLane reduced={reduced} />
+        <MonitorBanner label="Discharging" sublabel="top of board" heap={q.heap} />
+        <div className="mt-3 text-center">
+          <h2 className="text-lg font-bold text-slate-50">Discharging the top patient</h2>
+          <p className="mx-auto mt-1 max-w-xs text-sm text-slate-300">{q.prompt}</p>
+        </div>
 
-      <div className="flex flex-1 flex-col items-center justify-center gap-4 py-4">
-        <StepReplay
-          spec={spec}
-          intro={intro}
-          reduced={reduced}
-          renderFigure={triageFigure}
-          surface="clinical"
-        />
-        {q.cost && q.sortCost && (
-          <div className="flex flex-wrap justify-center gap-2">
-            <ClinicalCost label="See who's next" cost={q.cost} />
-            <ClinicalCost label="Sort the whole board" cost={q.sortCost} />
-          </div>
-        )}
-      </div>
+        <div className="flex flex-1 flex-col items-center justify-center gap-4 py-4">
+          <StepReplay
+            spec={spec}
+            intro={intro}
+            reduced={reduced}
+            renderFigure={triageFigure}
+            surface="clinical"
+          />
+          {q.cost && q.sortCost && (
+            <div className="flex flex-wrap justify-center gap-2">
+              <ClinicalCost label="See who's next" cost={q.cost} />
+              <ClinicalCost label="Sort the whole board" cost={q.sortCost} />
+            </div>
+          )}
+        </div>
 
-      <div className="mt-auto">
-        <MonitorButton onClick={() => dispatch({ type: "continue" })}>Continue</MonitorButton>
-      </div>
+        <div className="mt-auto">
+          <MonitorButton onClick={() => dispatch({ type: "continue" })}>Continue</MonitorButton>
+        </div>
+      </StageCenter>
     </motion.div>
   )
 }

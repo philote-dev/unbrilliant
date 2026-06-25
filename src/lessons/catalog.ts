@@ -66,6 +66,34 @@ export const DATA_STRUCTURES_LESSONS: LessonDef[] = [
   { id: "graphs", name: "Graphs" },
 ]
 
+/**
+ * The data structure a lesson teaches. Drives which themed course-path layout
+ * renders for the learner's current lesson (see willow/coursePath/registry).
+ */
+export type StructureKind =
+  | "queue"
+  | "array"
+  | "linked-list"
+  | "hash-table"
+  | "tree"
+  | "heap"
+  | "graph"
+
+const LESSON_STRUCTURE: Record<string, StructureKind> = {
+  "stacks-and-queues": "queue",
+  arrays: "array",
+  "linked-lists": "linked-list",
+  "hash-tables": "hash-table",
+  trees: "tree",
+  heaps: "heap",
+  graphs: "graph",
+}
+
+/** The data structure a lesson teaches, or undefined if it has none. */
+export function lessonStructure(lessonId: string): StructureKind | undefined {
+  return LESSON_STRUCTURE[lessonId]
+}
+
 /** Lessons per course (only Data Structures has real lessons in the MVP). */
 export const COURSE_LESSONS: Record<string, LessonDef[]> = {
   "data-structures": DATA_STRUCTURES_LESSONS,

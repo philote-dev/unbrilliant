@@ -37,6 +37,7 @@ export function StructCell({
   disabled,
   onSelect,
   isAnswer,
+  ariaLabel,
   enter,
   exit,
   layoutId,
@@ -49,6 +50,8 @@ export function StructCell({
   disabled?: boolean
   onSelect?: () => void
   isAnswer?: boolean
+  /** Accessible name when the visible label alone is not enough (e.g. "Remove A..."). */
+  ariaLabel?: string
   /** Motion offset the cell animates IN from (the opening it enters through). */
   enter: Offset
   /** Motion offset the cell animates OUT to (the opening it leaves through). */
@@ -67,6 +70,7 @@ export function StructCell({
       layoutId={reduce ? undefined : layoutId}
       data-cell={id}
       data-answer={isAnswer && import.meta.env.DEV ? "1" : undefined}
+      aria-label={ariaLabel}
       disabled={!selectable || disabled}
       onClick={selectable ? onSelect : undefined}
       aria-pressed={state === "selected"}

@@ -30,8 +30,8 @@ describe("lessonStats (Progress drill-down analytics)", () => {
 
   it("computes Arrays mastery against its own total", () => {
     const s = lessonStats("arrays", {
-      counters: { shiftPredict: 3, costCount: 0, resizePredict: 0, attempts: 5 },
-      currentPart: "cost",
+      counters: { a1: 1, a3: 1, a2: 1, attempts: 5 },
+      currentPart: "a2-skin",
       completed: false,
     })
     expect(s.correct).toBe(3)

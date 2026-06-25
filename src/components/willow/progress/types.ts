@@ -34,6 +34,10 @@ export interface PersonalBestsVM {
 export interface LevelVM { totalCorrect: number; xpPerLevel?: number }
 export interface WeeklyConsistencyVM { daysActive: number }
 
+/** One day in the contribution calendar: a UTC-midnight epoch ms + that day's count. */
+export interface ContributionDay { date: number; count: number }
+export interface ContributionsVM { days: ContributionDay[] }
+
 export interface CourseRollupVM {
   courseId: string
   title: string

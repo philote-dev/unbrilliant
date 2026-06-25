@@ -80,11 +80,10 @@ export type PredictAsk =
 
 /**
  * The showpiece skin a predict beat wears. "letters" stays plain. "browser" is
- * the stack real-world (Browser Back), "drivethru" the queue real-world (a
- * drive-thru / toll lane). "printer" is kept as the queue fallback skin behind
- * the Stage's REALWORLD_QUEUE_SKIN switch.
+ * the stack real-world (Browser Back); "printer" is the queue real-world (a print
+ * queue: documents print in the order they were sent, first in first out).
  */
-export type PredictTheme = "letters" | "browser" | "drivethru" | "printer"
+export type PredictTheme = "letters" | "browser" | "printer"
 
 export interface PredictQuestion extends Copy {
   kind: "predict"
@@ -366,7 +365,7 @@ function makeGraded(
       return {
         question: construct("stackConstruct", "stack", ["A", "B", "C"], LETTERS, {
           prompt: "Push the cards so they pop out in the order shown.",
-          hint: "A stack reverses: the last card you push pops first.",
+          hint: "",
           nudge: "To pop A first, A has to be pushed last, on top.",
           correct: "Right: push C, B, A and they pop out A, B, C.",
           why: "A stack reverses order. To get A out first, push it last, so push C, then B, then A.",
@@ -397,25 +396,24 @@ function makeGraded(
       }
 
     case "queue-realworld":
-      // Drive-thru / toll lane skin: a queue. Cars roll up to the window in
-      // arrival order and the front car is served first. Four cars so the lane
-      // reads as a real line. Labels mirror driveThruCars.ts CARS (first four)
-      // for the fallback container; the skin owns the real car identity. Copy
-      // stays generic (no name), so the engine never couples to the catalog.
+      // Print-queue skin: a queue. Documents are sent to the printer in arrival
+      // order and the front one (sent first) prints first. Four files so the
+      // queue reads as a real line. Labels name the documents; copy stays generic
+      // (FIFO), so the engine never couples to the skin's presentation.
       return {
         question: predict(
           "queueRealworld",
           "queue",
-          "drivethru",
+          "printer",
           ["c1", "c2", "c3", "c4"],
-          { c1: "Red", c2: "Blue", c3: "Green", c4: "Amber" },
+          { c1: "Report", c2: "Essay", c3: "Photo", c4: "Memo" },
           { kind: "first-out" },
           {
-            prompt: "Cars pull up to the drive-thru window in this order. Which one is served first?",
-            hint: "A drive-thru lane is a queue: first in, first out.",
-            nudge: "Which car has been waiting at the window the longest?",
-            correct: "Right: the first car to pull up reaches the window first, so it is served first.",
-            why: "A drive-thru is a queue. The car that arrived first is at the front, so it is served before the rest.",
+            prompt: "Documents are sent to the printer in this order. Which one prints first?",
+            hint: "A print queue is a queue: first in, first out.",
+            nudge: "Which document has been waiting in the queue the longest?",
+            correct: "Right: the document sent first is at the front, so it prints first.",
+            why: "A print queue is first in, first out. The document sent first is at the front, so it prints before the rest.",
           },
         ),
         construct: null,
@@ -426,7 +424,7 @@ function makeGraded(
       return {
         question: construct("queueConstruct", "queue", ["C", "A", "B"], LETTERS, {
           prompt: "Add the items so they come out in the order shown.",
-          hint: "A queue keeps order: items leave in the same order they arrive.",
+          hint: "",
           nudge: "Whatever order you add them in is the order they leave.",
           correct: "Right: a queue preserves order, so add C, A, B.",
           why: "A queue is first in, first out: order is preserved, so to get C, A, B out, add them C, A, B.",
@@ -449,7 +447,7 @@ function makeGraded(
 function classifyCopy(answer: "stack" | "queue" | "neither"): Copy {
   const prompt =
     "Everything goes in, then everything comes out. Which structure produced this order?"
-  const hint = "A stack hands them back in reverse. A queue keeps the same order."
+  const hint = ""
   const nudge = "Check both: is the output the exact reverse, the exact same order, or neither?"
   if (answer === "stack") {
     return {
@@ -533,7 +531,7 @@ function makeContrast(rng: number): {
     options: sh.result,
     answer: winner,
     prompt: `${arrival.join(", ")} go into both a stack and a queue. Which one hands you ${target} first?`,
-    hint: `${target} went in last. Which structure serves the most recent first?`,
+    hint: "",
     nudge: "A stack serves the newest item; a queue serves the oldest.",
     correct: `Right: a stack serves the most recent, so it hands you ${target} first.`,
     why: `${target} arrived last. A stack is last in, first out, so it serves ${target} first; the queue serves ${arrival[0]} first.`,
@@ -666,6 +664,18 @@ export function constructReady(state: SQState): boolean {
   return !!state.construct && state.construct.loose.length === 0
 }
 
+/**
+ * While building, the one pushed cell the learner can take back: the cell at the
+ * structure's open end (top of a stack / back of a queue), which is the last id
+ * in `pushed`. Null when no construct is active, the verdict is terminal, or
+ * nothing is pushed. Mirrors the single accessible end a real stack/queue has.
+ */
+export function removablePushedCell(state: SQState): string | null {
+  if (!state.construct || isTerminal(state)) return null
+  const { pushed } = state.construct
+  return pushed.length > 0 ? pushed[pushed.length - 1] : null
+}
+
 /* --------------------------------- reducer --------------------------------- */
 
 function gradeConstruct(work: ConstructWork, q: ConstructQuestion): boolean {
@@ -690,18 +700,38 @@ export function stacksQueuesReducer(
     }
 
     case "rewire": {
-      // A construct push: move the chosen loose cell onto the bin, in push order.
+      // Construct edits via the shared rewire gesture: push a loose cell onto the
+      // bin (to "mouth"), or take the open-end cell back to the tray (to "tray").
+      // isTerminal already blocks both after a correct/fail verdict.
       if (!state.construct || isTerminal(state)) return state
-      if (action.to !== "mouth") return state
-      if (!state.construct.loose.includes(action.from)) return state
-      return {
-        ...state,
-        feedback: "idle",
-        construct: {
-          loose: state.construct.loose.filter((id) => id !== action.from),
-          pushed: [...state.construct.pushed, action.from],
-        },
+      if (action.to === "mouth") {
+        if (!state.construct.loose.includes(action.from)) return state
+        return {
+          ...state,
+          feedback: "idle",
+          construct: {
+            loose: state.construct.loose.filter((id) => id !== action.from),
+            pushed: [...state.construct.pushed, action.from],
+          },
+        }
       }
+      if (action.to === "tray") {
+        // Only the cell at the structure's open end (the last pushed) can come
+        // back: a stack/queue exposes one accessible end, so any other id no-ops.
+        const { loose, pushed } = state.construct
+        if (pushed.length === 0 || pushed[pushed.length - 1] !== action.from) {
+          return state
+        }
+        return {
+          ...state,
+          feedback: "idle",
+          construct: {
+            loose: [...loose, action.from],
+            pushed: pushed.slice(0, -1),
+          },
+        }
+      }
+      return state
     }
 
     case "select": {

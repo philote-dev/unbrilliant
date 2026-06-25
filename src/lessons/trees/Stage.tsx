@@ -19,6 +19,7 @@ import {
   type TreesQuestion,
   type TreesState,
 } from "@/features/lesson/treesEngine"
+import { StageSplit, StageCenter } from "@/components/willow/lesson/StageLayout"
 import { DisplayTree, TreeFigure } from "./TreeFigure"
 import { SortedChain } from "./SortedChain"
 import { ContrastRace } from "./ContrastRace"
@@ -145,7 +146,7 @@ function DemoPart({
   const q = state.question
   if (!q) return null
   return (
-    <div className="flex flex-1 flex-col">
+    <StageCenter>
       <div className="mt-7 text-center">
         <h2 className="text-xl font-bold text-foreground">{q.title}</h2>
         <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground">{q.prompt}</p>
@@ -168,7 +169,7 @@ function DemoPart({
           Continue
         </Button>
       </div>
-    </div>
+    </StageCenter>
   )
 }
 
@@ -187,7 +188,7 @@ function TeachPart({
   const highlight = isDescend ? descendPath(q.tree, 10).path : q.order
 
   return (
-    <div className="flex flex-1 flex-col">
+    <StageCenter>
       <div className="mt-7 text-center">
         <h2 className="text-xl font-bold text-foreground">{q.title}</h2>
       </div>
@@ -219,7 +220,7 @@ function TeachPart({
       >
         Continue
       </Button>
-    </div>
+    </StageCenter>
   )
 }
 
@@ -237,7 +238,7 @@ function DescendPart({
   const correct = state.feedback === "correct"
 
   return (
-    <div className="flex flex-1 flex-col">
+    <StageCenter>
       <GradedHeader state={state} />
 
       <div className="flex flex-1 items-center justify-center py-6">
@@ -259,7 +260,7 @@ function DescendPart({
         copy={feedbackCopy(q)}
         dispatch={dispatch}
       />
-    </div>
+    </StageCenter>
   )
 }
 
@@ -277,7 +278,7 @@ function SequencePart({
   const tappedKeys = state.tappedOrder.map((id) => nodeById(q.tree, id)?.key ?? "?")
 
   return (
-    <div className="flex flex-1 flex-col">
+    <StageCenter>
       <GradedHeader state={state} />
 
       <div className="flex flex-1 flex-col items-center justify-center gap-4 py-6">
@@ -296,7 +297,7 @@ function SequencePart({
         copy={feedbackCopy(q)}
         dispatch={dispatch}
       />
-    </div>
+    </StageCenter>
   )
 }
 
@@ -314,25 +315,27 @@ function RealWorldPart({
   const correct = state.feedback === "correct"
 
   return (
-    <ArenaShell
-      eyebrow="Championship Search"
-      title={q.prompt}
-      quota={quotaTrees(state)}
-      footer={
-        <ArenaFooter
-          feedback={state.feedback}
-          showWhy={state.showWhy}
-          canCheck={canCheckTrees(state)}
-          copy={feedbackCopy(q)}
-          dispatch={dispatch}
-        />
-      }
-    >
-      <TreeFigure state={state} dispatch={dispatch} variant="bracket" />
-      {correct && q.cost && (
-        <CostReadout word={q.cost.word} count={q.cost.count} unit={q.cost.unit} />
-      )}
-    </ArenaShell>
+    <StageCenter>
+      <ArenaShell
+        eyebrow="Championship Search"
+        title={q.prompt}
+        quota={quotaTrees(state)}
+        footer={
+          <ArenaFooter
+            feedback={state.feedback}
+            showWhy={state.showWhy}
+            canCheck={canCheckTrees(state)}
+            copy={feedbackCopy(q)}
+            dispatch={dispatch}
+          />
+        }
+      >
+        <TreeFigure state={state} dispatch={dispatch} variant="bracket" />
+        {correct && q.cost && (
+          <CostReadout word={q.cost.word} count={q.cost.count} unit={q.cost.unit} />
+        )}
+      </ArenaShell>
+    </StageCenter>
   )
 }
 
@@ -351,45 +354,51 @@ function ComparePart({
   const terminal = isTerminalTrees(state)
 
   return (
-    <div className="flex flex-1 flex-col">
-      <GradedHeader state={state} />
+    <StageSplit
+      header={<GradedHeader state={state} />}
+      figure={
+        <>
+          <div className="flex flex-col items-center gap-3 py-4">
+            <DisplayTree tree={q.tree} caption="Balanced" variant="tree" />
+            <DisplayTree tree={q.stick} caption="Same nodes, one long branch" variant="tree" />
+          </div>
 
-      <div className="flex flex-col items-center gap-3 py-4">
-        <DisplayTree tree={q.tree} caption="Balanced" variant="tree" />
-        <DisplayTree tree={q.stick} caption="Same nodes, one long branch" variant="tree" />
-      </div>
+          {correct && q.cost && q.altCost && (
+            <div className="mb-4 flex flex-wrap justify-center gap-2">
+              <LabeledCost label="Balanced" cost={q.cost} />
+              <LabeledCost label="Lopsided" cost={q.altCost} />
+            </div>
+          )}
+        </>
+      }
+      interaction={
+        <>
+          <div className="flex w-full flex-col gap-3">
+            {q.options.map((opt, i) => (
+              <AnswerCard
+                key={opt.id}
+                letter={String.fromCharCode(65 + i)}
+                label={opt.label}
+                state={mcqCardState(state, opt.id, q.answer)}
+                disabled={terminal}
+                answerMarker={opt.id === q.answer}
+                onSelect={() => dispatch({ type: "select", letter: opt.id })}
+              />
+            ))}
+          </div>
 
-      {correct && q.cost && q.altCost && (
-        <div className="mb-4 flex flex-wrap justify-center gap-2">
-          <LabeledCost label="Balanced" cost={q.cost} />
-          <LabeledCost label="Lopsided" cost={q.altCost} />
-        </div>
-      )}
-
-      <div className="flex w-full flex-col gap-3">
-        {q.options.map((opt, i) => (
-          <AnswerCard
-            key={opt.id}
-            letter={String.fromCharCode(65 + i)}
-            label={opt.label}
-            state={mcqCardState(state, opt.id, q.answer)}
-            disabled={terminal}
-            answerMarker={opt.id === q.answer}
-            onSelect={() => dispatch({ type: "select", letter: opt.id })}
+          <FeedbackFooter
+            feedback={state.feedback}
+            selected={state.selected}
+            canCheck={state.selected != null}
+            showWhy={state.showWhy}
+            hideFailHint
+            copy={feedbackCopy(q)}
+            dispatch={dispatch}
           />
-        ))}
-      </div>
-
-      <FeedbackFooter
-        feedback={state.feedback}
-        selected={state.selected}
-        canCheck={state.selected != null}
-        showWhy={state.showWhy}
-        hideFailHint
-        copy={feedbackCopy(q)}
-        dispatch={dispatch}
-      />
-    </div>
+        </>
+      }
+    />
   )
 }
 
@@ -408,7 +417,7 @@ function ContrastPart({
   const walkDone = chainWalkDone(state)
 
   return (
-    <div className="flex flex-1 flex-col">
+    <StageCenter>
       <GradedHeader state={state} />
 
       {/* Until correct, the learner walks the sorted list then descends the tree.
@@ -466,6 +475,6 @@ function ContrastPart({
         copy={feedbackCopy(q)}
         dispatch={dispatch}
       />
-    </div>
+    </StageCenter>
   )
 }

@@ -21,6 +21,7 @@ import {
   type HashQuestion,
   type HashTablesState,
 } from "@/features/lesson/hashTablesEngine"
+import { StageSplit, StageCenter } from "@/components/willow/lesson/StageLayout"
 import { HashBox } from "./HashBox"
 import { HashTable } from "./HashTable"
 import { WarehouseDemo } from "./WarehouseDemo"
@@ -76,15 +77,17 @@ function DemoPart({
   const reduced = useReducedMotion()
   if (!q) return null
   return (
-    <WarehousePage reduced={reduced}>
-      <WarehouseHeader title="Chaotic storage" meta="Live demo" prompt={q.prompt} />
-      <div className="flex flex-1 flex-col py-4">
-        <WarehouseDemo />
-      </div>
-      <div className="mt-auto shrink-0 pt-2">
-        <WarehouseButton onClick={() => dispatch({ type: "continue" })}>Continue</WarehouseButton>
-      </div>
-    </WarehousePage>
+    <StageCenter>
+      <WarehousePage reduced={reduced}>
+        <WarehouseHeader title="Chaotic storage" meta="Live demo" prompt={q.prompt} />
+        <div className="flex flex-1 flex-col py-4">
+          <WarehouseDemo />
+        </div>
+        <div className="mt-auto shrink-0 pt-2">
+          <WarehouseButton onClick={() => dispatch({ type: "continue" })}>Continue</WarehouseButton>
+        </div>
+      </WarehousePage>
+    </StageCenter>
   )
 }
 
@@ -114,7 +117,7 @@ function TeachPart({
     : { [collideBucket]: baseChain }
 
   return (
-    <div className="flex flex-1 flex-col">
+    <StageCenter>
       <div className="mt-7 text-center">
         <p className="text-xs font-medium uppercase tracking-wide text-lilac-strong">
           Hashing
@@ -162,7 +165,7 @@ function TeachPart({
           Continue
         </Button>
       </div>
-    </div>
+    </StageCenter>
   )
 }
 
@@ -211,7 +214,7 @@ function DragPart({
     : q.table
 
   return (
-    <div className="flex flex-1 flex-col">
+    <StageCenter>
       <BinHeader state={state} />
 
       <div className="flex flex-1 flex-col justify-center py-5">
@@ -248,7 +251,7 @@ function DragPart({
         copy={feedbackCopy(q)}
         dispatch={dispatch}
       />
-    </div>
+    </StageCenter>
   )
 }
 
@@ -271,43 +274,45 @@ function StowPart({
   const quota = partQuotaHash(state)
 
   return (
-    <WarehousePage reduced={reduced}>
-      <WarehouseHeader
-        title="Stow station"
-        meta={quota ? `${quota.done}/${quota.total} stowed` : "Inbound"}
-        prompt={q.prompt}
-      />
+    <StageCenter>
+      <WarehousePage reduced={reduced}>
+        <WarehouseHeader
+          title="Stow station"
+          meta={quota ? `${quota.done}/${quota.total} stowed` : "Inbound"}
+          prompt={q.prompt}
+        />
 
-      <div className="flex flex-1 flex-col justify-center py-3">
-        <RewireSurface
-          legalTargets={legalBuckets(state)}
-          onRewire={(from, to) => dispatch({ type: "rewire", from, to })}
-          label={`Scan ${q.key}, then drop the package in its bin`}
-        >
-          <WarehouseShelf
-            question={q}
-            placedBucket={placedBucket}
-            confirmed={correct}
-            reducedMotion={!!reduced}
-          />
-        </RewireSurface>
-      </div>
+        <div className="flex flex-1 flex-col justify-center py-3">
+          <RewireSurface
+            legalTargets={legalBuckets(state)}
+            onRewire={(from, to) => dispatch({ type: "rewire", from, to })}
+            label={`Scan ${q.key}, then drop the package in its bin`}
+          >
+            <WarehouseShelf
+              question={q}
+              placedBucket={placedBucket}
+              confirmed={correct}
+              reducedMotion={!!reduced}
+            />
+          </RewireSurface>
+        </div>
 
-      {/* Reserve the cost row so the verdict's readout slots in without a jump. */}
-      <div className="flex min-h-[92px] shrink-0 items-start justify-center">
-        {correct && q.cost && (
-          <CostReadout word={q.cost.word} count={q.cost.count} unit={q.cost.unit} />
-        )}
-      </div>
+        {/* Reserve the cost row so the verdict's readout slots in without a jump. */}
+        <div className="flex min-h-[92px] shrink-0 items-start justify-center">
+          {correct && q.cost && (
+            <CostReadout word={q.cost.word} count={q.cost.count} unit={q.cost.unit} />
+          )}
+        </div>
 
-      <WarehouseFooter
-        feedback={feedback}
-        showWhy={showWhy}
-        canCheck={canCheckHash(state)}
-        copy={feedbackCopy(q)}
-        dispatch={dispatch}
-      />
-    </WarehousePage>
+        <WarehouseFooter
+          feedback={feedback}
+          showWhy={showWhy}
+          canCheck={canCheckHash(state)}
+          copy={feedbackCopy(q)}
+          dispatch={dispatch}
+        />
+      </WarehousePage>
+    </StageCenter>
   )
 }
 
@@ -362,7 +367,7 @@ function LocatePart({
   }
 
   return (
-    <div className="flex flex-1 flex-col">
+    <StageCenter>
       <BinHeader state={state} />
 
       <div className="flex flex-1 flex-col items-center justify-center gap-5 py-5">
@@ -422,7 +427,7 @@ function LocatePart({
         copy={feedbackCopy(q)}
         dispatch={dispatch}
       />
-    </div>
+    </StageCenter>
   )
 }
 
@@ -457,44 +462,48 @@ function CollisionPart({
   }
 
   return (
-    <div className="flex flex-1 flex-col">
-      <BinHeader state={state} />
-
-      <div className="flex justify-center py-4">
-        <HashTable
-          bucketCount={q.bucketCount}
-          table={view}
-          mode="display"
-          highlightBucket={q.bucket}
-          newestBucket={correct ? q.bucket : undefined}
-          appendingBucket={correct ? q.bucket : undefined}
-        />
-      </div>
-
-      <div className="flex flex-col gap-3">
-        {q.options.map((opt, i) => (
-          <AnswerCard
-            key={opt.id}
-            letter={String.fromCharCode(65 + i)}
-            label={opt.label}
-            state={cardState(opt.id)}
-            disabled={terminal}
-            answerMarker={opt.id === q.answer}
-            onSelect={() => dispatch({ type: "select", letter: opt.id })}
+    <StageSplit
+      header={<BinHeader state={state} />}
+      figure={
+        <div className="flex justify-center py-4">
+          <HashTable
+            bucketCount={q.bucketCount}
+            table={view}
+            mode="display"
+            highlightBucket={q.bucket}
+            newestBucket={correct ? q.bucket : undefined}
+            appendingBucket={correct ? q.bucket : undefined}
           />
-        ))}
-      </div>
+        </div>
+      }
+      interaction={
+        <>
+          <div className="flex flex-col gap-3">
+            {q.options.map((opt, i) => (
+              <AnswerCard
+                key={opt.id}
+                letter={String.fromCharCode(65 + i)}
+                label={opt.label}
+                state={cardState(opt.id)}
+                disabled={terminal}
+                answerMarker={opt.id === q.answer}
+                onSelect={() => dispatch({ type: "select", letter: opt.id })}
+              />
+            ))}
+          </div>
 
-      <FeedbackFooter
-        feedback={feedback}
-        selected={selected}
-        canCheck={canCheckHash(state)}
-        showWhy={showWhy}
-        hideFailHint
-        copy={feedbackCopy(q)}
-        dispatch={dispatch}
-      />
-    </div>
+          <FeedbackFooter
+            feedback={feedback}
+            selected={selected}
+            canCheck={canCheckHash(state)}
+            showWhy={showWhy}
+            hideFailHint
+            copy={feedbackCopy(q)}
+            dispatch={dispatch}
+          />
+        </>
+      }
+    />
   )
 }
 

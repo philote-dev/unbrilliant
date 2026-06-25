@@ -1,6 +1,7 @@
 import type {
   AccuracyVM,
   AchievementsVM,
+  ContributionsVM,
   CourseRollupVM,
   HeatmapVM,
   LastPracticedVM,
@@ -163,3 +164,25 @@ export const coursesMulti: CourseRollupVM[] = [
 ]
 
 export const coursesEmpty: CourseRollupVM[] = []
+
+/* --------------------------- contribution map ----------------------------- */
+
+/* A fixed year of daily counts at UTC midnights, generated deterministically
+   (no clock, no Math.random) so the calendar renders identically every run. */
+function contributionDays(count: (i: number) => number) {
+  const end = 1782172800000 // a fixed UTC midnight in mid-2026
+  const n = 364
+  return Array.from({ length: n }, (_, i) => ({
+    date: end - (n - 1 - i) * 86400000,
+    count: count(i),
+  }))
+}
+
+export const contributionsPopulated: ContributionsVM = {
+  days: contributionDays((i) =>
+    Math.max(0, Math.round(2.4 + 2.4 * Math.sin(i / 8)) - (i % 7 === 0 ? 3 : 0)),
+  ),
+}
+export const contributionsEmpty: ContributionsVM = {
+  days: contributionDays(() => 0),
+}

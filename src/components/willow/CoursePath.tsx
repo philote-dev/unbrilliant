@@ -11,23 +11,28 @@ export interface PathNode {
   state: PathNodeState
 }
 
-const ROW_H = 96
-const R = 21
-
-/**
- * Scrollable downward lesson path whose landmarks meander side-to-side, joined by
- * a faint dotted connector. Every landmark glows on hover/focus so the learner can
- * preview where a future lesson sits; locked lessons are hoverable but not enterable.
- */
-export function CoursePath({
-  nodes,
-  onSelect,
-  className,
-}: {
+/** Shared contract every course-path layout (generic or themed) conforms to. */
+export interface PathLayoutProps {
   nodes: PathNode[]
   onSelect?: (node: PathNode) => void
   className?: string
-}) {
+}
+
+const ROW_H = 96
+const R = 21
+const LABEL_GAP = 14 // gap between a node circle and its label
+const EDGE_PAD = 12 // keep labels clear of the container walls
+
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
+
+/**
+ * Scrollable downward lesson path, and the generic fallback layout. Landmarks
+ * strictly alternate left/right down the column, joined by a segmented dotted
+ * orthogonal trail with rounded right-angle corners. Every landmark glows on
+ * hover/focus so the learner can preview where a future lesson sits; locked
+ * lessons are hoverable but not enterable.
+ */
+export function CoursePath({ nodes, onSelect, className }: PathLayoutProps) {
   const ref = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(360)
 
@@ -40,23 +45,40 @@ export function CoursePath({
     return () => ro.disconnect()
   }, [])
 
-  // Pronounced meander, clamped so labels never run off the edges.
-  const amp = Math.min(82, Math.max(28, (width - 180) / 2))
-  const mid = width / 2
-  const cx = (i: number) => mid + amp * Math.sin(i * 0.85)
+  // Two fixed lanes at ~26%/74% of the width, clamped so a circle never touches a
+  // wall; the wide split keeps the alternation obvious and leaves room for labels.
+  const edge = R + 8
+  const leftX = clamp(width * 0.26, edge, width - edge)
+  const rightX = clamp(width * 0.74, edge, width - edge)
+  const cx = (i: number) => (i % 2 === 0 ? leftX : rightX)
   const cy = (i: number) => i * ROW_H + ROW_H / 2
   const height = nodes.length * ROW_H
 
+  // Orthogonal trail: from each dot go straight down, jog horizontally to the next
+  // lane at the row midpoint, then down into the next dot. The right-angle turns get
+  // rounded corners (quadratics), so it reads like a tidy circuit trace.
+  const CORNER = 12
   let d = ""
   nodes.forEach((_, i) => {
     const x = cx(i)
     const y = cy(i)
     if (i === 0) {
-      d += `M ${x} ${y}`
-    } else {
-      const my = (cy(i - 1) + y) / 2
-      d += ` C ${cx(i - 1)} ${my}, ${x} ${my}, ${x} ${y}`
+      d = `M ${x} ${y}`
+      return
     }
+    const px = cx(i - 1)
+    const py = cy(i - 1)
+    const my = (py + y) / 2
+    if (x === px) {
+      d += ` L ${x} ${y}`
+      return
+    }
+    const s = Math.sign(x - px) * CORNER
+    d += ` L ${px} ${my - CORNER}`
+    d += ` Q ${px} ${my} ${px + s} ${my}`
+    d += ` L ${x - s} ${my}`
+    d += ` Q ${x} ${my} ${x} ${my + CORNER}`
+    d += ` L ${x} ${y}`
   })
 
   return (
@@ -71,10 +93,11 @@ export function CoursePath({
           d={d}
           fill="none"
           stroke="var(--lilac-strong)"
-          strokeWidth={2.5}
-          strokeDasharray="0.5 9"
+          strokeWidth={3}
           strokeLinecap="round"
-          opacity={0.45}
+          strokeLinejoin="round"
+          strokeDasharray="1.5 8"
+          opacity={0.6}
         />
       </svg>
 
@@ -82,7 +105,21 @@ export function CoursePath({
         const x = cx(i)
         const y = cy(i)
         const enterable = node.state !== "locked"
-        const labelRight = x <= mid
+        const onLeft = i % 2 === 0
+
+        // Label sits on the side facing center, width-capped so it never hits a wall.
+        const labelStyle = onLeft
+          ? {
+              left: x + R + LABEL_GAP,
+              top: ROW_H / 2,
+              maxWidth: Math.max(0, width - (x + R + LABEL_GAP) - EDGE_PAD),
+            }
+          : {
+              right: width - (x - R - LABEL_GAP),
+              top: ROW_H / 2,
+              maxWidth: Math.max(0, x - R - LABEL_GAP - EDGE_PAD),
+              textAlign: "right" as const,
+            }
 
         return (
           <div key={node.id} className="absolute inset-x-0" style={{ top: y - ROW_H / 2, height: ROW_H }}>
@@ -132,14 +169,10 @@ export function CoursePath({
 
             <span
               className={cn(
-                "pointer-events-none absolute -translate-y-1/2 whitespace-nowrap text-[15px]",
+                "pointer-events-none absolute -translate-y-1/2 truncate text-[15px]",
                 node.state === "locked" ? "text-muted-foreground" : "font-semibold text-foreground",
               )}
-              style={
-                labelRight
-                  ? { left: x + R + 14, top: ROW_H / 2 }
-                  : { right: width - (x - R - 14), top: ROW_H / 2, textAlign: "right" }
-              }
+              style={labelStyle}
             >
               {node.name}
             </span>

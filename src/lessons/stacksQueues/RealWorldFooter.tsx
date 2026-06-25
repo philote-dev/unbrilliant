@@ -6,7 +6,7 @@ import type { Feedback, LessonAction, QuestionCopy } from "@/features/lesson/eng
 
 /**
  * A themed verdict footer for the full-bleed real-world scenes (Browser Back and
- * Drive-Thru), the S&Q sibling of Linked Lists' PlaylistFooter. It mirrors the
+ * the print queue), the S&Q sibling of Linked Lists' PlaylistFooter. It mirrors the
  * shared FeedbackFooter's state machine and button labels exactly (Check /
  * Continue / Why? / Reattempt) and dispatches the same actions, so the gate and
  * the e2e tracer behave identically; only the skin differs.
@@ -15,7 +15,7 @@ import type { Feedback, LessonAction, QuestionCopy } from "@/features/lesson/eng
  * adds a screen-reader-only status), so meaning never rides on colour alone, and
  * nothing names the answer before the verdict.
  */
-type Variant = "browser" | "drivethru"
+type Variant = "browser" | "printer"
 
 interface Theme {
   surface: string
@@ -39,16 +39,16 @@ const THEMES: Record<Variant, Theme> = {
     bad: "text-red-600",
     warn: "text-amber-600",
   },
-  drivethru: {
-    surface: "border-t border-white/10 bg-[#23262b]",
-    hint: "text-white/55",
+  printer: {
+    surface: "border-t border-black/10 bg-[#dfe2e6]",
+    hint: "text-neutral-500",
     primary:
-      "bg-[#f4a83a] text-[#1a1205] hover:bg-[#f6b757] focus-visible:ring-[#f4a83a]/50",
+      "bg-[#3b82f6] text-white hover:bg-[#2f74e6] focus-visible:ring-[#3b82f6]/50",
     secondary:
-      "bg-white/10 text-white hover:bg-white/15 focus-visible:ring-white/40",
-    ok: "text-emerald-300",
-    bad: "text-red-300",
-    warn: "text-amber-300",
+      "bg-black/5 text-neutral-700 hover:bg-black/10 focus-visible:ring-neutral-400/50",
+    ok: "text-emerald-600",
+    bad: "text-red-600",
+    warn: "text-amber-600",
   },
 }
 

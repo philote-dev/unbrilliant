@@ -151,15 +151,6 @@ export function ContrastReplay({
     >
       <div className="flex flex-wrap items-end justify-center gap-5">
         <Panel
-          title="Stack"
-          discipline="stack"
-          cells={stackCells}
-          target={target}
-          replay={replay}
-          emitStep={stackEmit}
-          isWinner={winner === "stack"}
-        />
-        <Panel
           title="Queue"
           discipline="queue"
           cells={queueCells}
@@ -167,6 +158,15 @@ export function ContrastReplay({
           replay={replay}
           emitStep={queueEmit}
           isWinner={winner === "queue"}
+        />
+        <Panel
+          title="Stack"
+          discipline="stack"
+          cells={stackCells}
+          target={target}
+          replay={replay}
+          emitStep={stackEmit}
+          isWinner={winner === "stack"}
         />
       </div>
 

@@ -75,22 +75,22 @@ describe("S&Q stage: browser-back skin", () => {
   })
 })
 
-describe("S&Q stage: drive-thru skin", () => {
-  it("renders the lane and marks the front car (served first)", () => {
+describe("S&Q stage: printer skin", () => {
+  it("renders the print queue and marks the front document (prints first)", () => {
     render(<Harness initial={stateAt("queue-realworld")} />)
-    expect(screen.getByTestId("drivethru-lane")).toBeInTheDocument()
+    expect(screen.getByTestId("printer-showpiece")).toBeInTheDocument()
     expect(document.querySelectorAll('[data-answer="1"]')).toHaveLength(1)
     expect(screen.queryByRole("status")).toBeNull()
   })
 
-  it("on a correct pick, holds the verdict with nothing served yet (no flicker pop)", () => {
+  it("on a correct pick, holds the verdict with nothing printed yet (no flicker pop)", () => {
     render(<Harness initial={stateAt("queue-realworld")} />)
     clickCorrect()
     expect(screen.getByRole("button", { name: "Continue" })).toBeInTheDocument()
-    // reduced motion: the front car rests at the window shown correct, not pulled
-    // away, so the Served slot is still empty
+    // reduced motion: the front document rests at the intake shown correct, not
+    // fed in, so the output tray is still empty
     expect(
-      screen.getByTestId("drivethru-served").querySelectorAll("[data-cell]"),
+      screen.getByTestId("printer-output").querySelectorAll("[data-cell]"),
     ).toHaveLength(0)
   })
 })
@@ -122,6 +122,40 @@ describe("S&Q stage: compare resolving motion", () => {
   })
 })
 
+describe("S&Q stage: teach end-markers (subtle, teach-only)", () => {
+  it("stack teach marks the TOP opening and highlights 'top' in the prose", () => {
+    render(<Harness initial={stateAt("stack-teach")} />)
+    expect(screen.getByTestId("end-marker-top")).toBeInTheDocument()
+    expect(screen.queryByTestId("end-marker-front")).toBeNull()
+    expect(screen.queryByTestId("end-marker-back")).toBeNull()
+    // the vocabulary word is highlighted so prose and figure reinforce each other
+    expect(screen.getByText("top")).toBeInTheDocument()
+  })
+
+  it("queue teach marks the FRONT and BACK ends and highlights both words", () => {
+    render(<Harness initial={stateAt("queue-teach")} />)
+    expect(screen.getByTestId("end-marker-front")).toBeInTheDocument()
+    expect(screen.getByTestId("end-marker-back")).toBeInTheDocument()
+    expect(screen.queryByTestId("end-marker-top")).toBeNull()
+    expect(screen.getByText("front")).toBeInTheDocument()
+    expect(screen.getByText("back")).toBeInTheDocument()
+  })
+
+  it("never renders end-markers in a predict beat (labeling the exit would leak the answer)", () => {
+    render(<Harness initial={stateAt("stack-predict")} />)
+    expect(screen.queryByTestId("end-marker-top")).toBeNull()
+    expect(screen.queryByTestId("end-marker-front")).toBeNull()
+    expect(screen.queryByTestId("end-marker-back")).toBeNull()
+  })
+
+  it("never renders end-markers in the free-play demo", () => {
+    render(<Harness initial={stateAt("stack-demo")} />)
+    expect(screen.queryByTestId("end-marker-top")).toBeNull()
+    expect(screen.queryByTestId("end-marker-front")).toBeNull()
+    expect(screen.queryByTestId("end-marker-back")).toBeNull()
+  })
+})
+
 describe("S&Q stage: de-cued stack predict", () => {
   it("marks the after-two-pops answer and resolves it correct", () => {
     render(<Harness initial={stateAt("stack-predict")} />)
@@ -129,4 +163,62 @@ describe("S&Q stage: de-cued stack predict", () => {
     clickCorrect()
     expect(screen.getByRole("button", { name: "Continue" })).toBeInTheDocument()
   })
+})
+
+describe("S&Q stage: construct take-back (tap the open-end cell)", () => {
+  const CASES = [
+    {
+      part: "stack-construct" as const,
+      end: "the top of the stack",
+      hint: "Tap the top card to take it back",
+    },
+    {
+      part: "queue-construct" as const,
+      end: "the back of the queue",
+      hint: "Tap the back card to take it back",
+    },
+  ]
+
+  for (const { part, end, hint } of CASES) {
+    /** Push the first two loose cells, returning the seeded state and their ids. */
+    const pushTwo = (): { state: SQState; first: string; second: string } => {
+      const base = stateAt(part)
+      const [first, second] = base.construct!.loose
+      const state = apply(
+        base,
+        { type: "rewire", from: first, to: "mouth" },
+        { type: "rewire", from: second, to: "mouth" },
+      )
+      return { state, first, second }
+    }
+
+    it(`${part}: only the open-end cell is interactive; buried cells are disabled`, () => {
+      const { state, first, second } = pushTwo()
+      render(<Harness initial={state} />)
+
+      // a hint invites taking the open-end card back, like the drag hint
+      expect(screen.getByText(hint)).toBeInTheDocument()
+
+      // the last-pushed (open-end) cell is removable, with a descriptive name
+      const removable = screen.getByRole("button", { name: `Remove ${second} from ${end}` })
+      expect(removable).toBeEnabled()
+
+      // the buried cell stays a non-interactive pushed cell
+      const buried = document.querySelector(`[data-cell="${first}"]`) as HTMLButtonElement
+      expect(buried).toBeDisabled()
+    })
+
+    it(`${part}: tapping the open-end cell returns it to the loose tray`, () => {
+      const { state, second } = pushTwo()
+      render(<Harness initial={state} />)
+
+      // before the tap it is a pushed cell, not a loose draggable card
+      expect(document.querySelector(`[data-construct-card="${second}"]`)).toBeNull()
+
+      fireEvent.click(screen.getByRole("button", { name: `Remove ${second} from ${end}` }))
+
+      // the cell is back in the loose tray, ready to be added again
+      expect(document.querySelector(`[data-construct-card="${second}"]`)).not.toBeNull()
+    })
+  }
 })

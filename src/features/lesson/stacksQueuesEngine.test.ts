@@ -10,6 +10,7 @@ import {
   drainOrder,
   isComplete,
   predictAnswer,
+  removablePushedCell,
   resumeStacksQueues,
   solvedCount,
   stacksQueuesReducer,
@@ -151,6 +152,66 @@ describe("S&Q: construct is push-all-then-drain with a unique order", () => {
     expect(wrong.construct?.pushed).toEqual([]) // bin refilled
     expect(wrong.construct?.loose.length).toBe(3)
   })
+})
+
+describe("S&Q: construct lets the learner take the open-end cell back", () => {
+  for (const part of ["stack-construct", "queue-construct"] as const) {
+    describe(part, () => {
+      it("pops the last pushed cell back to the loose tray (appended)", () => {
+        const s = driveTo(part)
+        const [first, second] = s.construct!.loose
+        const up = apply(
+          s,
+          { type: "rewire", from: first, to: "mouth" },
+          { type: "rewire", from: second, to: "mouth" },
+        )
+        expect(up.construct!.pushed).toEqual([first, second])
+
+        const back = apply(up, { type: "rewire", from: second, to: "tray" })
+        expect(back.construct!.pushed).toEqual([first])
+        // returned to the tray (order is not graded, so appended is fine)
+        const { loose } = back.construct!
+        expect(loose).toContain(second)
+        expect(loose[loose.length - 1]).toBe(second)
+        expect(back.feedback).toBe("idle")
+      })
+
+      it("ignores a pop that targets a cell that is not the open end", () => {
+        const s = driveTo(part)
+        const [first, second] = s.construct!.loose
+        const up = apply(
+          s,
+          { type: "rewire", from: first, to: "mouth" },
+          { type: "rewire", from: second, to: "mouth" },
+        )
+        // `first` is buried (not the open end), so taking it back is a no-op
+        const noop = apply(up, { type: "rewire", from: first, to: "tray" })
+        expect(noop).toBe(up)
+        expect(noop.construct!.pushed).toEqual([first, second])
+      })
+
+      it("ignores a pop once the verdict is terminal (correct)", () => {
+        const solved = solve(driveTo(part))
+        expect(solved.feedback).toBe("correct")
+        const { pushed } = solved.construct!
+        const last = pushed[pushed.length - 1]
+        const after = apply(solved, { type: "rewire", from: last, to: "tray" })
+        expect(after).toBe(solved)
+      })
+
+      it("removablePushedCell is the last pushed while building, null otherwise", () => {
+        const s = driveTo(part)
+        expect(removablePushedCell(s)).toBeNull() // nothing pushed yet
+        const [first, second] = s.construct!.loose
+        const one = apply(s, { type: "rewire", from: first, to: "mouth" })
+        expect(removablePushedCell(one)).toBe(first)
+        const two = apply(one, { type: "rewire", from: second, to: "mouth" })
+        expect(removablePushedCell(two)).toBe(second)
+        // terminal (correct): no end cell is removable
+        expect(removablePushedCell(solve(s))).toBeNull()
+      })
+    })
+  }
 })
 
 describe("S&Q: compare beat holds classify then contrast", () => {
@@ -317,7 +378,7 @@ describe("S&Q: classify selection is seed-deterministic", () => {
   })
 })
 
-describe("S&Q: real-world predict skins (browser-back + drive-thru)", () => {
+describe("S&Q: real-world predict skins (browser-back + printer)", () => {
   it("stack real-world wears the browser theme: 4 pages, answer is the top (newest)", () => {
     const q = driveTo("stack-realworld").question!
     if (q.kind !== "predict") throw new Error("expected predict")
@@ -330,10 +391,10 @@ describe("S&Q: real-world predict skins (browser-back + drive-thru)", () => {
     expect(q.cells[0].id).toBe(q.arrival[q.arrival.length - 1])
   })
 
-  it("queue real-world wears the drive-thru theme: 4 cars, answer is the front (oldest)", () => {
+  it("queue real-world wears the printer theme: 4 documents, answer is the front (oldest)", () => {
     const q = driveTo("queue-realworld").question!
     if (q.kind !== "predict") throw new Error("expected predict")
-    expect(q.theme).toBe("drivethru")
+    expect(q.theme).toBe("printer")
     expect(q.discipline).toBe("queue")
     expect(q.cells).toHaveLength(4)
     expect(q.ask).toEqual({ kind: "first-out" })

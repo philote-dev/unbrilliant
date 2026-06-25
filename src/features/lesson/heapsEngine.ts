@@ -464,9 +464,7 @@ function makeSiftUpArrange(
       leaderboard,
       cost: { word: "barely grows", count: path.length, unit: swapWord(path.length) },
       sortCost: { word: "scales", count: result.length, unit: "items sorted" },
-      hint: leaderboard
-        ? "Admit the patient at the next open spot, then let them climb past anyone less urgent."
-        : "Append at the next open slot, then swap up while the new key beats its parent.",
+      hint: "",
       nudge: "It rises only while it beats its parent, and it never reshuffles the whole tree.",
       correct: contrast
         ? `A heap places by shape-then-sift, not by value: ${arrowChain(result)}.`
@@ -511,7 +509,7 @@ function makeSiftDownArrange(
       answer: heapId(result),
       cost: { word: "barely grows", count: path.length, unit: swapWord(path.length) },
       sortCost: { word: "scales", count: result.length, unit: "items sorted" },
-      hint: "The LAST item moves to the root, then sinks. Always trade with the BIGGER child.",
+      hint: "",
       nudge: "Compare the larger child first; keep sinking only while a child beats the node.",
       correct: `${path.length} ${swapWord(path.length)}, it settles at ${arrowChain(result)}.`,
       why: `Taking the top moves the last item (${start[0]}) to the root, then it trades with the larger child while that child beats it: ${arrowChain(
@@ -547,10 +545,7 @@ function makeMapping(part: "map-child" | "map-parent"): HeapsQuestion {
     options: [],
     answer: slotId(answerSlot),
     correctSlot: answerSlot,
-    hint:
-      dir === "parent"
-        ? "Parent of slot i is (i−1)/2, rounded down."
-        : "Children of slot i are 2·i+1 and 2·i+2. Tap whichever holds the bigger key.",
+    hint: "",
     nudge:
       dir === "parent"
         ? "Take (i−1), then halve it and round down."
@@ -588,7 +583,7 @@ function makeSameData(): HeapsQuestion {
     options: [],
     answer: slotId(slot),
     correctSlot: slot,
-    hint: "The tree IS the array. A node and its cell share the same index.",
+    hint: "",
     nudge: "It isn't placed by value; the cell index matches the node's index exactly.",
     correct: `Same data, same index: the node is array cell ${slot} (${heap[slot]}).`,
     why: `The tree is just a view of the array. Node ${slot} and cell ${slot} are the same ${heap[slot]}. A BST might sort by value, but a heap's array packing follows the tree position, not the value.`,

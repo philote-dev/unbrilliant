@@ -1,19 +1,6 @@
-import { BarChart3, BookOpen, Home, User } from "lucide-react"
-
 import { cn } from "@/lib/utils"
-import { useNavigation, type Screen, type Tab } from "@/lib/navigation"
-
-const TABS: { tab: Tab; label: string; Icon: typeof Home; target: Screen }[] = [
-  { tab: "home", label: "Home", Icon: Home, target: { name: "home" } },
-  { tab: "learn", label: "Learn", Icon: BookOpen, target: { name: "courses" } },
-  {
-    tab: "progress",
-    label: "Progress",
-    Icon: BarChart3,
-    target: { name: "progress" },
-  },
-  { tab: "profile", label: "Profile", Icon: User, target: { name: "profile" } },
-]
+import { useNavigation } from "@/lib/navigation"
+import { NAV_ITEMS } from "@/lib/navItems"
 
 /** Persistent rounded-pill bottom navigation. */
 export function BottomNav() {
@@ -21,7 +8,7 @@ export function BottomNav() {
 
   return (
     <nav className="pointer-events-auto mx-auto flex items-center justify-around gap-1 rounded-3xl border border-border bg-card/90 p-2 shadow-card backdrop-blur-md">
-      {TABS.map(({ tab, label, Icon, target }) => {
+      {NAV_ITEMS.map(({ tab, label, Icon, target }) => {
         const isActive = tab === active
         return (
           <button

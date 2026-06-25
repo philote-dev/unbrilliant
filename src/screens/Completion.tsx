@@ -1,12 +1,14 @@
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { ArrowRight, Sparkles } from "lucide-react"
 import { motion } from "motion/react"
 
 import { useNavigation } from "@/lib/navigation"
+import { useAuth } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { WillowLogo, WillowMark } from "@/components/willow/Logo"
 import { Flame } from "@/components/willow/Flame"
 import { CompletionChecks } from "@/components/willow/CompletionChecks"
+import { SignInPrompt } from "@/components/willow/SignInPrompt"
 import { useCourseProgress } from "@/features/progress/CourseProgressProvider"
 import { derivePathNodes, lessonName } from "@/lessons/catalog"
 
@@ -18,7 +20,10 @@ const COMPLETION_CHECKS: Record<string, string[]> = {
 
 export function Completion({ lessonId }: { lessonId: string }) {
   const { navigate } = useNavigation()
+  const { user } = useAuth()
   const { progressByLesson, refresh } = useCourseProgress()
+  const [promptDismissed, setPromptDismissed] = useState(false)
+  const [promptReady, setPromptReady] = useState(false)
 
   // Re-read persisted progress on mount so the "next lesson" CTA derives from
   // fresh server state. Without this, the once-per-sign-in `server` snapshot
@@ -28,6 +33,16 @@ export function Completion({ lessonId }: { lessonId: string }) {
     refresh()
   }, [refresh])
 
+  // Re-prompt a signed-out learner to save their progress at every completion.
+  // Briefly delayed so the celebration lands first; dismissible, and shown fresh
+  // on each completion (this screen remounts per lesson), so it recurs until they
+  // sign in. The in-lesson nudge (~a third in) is the other re-prompt point.
+  useEffect(() => {
+    if (user) return
+    const t = setTimeout(() => setPromptReady(true), 650)
+    return () => clearTimeout(t)
+  }, [user])
+
   // The forward CTA leads into the next now-unlocked lesson (S&Q -> Arrays); when
   // there's nothing further, it returns to the course path.
   const next = derivePathNodes(progressByLesson).find(
@@ -36,7 +51,7 @@ export function Completion({ lessonId }: { lessonId: string }) {
   const checks = COMPLETION_CHECKS[lessonId] ?? []
 
   return (
-    <div className="flex min-h-svh flex-1 flex-col items-center px-6 pb-10 pt-8">
+    <div className="flex min-h-svh flex-1 flex-col items-center px-6 pb-10 pt-8 lg:mx-auto lg:min-h-0 lg:max-w-md">
       <WillowLogo size="sm" />
 
       <div className="flex flex-1 flex-col items-center justify-center">
@@ -104,6 +119,20 @@ export function Completion({ lessonId }: { lessonId: string }) {
           Back to home
         </button>
       </div>
+
+      {!user && promptReady && !promptDismissed && (
+        <SignInPrompt
+          body={`Sign in to keep your streak and save ${lessonName(lessonId)}.`}
+          onSignIn={() =>
+            navigate({
+              name: "signin",
+              reason: "Sign in to save your progress.",
+              intent: "save",
+            })
+          }
+          onDismiss={() => setPromptDismissed(true)}
+        />
+      )}
     </div>
   )
 }

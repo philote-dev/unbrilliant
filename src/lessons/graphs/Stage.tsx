@@ -22,6 +22,7 @@ import {
   type GraphsState,
   type NodeId,
 } from "@/features/lesson/graphsEngine"
+import { StageSplit, StageCenter } from "@/components/willow/lesson/StageLayout"
 import { AdjacencyPanel } from "./AdjacencyPanel"
 import { GraphCanvas } from "./GraphCanvas"
 import { SameGraphView } from "./SameGraphView"
@@ -117,7 +118,7 @@ function DemoPart({ state, dispatch }: PartProps) {
   const q = state.question
   if (!q) return null
   return (
-    <div className="flex flex-1 flex-col">
+    <StageCenter>
       <div className="mt-7 text-center">
         <h2 className="text-xl font-bold text-foreground">Graphs: the list is the data</h2>
         <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground">{q.prompt}</p>
@@ -136,7 +137,7 @@ function DemoPart({ state, dispatch }: PartProps) {
           Continue
         </Button>
       </div>
-    </div>
+    </StageCenter>
   )
 }
 
@@ -149,7 +150,7 @@ function TeachPart({ state, dispatch }: PartProps) {
   const [hidePicture, setHidePicture] = useState(true)
   if (!q) return null
   return (
-    <div className="flex flex-1 flex-col">
+    <StageCenter>
       <div className="mt-7 text-center">
         <h2 className="text-xl font-bold text-foreground">A graph is not a tree</h2>
       </div>
@@ -189,7 +190,7 @@ function TeachPart({ state, dispatch }: PartProps) {
           Continue
         </Button>
       </div>
-    </div>
+    </StageCenter>
   )
 }
 
@@ -219,7 +220,7 @@ function ReadMultiSelectPart({ state, dispatch }: PartProps) {
       }
 
   return (
-    <div className="flex flex-1 flex-col">
+    <StageCenter>
       <BinHeader state={state} />
 
       <div className="flex flex-1 flex-col items-center justify-center gap-3 py-3">
@@ -254,7 +255,7 @@ function ReadMultiSelectPart({ state, dispatch }: PartProps) {
         copy={feedbackCopy(q)}
         dispatch={dispatch}
       />
-    </div>
+    </StageCenter>
   )
 }
 
@@ -267,43 +268,47 @@ function YesNoPart({ state, dispatch }: PartProps) {
   const terminal = isTerminalGraphs(state)
 
   return (
-    <div className="flex flex-1 flex-col">
-      <BinHeader state={state} />
-
-      <div className="flex flex-col items-center gap-3 py-3">
-        <GraphCanvas mode="display" nodes={q.nodes} adj={q.adj} layout={q.layout} markedNodes={q.markedNodes} />
-        <AdjacencyPanel
-          nodes={q.nodes}
-          adj={q.adj}
-          highlightNodes={q.pair ? [q.pair[0], q.pair[1]] : undefined}
-        />
-      </div>
-
-      <div className="flex gap-3">
-        {q.options.map((opt, i) => (
-          <AnswerCard
-            key={opt.id}
-            letter={String.fromCharCode(65 + i)}
-            label={opt.label}
-            state={optionState(feedback, selected, showWhy, opt.id, q.answer)}
-            disabled={terminal}
-            answerMarker={opt.id === q.answer}
-            onSelect={() => dispatch({ type: "select", letter: opt.id })}
-            className="flex-1"
+    <StageSplit
+      header={<BinHeader state={state} />}
+      figure={
+        <div className="flex flex-col items-center gap-3 py-3">
+          <GraphCanvas mode="display" nodes={q.nodes} adj={q.adj} layout={q.layout} markedNodes={q.markedNodes} />
+          <AdjacencyPanel
+            nodes={q.nodes}
+            adj={q.adj}
+            highlightNodes={q.pair ? [q.pair[0], q.pair[1]] : undefined}
           />
-        ))}
-      </div>
+        </div>
+      }
+      interaction={
+        <>
+          <div className="flex gap-3">
+            {q.options.map((opt, i) => (
+              <AnswerCard
+                key={opt.id}
+                letter={String.fromCharCode(65 + i)}
+                label={opt.label}
+                state={optionState(feedback, selected, showWhy, opt.id, q.answer)}
+                disabled={terminal}
+                answerMarker={opt.id === q.answer}
+                onSelect={() => dispatch({ type: "select", letter: opt.id })}
+                className="flex-1"
+              />
+            ))}
+          </div>
 
-      <FeedbackFooter
-        feedback={feedback}
-        selected={selected}
-        canCheck={canCheckGraphs(state)}
-        showWhy={showWhy}
-        hideFailHint
-        copy={feedbackCopy(q)}
-        dispatch={dispatch}
-      />
-    </div>
+          <FeedbackFooter
+            feedback={feedback}
+            selected={selected}
+            canCheck={canCheckGraphs(state)}
+            showWhy={showWhy}
+            hideFailHint
+            copy={feedbackCopy(q)}
+            dispatch={dispatch}
+          />
+        </>
+      }
+    />
   )
 }
 
@@ -316,37 +321,41 @@ function MatchListPart({ state, dispatch }: PartProps) {
   const terminal = isTerminalGraphs(state)
 
   return (
-    <div className="flex flex-1 flex-col">
-      <BinHeader state={state} />
+    <StageSplit
+      header={<BinHeader state={state} />}
+      figure={
+        <div className="flex justify-center py-3">
+          <GraphCanvas mode="display" nodes={q.nodes} adj={q.adj} layout={q.layout} />
+        </div>
+      }
+      interaction={
+        <>
+          <div className="flex flex-col gap-2.5">
+            {q.options.map((opt) => (
+              <AdjOptionCard
+                key={opt.id}
+                option={opt}
+                nodes={q.nodes}
+                state={optionState(feedback, selected, showWhy, opt.id, q.answer)}
+                isAnswer={opt.id === q.answer}
+                disabled={terminal}
+                onSelect={() => dispatch({ type: "select", letter: opt.id })}
+              />
+            ))}
+          </div>
 
-      <div className="flex justify-center py-3">
-        <GraphCanvas mode="display" nodes={q.nodes} adj={q.adj} layout={q.layout} />
-      </div>
-
-      <div className="flex flex-col gap-2.5">
-        {q.options.map((opt) => (
-          <AdjOptionCard
-            key={opt.id}
-            option={opt}
-            nodes={q.nodes}
-            state={optionState(feedback, selected, showWhy, opt.id, q.answer)}
-            isAnswer={opt.id === q.answer}
-            disabled={terminal}
-            onSelect={() => dispatch({ type: "select", letter: opt.id })}
+          <FeedbackFooter
+            feedback={feedback}
+            selected={selected}
+            canCheck={canCheckGraphs(state)}
+            showWhy={showWhy}
+            hideFailHint
+            copy={feedbackCopy(q)}
+            dispatch={dispatch}
           />
-        ))}
-      </div>
-
-      <FeedbackFooter
-        feedback={feedback}
-        selected={selected}
-        canCheck={canCheckGraphs(state)}
-        showWhy={showWhy}
-        hideFailHint
-        copy={feedbackCopy(q)}
-        dispatch={dispatch}
-      />
-    </div>
+        </>
+      }
+    />
   )
 }
 
@@ -409,7 +418,7 @@ function DrawDemoPart({ state, dispatch }: PartProps) {
   if (!q) return null
   const drawn = state.pendingEdge
   return (
-    <div className="flex flex-1 flex-col">
+    <StageCenter>
       <div className="mt-7 text-center">
         <h2 className="text-xl font-bold text-foreground">Draw an edge</h2>
         <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground">{q.prompt}</p>
@@ -442,7 +451,7 @@ function DrawDemoPart({ state, dispatch }: PartProps) {
           Continue
         </Button>
       </div>
-    </div>
+    </StageCenter>
   )
 }
 
@@ -459,41 +468,43 @@ function DrawPart({ state, dispatch }: PartProps) {
   // The transit draw beat takes over the whole stage as a station map poster.
   if (q.transit) {
     return (
-      <MetroScene
-        eyebrow={metroEyebrow(state)}
-        prompt={q.prompt}
-        footer={<MetroFeedbackFooter state={state} dispatch={dispatch} canCheck={canCheckGraphs(state)} />}
-      >
-        <RewireSurface
-          legalTargets={legalDrawTargets(state)}
-          onRewire={(from, to) => dispatch({ type: "rewire", from, to })}
-          label="Add the missing line by dragging between two stations"
-          className="flex w-full justify-center"
+      <StageCenter>
+        <MetroScene
+          eyebrow={metroEyebrow(state)}
+          prompt={q.prompt}
+          footer={<MetroFeedbackFooter state={state} dispatch={dispatch} canCheck={canCheckGraphs(state)} />}
         >
-          <SubwayMap
-            mode="draw"
-            fill
+          <RewireSurface
+            legalTargets={legalDrawTargets(state)}
+            onRewire={(from, to) => dispatch({ type: "rewire", from, to })}
+            label="Add the missing line by dragging between two stations"
+            className="flex w-full justify-center"
+          >
+            <SubwayMap
+              mode="draw"
+              fill
+              nodes={q.nodes}
+              adj={state.workingAdj}
+              layout={q.layout}
+              variant="geographic"
+              pendingEdge={drawn}
+              missingEdge={q.missingEdge}
+              terminal={terminal}
+            />
+          </RewireSurface>
+          <AdjacencyPanel
             nodes={q.nodes}
-            adj={state.workingAdj}
-            layout={q.layout}
-            variant="geographic"
-            pendingEdge={drawn}
-            missingEdge={q.missingEdge}
-            terminal={terminal}
+            adj={q.adj}
+            transit
+            highlightNodes={correct && q.missingEdge ? [q.missingEdge[0], q.missingEdge[1]] : undefined}
           />
-        </RewireSurface>
-        <AdjacencyPanel
-          nodes={q.nodes}
-          adj={q.adj}
-          transit
-          highlightNodes={correct && q.missingEdge ? [q.missingEdge[0], q.missingEdge[1]] : undefined}
-        />
-      </MetroScene>
+        </MetroScene>
+      </StageCenter>
     )
   }
 
   return (
-    <div className="flex flex-1 flex-col">
+    <StageCenter>
       <BinHeader state={state} />
 
       <div className="flex flex-1 flex-col items-center justify-center gap-3 py-3">
@@ -529,7 +540,7 @@ function DrawPart({ state, dispatch }: PartProps) {
         copy={feedbackCopy(q)}
         dispatch={dispatch}
       />
-    </div>
+    </StageCenter>
   )
 }
 
@@ -546,37 +557,39 @@ function RedrawDemoPart({ state, dispatch }: PartProps) {
   const layout = variant === "geographic" ? q.layout : (q.layoutB ?? q.layout)
 
   return (
-    <MetroScene
-      eyebrow="Same network, two drawings"
-      prompt={q.prompt}
-      footer={
-        <div className="mt-auto pt-2">
-          <MetroButton className="w-full" onClick={() => dispatch({ type: "continue" })}>
-            Continue
-          </MetroButton>
-        </div>
-      }
-    >
-      <SubwayMap
-        mode="display"
-        fill
-        nodes={q.nodes}
-        adj={q.adj}
-        layout={layout}
-        variant={variant}
-        reducedMotion={reduced}
-      />
-      <button
-        type="button"
-        aria-pressed={variant === "diagrammatic"}
-        onClick={() => setVariant((v) => (v === "geographic" ? "diagrammatic" : "geographic"))}
-        className="rounded-full px-4 py-2 text-[13px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-lilac-strong/70"
-        style={{ background: "#ffffff", color: METRO.ink, border: `1px solid ${METRO.cardEdge}` }}
+    <StageCenter>
+      <MetroScene
+        eyebrow="Same network, two drawings"
+        prompt={q.prompt}
+        footer={
+          <div className="mt-auto pt-2">
+            <MetroButton className="w-full" onClick={() => dispatch({ type: "continue" })}>
+              Continue
+            </MetroButton>
+          </div>
+        }
       >
-        {variant === "geographic" ? "Straighten to diagram" : "Back to street map"}
-      </button>
-      <AdjacencyPanel nodes={q.nodes} adj={q.adj} transit />
-    </MetroScene>
+        <SubwayMap
+          mode="display"
+          fill
+          nodes={q.nodes}
+          adj={q.adj}
+          layout={layout}
+          variant={variant}
+          reducedMotion={reduced}
+        />
+        <button
+          type="button"
+          aria-pressed={variant === "diagrammatic"}
+          onClick={() => setVariant((v) => (v === "geographic" ? "diagrammatic" : "geographic"))}
+          className="rounded-full px-4 py-2 text-[13px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-lilac-strong/70"
+          style={{ background: "#ffffff", color: METRO.ink, border: `1px solid ${METRO.cardEdge}` }}
+        >
+          {variant === "geographic" ? "Straighten to diagram" : "Back to street map"}
+        </button>
+        <AdjacencyPanel nodes={q.nodes} adj={q.adj} transit />
+      </MetroScene>
+    </StageCenter>
   )
 }
 
@@ -594,66 +607,72 @@ function ClassifyPart({ state, dispatch }: PartProps) {
   // takes over the stage as a map poster. Tree-or-not stays the plain figure.
   if (q.kind === "same-graph") {
     return (
-      <MetroScene
-        eyebrow={metroEyebrow(state)}
-        prompt={q.prompt}
-        footer={<MetroFeedbackFooter state={state} dispatch={dispatch} canCheck={canCheckGraphs(state)} />}
-      >
-        <SameGraphView
-          before={{ nodes: q.nodes, adj: q.adj, layout: q.layout }}
-          after={{ nodes: q.nodes, adj: q.adjB ?? q.adj, layout: q.layoutB ?? q.layout }}
-          reducedMotion={reduced}
-          revealLists={reveal}
-        />
-        <div className="flex w-full gap-3">
-          {q.options.map((opt) => (
-            <MetroOption
-              key={opt.id}
-              label={opt.label}
-              state={optionState(feedback, selected, showWhy, opt.id, q.answer)}
-              isAnswer={opt.id === q.answer}
-              disabled={terminal}
-              onSelect={() => dispatch({ type: "select", letter: opt.id })}
-            />
-          ))}
-        </div>
-      </MetroScene>
+      <StageCenter>
+        <MetroScene
+          eyebrow={metroEyebrow(state)}
+          prompt={q.prompt}
+          footer={<MetroFeedbackFooter state={state} dispatch={dispatch} canCheck={canCheckGraphs(state)} />}
+        >
+          <SameGraphView
+            before={{ nodes: q.nodes, adj: q.adj, layout: q.layout }}
+            after={{ nodes: q.nodes, adj: q.adjB ?? q.adj, layout: q.layoutB ?? q.layout }}
+            reducedMotion={reduced}
+            revealLists={reveal}
+          />
+          <div className="flex w-full gap-3">
+            {q.options.map((opt) => (
+              <MetroOption
+                key={opt.id}
+                label={opt.label}
+                state={optionState(feedback, selected, showWhy, opt.id, q.answer)}
+                isAnswer={opt.id === q.answer}
+                disabled={terminal}
+                onSelect={() => dispatch({ type: "select", letter: opt.id })}
+              />
+            ))}
+          </div>
+        </MetroScene>
+      </StageCenter>
     )
   }
 
   return (
-    <div className="flex flex-1 flex-col">
-      <BinHeader state={state} />
+    <StageSplit
+      header={<BinHeader state={state} />}
+      figure={
+        <div className="flex flex-col items-center gap-3 py-3">
+          <GraphCanvas mode="display" nodes={q.nodes} adj={q.adj} layout={q.layout} />
+        </div>
+      }
+      interaction={
+        <>
+          <div className="flex gap-3">
+            {q.options.map((opt, i) => (
+              <AnswerCard
+                key={opt.id}
+                letter={String.fromCharCode(65 + i)}
+                label={opt.label}
+                state={optionState(feedback, selected, showWhy, opt.id, q.answer)}
+                disabled={terminal}
+                answerMarker={opt.id === q.answer}
+                onSelect={() => dispatch({ type: "select", letter: opt.id })}
+                className="flex-1"
+              />
+            ))}
+          </div>
 
-      <div className="flex flex-col items-center gap-3 py-3">
-        <GraphCanvas mode="display" nodes={q.nodes} adj={q.adj} layout={q.layout} />
-      </div>
-
-      <div className="flex gap-3">
-        {q.options.map((opt, i) => (
-          <AnswerCard
-            key={opt.id}
-            letter={String.fromCharCode(65 + i)}
-            label={opt.label}
-            state={optionState(feedback, selected, showWhy, opt.id, q.answer)}
-            disabled={terminal}
-            answerMarker={opt.id === q.answer}
-            onSelect={() => dispatch({ type: "select", letter: opt.id })}
-            className="flex-1"
+          <FeedbackFooter
+            feedback={feedback}
+            selected={selected}
+            canCheck={canCheckGraphs(state)}
+            showWhy={showWhy}
+            hideFailHint
+            copy={feedbackCopy(q)}
+            dispatch={dispatch}
           />
-        ))}
-      </div>
-
-      <FeedbackFooter
-        feedback={feedback}
-        selected={selected}
-        canCheck={canCheckGraphs(state)}
-        showWhy={showWhy}
-        hideFailHint
-        copy={feedbackCopy(q)}
-        dispatch={dispatch}
-      />
-    </div>
+        </>
+      }
+    />
   )
 }
 

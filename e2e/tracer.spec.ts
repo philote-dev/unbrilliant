@@ -61,6 +61,14 @@ async function answerArrays(page: Page) {
   await continueOn(page)
 }
 
+/** Arrays de-cued access (A1/A3): the answer is a cell, not an MCQ card — tap the
+ * one marked correct (dev-only data-answer hook), then Check. */
+async function answerCellTap(page: Page) {
+  await page.locator('[data-answer="1"]').first().click()
+  await page.getByRole("button", { name: "Check" }).click()
+  await continueOn(page)
+}
+
 /** Traverse (Linked Lists L1): the answer is a node — tap the one marked correct
  * (dev-only data-answer hook), then Check. No MCQ cards in this beat. */
 async function answerTraverse(page: Page) {
@@ -222,23 +230,22 @@ test("vision → browse → enter course → play → sign in (carry-up) → com
   await page.getByRole("button", { name: /Data Structures/ }).click()
   await page.getByRole("button", { name: "Start", exact: true }).click()
 
-  // Stack: demo → teach → predict.
+  // Stack (signed out): demo → teach → predict → real-world → construct.
   await playDemo(page, /Push/)
   await continueOn(page) // stack teach
   await answerCell(page) // stack predict
+  await answerCell(page) // stack real-world (undo)
+  await buildConstruct(page) // stack construct
 
-  // The subtle nudge is up — sign in mid-run so progress carries up.
+  // A third of the way in the nudge is up: sign in mid-run so the stack progress
+  // carries up. Done between beats (not mid-construct) so the run state is settled.
   await page.getByRole("button", { name: "Sign in" }).click()
   await page.getByPlaceholder("Email address").fill(EMAIL)
   await page.getByPlaceholder("Password").fill(PASSWORD)
   await page.getByPlaceholder("Display name").fill(NAME)
   await page.getByRole("button", { name: "Create account" }).click()
 
-  // Back in the lesson (now signed in): stack real-world + construct.
-  await answerCell(page) // stack real-world (undo)
-  await buildConstruct(page) // stack construct
-
-  // Queue: demo → teach → predict → real-world → construct.
+  // Queue (signed in): demo → teach → predict → real-world → construct.
   await playDemo(page, /Enqueue/)
   await continueOn(page) // queue teach
   await answerCell(page) // queue predict
@@ -254,9 +261,22 @@ test("vision → browse → enter course → play → sign in (carry-up) → com
   await expect(page.getByText("You mastered Stacks & Queues.")).toBeVisible()
   await page.getByRole("button", { name: /Continue to Arrays/ }).click()
 
-  // Arrays: access intro, then 3 shift-predict + 3 cost/count + 2 resize answers.
-  await page.getByRole("button", { name: "Continue", exact: true }).click()
-  for (let i = 0; i < 8; i++) await answerArrays(page)
+  // Arrays (redesign): demo → teach → A1 access → A3 (jump, then scan) →
+  // shift demo → teach → A2 shift → A2 spreadsheet skin → A4 classify →
+  // A5 construct (append in order) → A6 grow → A6 cheap. 8 graded beats.
+  await continueOn(page) // demo (read the strip)
+  await continueOn(page) // teach: instant access
+  await answerCellTap(page) // A1 access (tap the de-cued cell)
+  await answerCellTap(page) // A3 index ask (jump)
+  await answerCellTap(page) // A3 value ask (scan)
+  await continueOn(page) // shift demo
+  await continueOn(page) // teach: the shift cascade
+  await answerArrays(page) // A2 shift-predict (resulting row)
+  await answerArrays(page) // A2 spreadsheet skin (row count)
+  await answerArrays(page) // A4 classify-by-position
+  await rewireInOrder(page) // A5 construct-to-target (append in order)
+  await answerArrays(page) // A6 grow-predict
+  await answerArrays(page) // A6 amortized verdict
 
   // Arrays completion — a real two-lesson progression.
   await expect(page.getByText("You mastered Arrays.")).toBeVisible()

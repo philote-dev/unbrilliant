@@ -2,13 +2,34 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // A learner can read/write only their own profile and lesson progress.
-    // Everything else is denied by default.
-    match /users/{uid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
 
-      match /{document=**} {
-        allow read, write: if request.auth != null && request.auth.uid == uid;
+    // An activity write must be the four known fields with non-negative numeric
+    // counts and never more correct than attempted (cheap server-side sanity on
+    // a self-owned, increment-based log).
+    function isValidActivity() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['date', 'attempted', 'correct', 'updatedAt'])
+        && d.attempted is number && d.attempted >= 0
+        && d.correct is number && d.correct >= 0
+        && d.correct <= d.attempted;
+    }
+
+    // A learner can read and write only their own data. Subcollections are
+    // enumerated (no catch-all wildcard) so the activity log can be shape-checked
+    // on write without changing lessonProgress access.
+    match /users/{uid} {
+      allow read, write: if isOwner(uid);
+
+      match /lessonProgress/{lessonId} {
+        allow read, write: if isOwner(uid);
+      }
+
+      match /activity/{dayKey} {
+        allow read: if isOwner(uid);
+        allow write: if isOwner(uid) && isValidActivity();
       }
     }
   }

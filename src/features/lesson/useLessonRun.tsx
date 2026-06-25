@@ -6,6 +6,7 @@ import {
   useMemo,
   useReducer,
   useRef,
+  useState,
   type Dispatch,
   type ReactNode,
 } from "react"
@@ -16,9 +17,12 @@ import { useNavigation } from "@/lib/navigation"
 import { LIVE_LESSON_ID } from "@/lessons/catalog"
 import { createFirestoreProgressRepository } from "@/features/progress/firestoreProgressRepository"
 import { reconcileRun } from "@/features/progress/reconcileRun"
+import { activityDelta, answerTallies } from "@/features/progress/activityDelta"
+import { dayKeyToUTCDate, localDayKey } from "@/features/progress/activityDate"
 import { getLessonModule } from "@/features/lesson/lessons"
 import { reconcileModule, type LessonModule } from "@/features/lesson/lessonModule"
 import type { LessonAction } from "@/features/lesson/engine"
+import type { ActivityDay } from "@/features/progress/ProgressRepository"
 
 /**
  * Wraps the pure lesson modules with persistence. Lives ABOVE the screen router
@@ -35,6 +39,8 @@ interface LessonRunValue {
   module: LessonModule<unknown>
   state: unknown
   dispatch: RunDispatch
+  /** This session's per-day answer activity (overlay for the progress page). */
+  sessionActivity: ActivityDay[]
 }
 
 const LessonRunContext = createContext<LessonRunValue | null>(null)
@@ -78,6 +84,15 @@ export function LessonRunProvider({ children }: { children: ReactNode }) {
     current: 0,
     longest: 0,
   })
+
+  // The cumulative answer tally last recorded per lesson, so each record adds
+  // only the delta since the previous one (StrictMode- and resume-safe).
+  const activityBaseRef = useRef<
+    Record<string, { attempted: number; correct: number }>
+  >({})
+  const [sessionActivityMap, setSessionActivityMap] = useState<
+    Record<string, { attempted: number; correct: number }>
+  >({})
 
   // Reconcile once per signed-in user + active lesson. Gating on the COMPLETED
   // key (not a "started" flag) stays correct under React StrictMode's double
@@ -126,6 +141,42 @@ export function LessonRunProvider({ children }: { children: ReactNode }) {
       .catch(() => {})
   }, [user, lessonId, repo, module, progressSig])
 
+  // Record per-day answer activity (the contribution calendar / trends source).
+  // The delta is the change in cumulative answer tallies since the last record,
+  // so a double-fired effect (StrictMode) or a resume-hydrate jump never
+  // double-counts: while signed-in-but-unreconciled we only (re)baseline. The
+  // in-memory overlay always accrues (so anonymous runs show this session); only
+  // a signed-in, reconciled run persists (history starts at sign-in, no backfill).
+  useEffect(() => {
+    const current = answerTallies(
+      module.toProgress(runsRef.current[lessonId]).counters,
+    )
+    if (user && reconciledKey.current !== `${user.uid}:${lessonId}`) {
+      activityBaseRef.current[lessonId] = current
+      return
+    }
+    const base = activityBaseRef.current[lessonId]
+    if (!base) {
+      activityBaseRef.current[lessonId] = current
+      return
+    }
+    const delta = activityDelta(base, current)
+    activityBaseRef.current[lessonId] = current
+    if (delta.attempted <= 0) return
+    const dayKey = localDayKey(Date.now())
+    setSessionActivityMap((prev) => {
+      const prevDay = prev[dayKey] ?? { attempted: 0, correct: 0 }
+      return {
+        ...prev,
+        [dayKey]: {
+          attempted: prevDay.attempted + delta.attempted,
+          correct: prevDay.correct + delta.correct,
+        },
+      }
+    })
+    if (user) void repo.recordActivity(user.uid, dayKey, delta).catch(() => {})
+  }, [user, lessonId, repo, module, progressSig])
+
   // Persist the on-fire streak from the run's combo: current tracks the live
   // combo; longest is preserved as the all-time best (carries across sessions
   // and up on sign-in). The transient combo itself is unchanged.
@@ -139,9 +190,21 @@ export function LessonRunProvider({ children }: { children: ReactNode }) {
     void repo.updateUser(user.uid, { streak: streakRef.current }).catch(() => {})
   }, [user, lessonId, repo, combo])
 
+  const sessionActivity = useMemo<ActivityDay[]>(
+    () =>
+      Object.entries(sessionActivityMap)
+        .map(([dayKey, v]) => ({
+          date: dayKeyToUTCDate(dayKey),
+          attempted: v.attempted,
+          correct: v.correct,
+        }))
+        .sort((a, b) => a.date - b.date),
+    [sessionActivityMap],
+  )
+
   const value = useMemo<LessonRunValue>(
-    () => ({ lessonId, module, state, dispatch }),
-    [lessonId, module, state, dispatch],
+    () => ({ lessonId, module, state, dispatch, sessionActivity }),
+    [lessonId, module, state, dispatch, sessionActivity],
   )
 
   return <LessonRunContext value={value}>{children}</LessonRunContext>
