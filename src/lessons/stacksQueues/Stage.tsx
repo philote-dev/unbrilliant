@@ -387,6 +387,30 @@ function PredictPart({
     ? builtCells.filter((c) => c.id !== q.answer)
     : builtCells
 
+  // The real-world skins transform the whole page: render full-bleed scenes with
+  // their own integrated prompt + themed footer (dispatching the same actions),
+  // instead of the boxed prompt + figure + FeedbackFooter layout.
+  if (!isAfterK && (q.theme === "browser" || q.theme === "drivethru")) {
+    const sceneProps = {
+      cells: builtCells,
+      arrival: q.arrival,
+      selectable: !terminal && ready,
+      cellState,
+      onSelectCell,
+      answerId: q.answer,
+      popping,
+      reducedMotion: reduce,
+      prompt: q.prompt,
+      feedback,
+      showWhy,
+      canCheck: selected != null,
+      copy: q,
+      dispatch,
+    }
+    if (q.theme === "browser") return <BrowserShowpiece {...sceneProps} />
+    if (REALWORLD_QUEUE_SKIN === "drivethru") return <DriveThruLane {...sceneProps} />
+  }
+
   let figure: ReactNode
   if (isAfterK) {
     // Pops removed so far: capped at k-1 while answering, the full k on reveal.
@@ -422,32 +446,6 @@ function PredictPart({
           />
         )}
       </div>
-    )
-  } else if (q.theme === "browser") {
-    figure = (
-      <BrowserShowpiece
-        cells={builtCells}
-        arrival={q.arrival}
-        selectable={!terminal && ready}
-        cellState={cellState}
-        onSelectCell={onSelectCell}
-        answerId={q.answer}
-        popping={popping}
-        reducedMotion={reduce}
-      />
-    )
-  } else if (q.theme === "drivethru" && REALWORLD_QUEUE_SKIN === "drivethru") {
-    figure = (
-      <DriveThruLane
-        cells={builtCells}
-        arrival={q.arrival}
-        selectable={!terminal && ready}
-        cellState={cellState}
-        onSelectCell={onSelectCell}
-        answerId={q.answer}
-        popping={popping}
-        reducedMotion={reduce}
-      />
     )
   } else if (q.theme === "drivethru" || q.theme === "printer") {
     figure = (
