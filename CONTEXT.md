@@ -11,7 +11,7 @@ test names, and reviews so the language stays shared. Product scope lives in
   Firebase, or animation deps, so the same state always yields the same feedback
   (the deterministic, no-AI guarantee). It is the project's primary **test
   surface**: the interface you assert behavior through.
-- **Renderer** (`src/screens/LessonPlayer.tsx`, `src/features/hero/*`): shallow
+- **Renderer** (`src/screens/LessonPlayer.tsx`, lesson `Stage` components): shallow
   presentation over the engine state; animates snapshots, holds no rule logic.
 - **Persistence boundary** (`ProgressRepository`): the seam the app reads/writes
   progress through, never Firestore directly. Adapters: a Firestore one for the
