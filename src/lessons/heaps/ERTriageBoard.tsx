@@ -58,9 +58,10 @@ export const PATIENT_ICON: Record<PatientIcon, LucideIcon> = {
 }
 
 // Clinical monitor palette (hardcoded so the figure stays dark in any app theme).
+// Light-blue lit accent + red connector echo the medical refs (lavender/blue + red).
 const EDGE_FAINT = "rgba(148,163,184,0.30)"
-const EDGE_FAMILY = "#5eead4"
-const CONNECTOR = "#5eead4"
+const EDGE_FAMILY = "#7dd3fc"
+const CONNECTOR = "#7dd3fc"
 
 export function ERTriageBoard({
   heap,
@@ -144,7 +145,7 @@ export function ERTriageBoard({
                 transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 360, damping: 24 }}
                 className={cn(
                   "absolute flex items-stretch overflow-hidden rounded-lg border bg-white/[0.04] shadow-[0_2px_10px_-4px_rgba(0,0,0,0.6)] backdrop-blur-sm",
-                  on ? "border-teal-300 ring-2 ring-teal-300/30" : "border-white/10",
+                  on ? "border-sky-300 ring-2 ring-sky-300/30" : "border-white/10",
                 )}
                 style={{
                   width: CARD_W,
@@ -226,7 +227,7 @@ export function ERTriageBoard({
                   transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 360, damping: 24 }}
                   className={cn(
                     "relative flex flex-col items-center justify-center rounded-lg border font-bold text-white transition-colors",
-                    on ? "border-teal-300 bg-teal-400/10" : "border-white/10 bg-white/[0.04]",
+                    on ? "border-sky-300 bg-sky-400/10" : "border-white/10 bg-white/[0.04]",
                   )}
                   style={{ width: CELL, height: CELL }}
                 >

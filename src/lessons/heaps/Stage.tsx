@@ -1,5 +1,5 @@
 import { useState, type Dispatch, type ReactNode } from "react"
-import { Ambulance, ArrowLeft, ArrowRight, Check, Info, RotateCcw, X } from "lucide-react"
+import { ArrowLeft, ArrowRight, Check, Info, RotateCcw, X } from "lucide-react"
 import { motion, useReducedMotion } from "motion/react"
 
 import { cn } from "@/lib/utils"
@@ -29,6 +29,7 @@ import {
 import { HeapDualView, type HeapFigureRenderer, type SlotTone } from "./HeapDualView"
 import { ERTriageBoard, PATIENT_ICON } from "./ERTriageBoard"
 import { patientFor } from "./triagePatients"
+import { AmbulanceMark, EcgLine } from "./MonitorChrome"
 
 const LETTERS = ["A", "B", "C", "D"]
 const BIN_LABEL: Record<HeapBin, string> = {
@@ -43,9 +44,10 @@ const defaultFigure: HeapFigureRenderer = (props) => <HeapDualView {...props} />
 const triageFigure: HeapFigureRenderer = (props) => <ERTriageBoard {...props} />
 
 /** Clinical dark monitor surface for the ER triage skin. Always dark (like the
- * Spotify queue), so the page transforms into a hospital triage wall display. */
+ * Spotify queue), so the page transforms into a hospital triage wall display. The
+ * top glow leans lavender/light-blue to match the medical refs. */
 const MONITOR_BG =
-  "radial-gradient(120% 70% at 50% -10%, rgba(13,148,136,0.16), transparent 60%), linear-gradient(180deg, #0b1220 0%, #0e1626 60%, #0b1220 100%)"
+  "radial-gradient(120% 70% at 50% -10%, rgba(160,178,240,0.16), transparent 60%), linear-gradient(180deg, #0b1220 0%, #0e1626 60%, #0b1220 100%)"
 
 export function HeapsStage({
   state,
@@ -200,10 +202,10 @@ function StepReplay({
 }) {
   const clinical = surface === "clinical"
   const stepBtn = clinical
-    ? "border-white/20 bg-white/[0.05] text-slate-100 hover:bg-white/10 focus-visible:ring-teal-200/70 focus-visible:ring-offset-[#0b1220]"
+    ? "border-white/20 bg-white/[0.05] text-slate-100 hover:bg-white/10 focus-visible:ring-sky-200/70 focus-visible:ring-offset-[#0b1220]"
     : undefined
   const replayBtn = clinical
-    ? "bg-teal-400/15 text-teal-100 hover:bg-teal-400/25 focus-visible:ring-teal-200/70 focus-visible:ring-offset-[#0b1220]"
+    ? "bg-sky-400/15 text-sky-100 hover:bg-sky-400/25 focus-visible:ring-sky-200/70 focus-visible:ring-offset-[#0b1220]"
     : undefined
   const swaps = spec.path.length
   const introCount = intro ? 1 : 0
@@ -301,15 +303,15 @@ const CARD_BADGE: Record<AnswerState, string> = {
 
 /** Clinical-dark tone maps for the ER monitor candidate cards (same hooks, dark skin). */
 const CARD_SURFACE_CLINICAL: Record<AnswerState, string> = {
-  default: "border-white/12 bg-white/[0.04] hover:border-teal-300/50",
-  selected: "border-teal-300 bg-teal-400/10 ring-2 ring-teal-300/25",
+  default: "border-white/12 bg-white/[0.04] hover:border-sky-300/50",
+  selected: "border-sky-300 bg-sky-400/10 ring-2 ring-sky-300/25",
   correct: "border-emerald-400 bg-emerald-500/15",
   nudge: "border-amber-400 bg-amber-400/12",
   fail: "border-red-400 bg-red-500/15",
 }
 const CARD_BADGE_CLINICAL: Record<AnswerState, string> = {
   default: "bg-white/10 text-slate-200",
-  selected: "bg-teal-400 text-slate-950",
+  selected: "bg-sky-400 text-slate-950",
   correct: "bg-emerald-400 text-slate-950",
   nudge: "bg-amber-400 text-slate-950",
   fail: "bg-red-500 text-white",
@@ -382,7 +384,7 @@ function ArrangementCard({
       className={cn(
         "relative flex w-full items-center gap-3 rounded-2xl border-2 p-3 text-left outline-none transition-colors",
         clinical
-          ? "focus-visible:ring-2 focus-visible:ring-teal-200/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b1220]"
+          ? "focus-visible:ring-2 focus-visible:ring-sky-200/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b1220]"
           : "focus-visible:ring-2 focus-visible:ring-lilac-strong/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         disabled && "cursor-default",
         surface[state],
@@ -529,14 +531,12 @@ function ArrangementPart({
 
 /* ----------------------------- ER triage skin ----------------------------- */
 
-/** The triage monitor's top status bar. Decorative chrome, hidden from SR. */
+/** The triage monitor's top status bar (flat ambulance logo). Decorative chrome. */
 function MonitorHeader() {
   return (
-    <div aria-hidden className="flex items-center justify-between border-b border-white/10 pb-3">
-      <div className="flex items-center gap-2">
-        <span className="flex size-7 items-center justify-center rounded-md bg-teal-500/15 text-teal-300">
-          <Ambulance className="size-4" />
-        </span>
+    <div aria-hidden className="flex items-center justify-between">
+      <div className="flex items-center gap-2.5">
+        <AmbulanceMark className="h-7 w-9 shrink-0" />
         <div className="leading-tight">
           <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-100">
             Emergency Dept
@@ -547,6 +547,19 @@ function MonitorHeader() {
       <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
         <span className="size-2 animate-pulse rounded-full bg-red-500" /> Live
       </span>
+    </div>
+  )
+}
+
+/** The red ECG vital-signs ticker, in a full-bleed lane across the monitor. The
+ * sweep animates when motion is on and is static under reduced motion. */
+function VitalsLane({ reduced }: { reduced: boolean }) {
+  return (
+    <div
+      aria-hidden
+      className="-mx-5 mt-3 border-y border-white/10 bg-white/[0.02] px-3 py-1.5"
+    >
+      <EcgLine reducedMotion={reduced} />
     </div>
   )
 }
@@ -567,7 +580,7 @@ function MonitorBanner({
   return (
     <div aria-hidden className="mt-3 flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-2.5">
       <div className="flex flex-col leading-none">
-        <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-teal-300">{label}</span>
+        <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-sky-300">{label}</span>
         <span className="mt-1 text-[9px] uppercase tracking-wide text-slate-500">{sublabel}</span>
       </div>
       <span
@@ -591,8 +604,9 @@ function TriageAdmitCue({ q }: { q: HeapsQuestion }) {
   return (
     <span
       aria-hidden
-      className="inline-flex items-center gap-1.5 rounded-full border border-teal-300/30 bg-teal-400/10 px-3 py-1 text-sm font-semibold text-teal-200"
+      className="inline-flex items-center gap-2 rounded-full border border-sky-300/30 bg-sky-400/10 px-3 py-1 text-sm font-semibold text-sky-200"
     >
+      <AmbulanceMark className="h-4 w-5 shrink-0" />
       Incoming · severity {q.insertKey}
     </span>
   )
@@ -622,7 +636,7 @@ function MonitorButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="w-full rounded-full bg-teal-400 py-3.5 text-center text-[15px] font-bold text-slate-950 outline-none transition-transform focus-visible:ring-2 focus-visible:ring-teal-200 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b1220] active:scale-[0.99] disabled:opacity-40"
+      className="w-full rounded-full bg-sky-400 py-3.5 text-center text-[15px] font-bold text-slate-950 outline-none transition-transform focus-visible:ring-2 focus-visible:ring-sky-200 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b1220] active:scale-[0.99] disabled:opacity-40"
     >
       {children}
     </button>
@@ -630,7 +644,7 @@ function MonitorButton({
 }
 
 const CHIP_TONE = {
-  ok: { Icon: Check, ring: "bg-teal-400/15 text-teal-300" },
+  ok: { Icon: Check, ring: "bg-emerald-400/15 text-emerald-300" },
   bad: { Icon: X, ring: "bg-red-500/15 text-red-300" },
   hint: { Icon: Info, ring: "bg-amber-400/15 text-amber-300" },
 } as const
@@ -758,6 +772,7 @@ function TriagePart({
       style={{ background: MONITOR_BG }}
     >
       <MonitorHeader />
+      <VitalsLane reduced={reduced} />
       <MonitorBanner label="Seen next" sublabel="most urgent" heap={boardHeap} />
       <p className="mt-3 text-center text-sm text-slate-300">{q.prompt}</p>
 
@@ -1063,6 +1078,7 @@ function TeachExtractPart({
       style={{ background: MONITOR_BG }}
     >
       <MonitorHeader />
+      <VitalsLane reduced={reduced} />
       <MonitorBanner label="Discharging" sublabel="top of board" heap={q.heap} />
       <div className="mt-3 text-center">
         <h2 className="text-lg font-bold text-slate-50">Discharging the top patient</h2>
