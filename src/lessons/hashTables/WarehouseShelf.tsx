@@ -81,8 +81,8 @@ export function WarehouseShelf({
             </span>
           </RewireSource>
         </div>
-        <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-1.5 font-mono text-[12px] text-white/80">
-          <span className="font-bold text-[#ff9900]">SCAN</span>
+        <div className="flex items-center gap-2 rounded-lg border border-[#08aae3]/40 bg-[#08aae3]/10 px-3 py-1.5 font-mono text-[12px] text-white/85 shadow-[0_0_14px_-5px_#08aae3]">
+          <span className="font-bold text-[#2dbff8]">SCAN</span>
           <span className="tabular-nums">
             Σ {key} = {question.sum} · mod {B} = ?
           </span>

@@ -12,11 +12,13 @@ import type { Feedback, LessonAction } from "@/features/lesson/engine"
  * as the shared FeedbackFooter, so grading and the flame are unchanged.
  */
 
-/** Amazon-ish palette, used across the warehouse figures too. */
+/** Fulfilment-center palette (the attached brand reference), used everywhere. */
 export const WH = {
   ink: "#232f3e",
   orange: "#ff9900",
-  blue: "#48a3df",
+  blue: "#08aae3",
+  blueLight: "#2dbff8",
+  kraft: "#cea968",
 } as const
 
 export function WarehousePage({
@@ -39,31 +41,78 @@ export function WarehousePage({
 }
 
 export function WarehouseHeader({
-  eyebrow,
   title,
-  right,
+  meta,
   prompt,
 }: {
-  eyebrow?: string
   title: string
-  right?: ReactNode
+  meta?: string
   prompt?: string
 }) {
   return (
     <div className="shrink-0">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          {eyebrow && (
-            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#ff9900]">
-              {eyebrow}
-            </p>
-          )}
-          <h2 className="text-2xl font-extrabold tracking-tight">{title}</h2>
-        </div>
-        {right}
+      <div className="flex items-center justify-between gap-3">
+        <FulfilmentMark />
+        {meta && (
+          <span className="rounded-full bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-white/80">
+            {meta}
+          </span>
+        )}
       </div>
-      {prompt && <p className="mt-2 text-sm text-white/70">{prompt}</p>}
+      <h2 className="mt-3 text-2xl font-extrabold tracking-tight">{title}</h2>
+      {prompt && <p className="mt-1.5 text-sm text-white/70">{prompt}</p>}
     </div>
+  )
+}
+
+/**
+ * A generic fulfilment-center brand mark: a kraft box glyph and a wordmark with
+ * an orange "smile" swoosh underline. It evokes the big-orange-retailer vibe
+ * without reproducing any trademarked logo or wordmark.
+ */
+function FulfilmentMark() {
+  return (
+    <span className="flex items-center gap-2.5">
+      <span
+        aria-hidden
+        className="flex size-8 shrink-0 items-center justify-center rounded-md"
+        style={{ backgroundImage: "linear-gradient(135deg, #cea968, #b8935a)" }}
+      >
+        <svg
+          viewBox="0 0 24 24"
+          className="size-5 text-[#232f3e]"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M3 8 L12 3 L21 8 L12 13 Z" />
+          <path d="M3 8 V16 L12 21 V13" />
+          <path d="M21 8 V16 L12 21" />
+        </svg>
+      </span>
+      <span className="flex flex-col leading-none">
+        <span className="text-[14px] font-extrabold tracking-tight text-white">
+          Fulfilment Center
+        </span>
+        <svg viewBox="0 0 110 12" className="mt-1 h-2.5 w-[88px]" aria-hidden fill="none">
+          <path
+            d="M2 3 C 34 14, 76 14, 104 4"
+            stroke="#ff9900"
+            strokeWidth="3"
+            strokeLinecap="round"
+          />
+          <path
+            d="M104 4 L97 4 M104 4 L100 10"
+            stroke="#ff9900"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </span>
+    </span>
   )
 }
 
@@ -102,7 +151,7 @@ function WarehouseChip({
   tone: "ok" | "bad" | "hint"
   children: ReactNode
 }) {
-  const dot = tone === "ok" ? "bg-[#4ade80]" : tone === "bad" ? "bg-red-500" : "bg-[#ff9900]"
+  const dot = tone === "ok" ? "bg-[#2dbff8]" : tone === "bad" ? "bg-red-500" : "bg-[#ff9900]"
   return (
     <div className="mb-4 flex flex-col items-center gap-2 text-center">
       <span className={cn("size-2.5 rounded-full", dot)} aria-hidden />

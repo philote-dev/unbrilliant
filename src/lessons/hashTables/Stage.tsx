@@ -77,7 +77,7 @@ function DemoPart({
   if (!q) return null
   return (
     <WarehousePage reduced={reduced}>
-      <WarehouseHeader eyebrow="Fulfilment center" title="Chaotic storage" prompt={q.prompt} />
+      <WarehouseHeader title="Chaotic storage" meta="Live demo" prompt={q.prompt} />
       <div className="flex flex-1 flex-col py-4">
         <WarehouseDemo />
       </div>
@@ -273,8 +273,8 @@ function StowPart({
   return (
     <WarehousePage reduced={reduced}>
       <WarehouseHeader
-        eyebrow={quota ? `Inbound · ${quota.done}/${quota.total} stowed` : "Inbound"}
         title="Stow station"
+        meta={quota ? `${quota.done}/${quota.total} stowed` : "Inbound"}
         prompt={q.prompt}
       />
 

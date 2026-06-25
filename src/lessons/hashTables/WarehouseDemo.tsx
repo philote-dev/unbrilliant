@@ -166,16 +166,13 @@ function ChaoticView({ found, reduced }: { found: boolean; reduced: boolean }) {
               }
               transition={{ duration: 0.4 }}
               className={cn(
-                "flex min-h-[58px] flex-col items-center gap-1 rounded-lg border-2 p-1",
-                hit ? "border-[#ff9900] bg-[#ff9900]/15" : "border-white/15 bg-white/[0.04]",
+                "flex min-h-[58px] flex-col items-center gap-1 rounded-lg border-2 p-1 transition-colors",
+                hit
+                  ? "border-[#08aae3] bg-[#08aae3]/15 shadow-[0_0_16px_-4px_#08aae3]"
+                  : "border-white/15 bg-white/[0.04]",
               )}
             >
-              <span
-                className={cn(
-                  "flex size-5 items-center justify-center rounded font-mono text-[10px] font-extrabold",
-                  hit ? "bg-[#ff9900] text-[#232f3e]" : "bg-white/15 text-white/80",
-                )}
-              >
+              <span className="flex size-5 items-center justify-center rounded bg-[#ff9900] font-mono text-[10px] font-extrabold text-[#232f3e]">
                 {i}
               </span>
               <div className="flex flex-col items-center gap-0.5">
@@ -241,13 +238,13 @@ function StockChip({
       className={cn(
         "flex items-center gap-1 rounded border px-1.5 py-0.5 font-mono text-[11px] transition-colors",
         isTarget
-          ? "border-[#4ade80] bg-[#4ade80]/20 text-white"
+          ? "border-[#2dbff8] bg-[#2dbff8]/25 text-white"
           : scanned
-            ? "border-[#ff9900]/70 bg-[#ff9900]/10 text-white"
+            ? "border-[#08aae3]/55 bg-[#08aae3]/10 text-white"
             : "border-white/15 bg-white/5 text-white/70",
       )}
     >
-      {isTarget && <Check className="size-3 text-[#4ade80]" strokeWidth={3} aria-hidden />}
+      {isTarget && <Check className="size-3 text-[#2dbff8]" strokeWidth={3} aria-hidden />}
       {code.split("-")[0]}
     </span>
   )

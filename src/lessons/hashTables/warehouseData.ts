@@ -56,16 +56,17 @@ const KINDS: ItemKind[] = [
   "flat",
 ]
 
-// Kraft cardboard + safety-orange / steel-blue accents.
+// Kraft cardboard, all shades of the brand tan (#cea968) so every box looks the
+// same: you can't sort them by sight, which is exactly why the index matters.
 const PALETTE: [string, string][] = [
-  ["#d9a86c", "#b07d4f"],
-  ["#c9954f", "#9c6b39"],
-  ["#e0b07a", "#bb8a55"],
-  ["#cf9b63", "#a6764a"],
-  ["#d2a266", "#a97d49"],
-  ["#dfb27d", "#b58a57"],
-  ["#c89657", "#9e7040"],
-  ["#dcaa70", "#b1814f"],
+  ["#cea968", "#b8935a"],
+  ["#d8b985", "#bf9a61"],
+  ["#c8a05f", "#ad8348"],
+  ["#d2ad6f", "#b58f55"],
+  ["#cea968", "#ba9457"],
+  ["#dcb87e", "#c19a5e"],
+  ["#c5a05c", "#a87d42"],
+  ["#d6b277", "#b88f54"],
 ]
 
 const upper = (s: string): string => s.toUpperCase()
