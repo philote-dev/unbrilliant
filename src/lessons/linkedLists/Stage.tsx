@@ -71,8 +71,8 @@ function DemoPart({
   return (
     <StageCenter>
       <div className="mt-7 text-center">
-        <h2 className="text-xl font-bold text-foreground">Linked Lists: it's the arrows</h2>
-        <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground">{q.prompt}</p>
+        <h2 className="text-xl font-bold text-foreground lg:text-2xl">Linked Lists: it's the arrows</h2>
+        <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground lg:max-w-sm lg:text-base">{q.prompt}</p>
       </div>
 
       <div className="flex flex-1 flex-col py-4">
@@ -105,7 +105,7 @@ function TeachPart({
   return (
     <StageCenter>
       <div className="mt-7 text-center">
-        <h2 className="text-xl font-bold text-foreground">Pointers, not position</h2>
+        <h2 className="text-xl font-bold text-foreground lg:text-2xl">Pointers, not position</h2>
       </div>
 
       <div className="flex flex-1 flex-col items-center justify-center gap-6 py-6">
@@ -165,7 +165,7 @@ function TraversePart({
     <StageCenter>
       <div className="mt-7">
         <p className="text-center text-xs font-medium uppercase tracking-wide text-lilac-strong">Traverse</p>
-        <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground">{q.prompt}</h2>
+        <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground lg:text-2xl">{q.prompt}</h2>
       </div>
 
       <div className="flex flex-1 flex-col items-center justify-center gap-4 py-5">
@@ -217,7 +217,7 @@ function RewirePart({
     <StageCenter>
       <div className="mt-7 flex flex-col items-center">
         <p className="text-center text-xs font-medium uppercase tracking-wide text-lilac-strong">Rewire</p>
-        <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground">{q.prompt}</h2>
+        <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground lg:text-2xl">{q.prompt}</h2>
       </div>
 
       <div className="flex flex-1 flex-col justify-center py-6">
@@ -459,7 +459,7 @@ function PredictPart({
           <p className="text-center text-xs font-medium uppercase tracking-wide text-lilac-strong">
             Predict the break
           </p>
-          <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground">{q.prompt}</h2>
+          <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground lg:text-2xl">{q.prompt}</h2>
         </div>
       }
       figure={
@@ -537,7 +537,7 @@ function ContrastPart({
           <p className="text-center text-xs font-medium uppercase tracking-wide text-lilac-strong">
             Array vs list
           </p>
-          <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground">{q.prompt}</h2>
+          <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground lg:text-2xl">{q.prompt}</h2>
         </div>
       }
       figure={
@@ -637,7 +637,7 @@ function DoublyPart({
         <p className="text-xs font-medium uppercase tracking-wide text-lilac-strong">
           Doubly-linked · the twist
         </p>
-        <h2 className="mx-auto mt-2 max-w-sm text-xl font-bold text-foreground">{q.prompt}</h2>
+        <h2 className="mx-auto mt-2 max-w-sm text-xl font-bold text-foreground lg:text-2xl">{q.prompt}</h2>
       </div>
 
       <div className="flex flex-col items-center gap-4 py-5">

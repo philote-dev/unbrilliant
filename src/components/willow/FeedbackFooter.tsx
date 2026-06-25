@@ -100,7 +100,7 @@ export function FeedbackFooter({
       {feedback === "idle" && (
         <>
           {copy.hint && (
-            <p className="mb-3 text-center text-sm text-muted-foreground">
+            <p className="mb-3 text-center text-sm text-muted-foreground lg:text-base">
               {copy.hint}
             </p>
           )}
@@ -144,7 +144,7 @@ function FeedbackChip({
   return (
     <div className="mb-4 flex flex-col items-center gap-2 text-center">
       <StatusChip status={chip} />
-      <p className="text-sm text-muted-foreground">{text}</p>
+      <p className="text-sm text-muted-foreground lg:text-base">{text}</p>
     </div>
   )
 }

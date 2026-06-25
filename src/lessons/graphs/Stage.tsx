@@ -88,7 +88,7 @@ function BinHeader({ state, transit }: { state: GraphsState; transit?: boolean }
           {label} · {quota.done} / {quota.total} correct
         </p>
       )}
-      <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground">
+      <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground lg:text-2xl">
         {q?.prompt}
       </h2>
     </div>
@@ -120,8 +120,8 @@ function DemoPart({ state, dispatch }: PartProps) {
   return (
     <StageCenter>
       <div className="mt-7 text-center">
-        <h2 className="text-xl font-bold text-foreground">Graphs: the list is the data</h2>
-        <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground">{q.prompt}</p>
+        <h2 className="text-xl font-bold text-foreground lg:text-2xl">Graphs: the list is the data</h2>
+        <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground lg:max-w-sm lg:text-base">{q.prompt}</p>
       </div>
 
       <div className="flex flex-1 flex-col items-center justify-center gap-4 py-4">
@@ -152,7 +152,7 @@ function TeachPart({ state, dispatch }: PartProps) {
   return (
     <StageCenter>
       <div className="mt-7 text-center">
-        <h2 className="text-xl font-bold text-foreground">A graph is not a tree</h2>
+        <h2 className="text-xl font-bold text-foreground lg:text-2xl">A graph is not a tree</h2>
       </div>
 
       <div className="flex flex-1 flex-col items-center justify-center gap-5 py-5">
@@ -420,8 +420,8 @@ function DrawDemoPart({ state, dispatch }: PartProps) {
   return (
     <StageCenter>
       <div className="mt-7 text-center">
-        <h2 className="text-xl font-bold text-foreground">Draw an edge</h2>
-        <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground">{q.prompt}</p>
+        <h2 className="text-xl font-bold text-foreground lg:text-2xl">Draw an edge</h2>
+        <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground lg:max-w-sm lg:text-base">{q.prompt}</p>
       </div>
 
       <div className="flex flex-1 flex-col items-center justify-center gap-3 py-3">

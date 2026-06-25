@@ -30,7 +30,7 @@ export function StageSplit({
 
   if (isDesktop) {
     return (
-      <div className="grid flex-1 grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] items-stretch gap-10">
+      <div className="grid flex-1 grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] items-stretch gap-10 xl:gap-14">
         <div className="flex min-w-0 flex-col items-center justify-center">
           {figure}
         </div>

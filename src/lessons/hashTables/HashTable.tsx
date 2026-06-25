@@ -76,7 +76,7 @@ export function HashTable({
   return (
     <div
       data-reduced-motion={reduced ? "1" : undefined}
-      className={cn("flex w-full max-w-[260px] flex-col gap-1.5", className)}
+      className={cn("flex w-full max-w-[260px] flex-col gap-1.5 lg:max-w-[340px]", className)}
     >
       {Array.from({ length: bucketCount }).map((_, i) => {
         const chain = table[i] ?? []

@@ -122,10 +122,10 @@ function TeachPart({
         <p className="text-xs font-medium uppercase tracking-wide text-lilac-strong">
           Hashing
         </p>
-        <h2 className="mt-1 text-xl font-bold text-foreground">
+        <h2 className="mt-1 text-xl font-bold text-foreground lg:text-2xl">
           {isCollision ? "Two keys, one bucket" : "One key, one bucket"}
         </h2>
-        <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground">{q.prompt}</p>
+        <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground lg:max-w-sm lg:text-base">{q.prompt}</p>
       </div>
 
       <div className="flex flex-1 flex-col items-center justify-center gap-5 py-6">
@@ -183,7 +183,7 @@ function BinHeader({ state }: { state: HashTablesState }) {
           {binLabel} · {quota.done} / {quota.total} correct
         </p>
       )}
-      <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground">
+      <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground lg:text-2xl">
         {q?.prompt}
       </h2>
     </div>

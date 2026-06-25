@@ -91,7 +91,7 @@ function BinHeader({ state }: { state: HeapsState }) {
           {BIN_LABEL[bin.bin]} · {quota.done} / {quota.total} correct
         </p>
       )}
-      <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground">
+      <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground lg:text-2xl">
         {q?.prompt}
       </h2>
     </div>
@@ -947,8 +947,8 @@ function DemoPart({
   return (
     <StageCenter>
       <div className="mt-7 text-center">
-        <h2 className="text-xl font-bold text-foreground">Heaps: the best is always on top</h2>
-        <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground">{q.prompt}</p>
+        <h2 className="text-xl font-bold text-foreground lg:text-2xl">Heaps: the best is always on top</h2>
+        <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground lg:max-w-sm lg:text-base">{q.prompt}</p>
       </div>
 
       <div className="flex flex-1 flex-col items-center justify-center gap-4 py-6">
@@ -991,8 +991,8 @@ function TeachArrayPart({
   return (
     <StageCenter>
       <div className="mt-7 text-center">
-        <h2 className="text-xl font-bold text-foreground">It secretly lives in an array</h2>
-        <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground">{q.prompt}</p>
+        <h2 className="text-xl font-bold text-foreground lg:text-2xl">It secretly lives in an array</h2>
+        <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground lg:max-w-sm lg:text-base">{q.prompt}</p>
       </div>
 
       <div className="flex flex-1 flex-col items-center justify-center gap-4 py-6">
@@ -1035,8 +1035,8 @@ function TeachRulePart({
   return (
     <StageCenter>
       <div className="mt-7 text-center">
-        <h2 className="text-xl font-bold text-foreground">The heap rule</h2>
-        <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground">{q.prompt}</p>
+        <h2 className="text-xl font-bold text-foreground lg:text-2xl">The heap rule</h2>
+        <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground lg:max-w-sm lg:text-base">{q.prompt}</p>
       </div>
 
       <div className="flex flex-1 flex-col items-center justify-center gap-4 py-6">

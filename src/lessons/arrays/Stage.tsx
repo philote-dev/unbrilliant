@@ -62,7 +62,7 @@ function Header({ kicker, prompt }: { kicker: string; prompt: string }) {
       <p className="text-center text-xs font-medium uppercase tracking-wide text-lilac-strong">
         {kicker}
       </p>
-      <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground">
+      <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground lg:text-2xl">
         {prompt}
       </h2>
     </div>
@@ -111,8 +111,8 @@ function IntroPart({
   return (
     <StageCenter>
       <div className="mt-7 text-center">
-        <h2 className="text-xl font-bold text-foreground">{heading}</h2>
-        <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground">{q.prompt}</p>
+        <h2 className="text-xl font-bold text-foreground lg:text-2xl">{heading}</h2>
+        <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground lg:max-w-sm lg:text-base">{q.prompt}</p>
       </div>
 
       <div className="flex flex-1 flex-col items-center justify-center gap-5 py-6">
