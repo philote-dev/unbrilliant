@@ -2,6 +2,7 @@ import { cn } from "@/lib/utils"
 import type { Adjacency, NodeId, Pt } from "@/features/lesson/graphsEngine"
 import { AdjacencyPanel } from "./AdjacencyPanel"
 import { SubwayMap } from "./SubwayMap"
+import { METRO } from "./transitData"
 
 export interface SubwayView {
   nodes: NodeId[]
@@ -34,8 +35,8 @@ export function SameGraphView({
   className?: string
 }) {
   return (
-    <div className={cn("flex w-full flex-col gap-3 sm:flex-row", className)}>
-      <Panel label="First" hint="street map" view={before} revealLists={revealLists}>
+    <div className={cn("flex w-full gap-2", className)}>
+      <Panel label="Street map" view={before} revealLists={revealLists}>
         <SubwayMap
           mode="display"
           nodes={before.nodes}
@@ -45,7 +46,7 @@ export function SameGraphView({
           reducedMotion={reducedMotion}
         />
       </Panel>
-      <Panel label="Second" hint="clean diagram" view={after} revealLists={revealLists}>
+      <Panel label="Clean diagram" view={after} revealLists={revealLists}>
         <SubwayMap
           mode="display"
           nodes={after.nodes}
@@ -61,21 +62,22 @@ export function SameGraphView({
 
 function Panel({
   label,
-  hint,
   view,
   revealLists,
   children,
 }: {
   label: string
-  hint: string
   view: SubwayView
   revealLists?: boolean
   children: React.ReactNode
 }) {
   return (
-    <div className="flex flex-1 flex-col items-center gap-1.5 rounded-2xl border border-border bg-card/40 p-2">
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-        {label} <span className="font-normal normal-case">({hint})</span>
+    <div
+      className="flex flex-1 flex-col items-center gap-1.5 rounded-2xl p-2"
+      style={{ background: METRO.paper, border: `1px solid ${METRO.cardEdge}` }}
+    >
+      <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: METRO.muted }}>
+        {label}
       </span>
       {children}
       {revealLists && (

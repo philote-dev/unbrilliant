@@ -98,3 +98,28 @@ export const TRANSIT_INTERCHANGES: Set<NodeId> = (() => {
 
 /** A station's display name, falling back to its id. */
 export const stationName = (id: NodeId): string => TRANSIT_STATIONS[id] ?? id
+
+/* --------------------------------- metro skin --------------------------------- */
+
+/**
+ * The full-screen "transit map poster" palette. Hardcoded (a brand takeover, like
+ * the Linked Lists Spotify theme), so the scene looks the same in light or dark
+ * app theme: a clean light paper map with ink labels and vivid route colors. All
+ * decoration; the route list (text) remains the data. The lilac `active` tone is
+ * the shared interaction color reused so "grab / drop / selected" reads the same
+ * across every lesson.
+ */
+export const METRO = {
+  paper: "#eef1f7",
+  paperEdge: "#dfe5f0",
+  card: "#fbfbf6",
+  cardEdge: "#d8deea",
+  ink: "#1b2330",
+  muted: "#5c6577",
+  water: "#cfe0f2",
+  park: "#d8e8cf",
+  station: "#ffffff",
+  active: "#8b7fd6",
+  activeSoft: "#eef0fb",
+} as const
+

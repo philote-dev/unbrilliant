@@ -72,18 +72,20 @@ export function GraphCanvas(props: GraphCanvasProps) {
 /* ------------------------------- scale-to-fit shell ------------------------------- */
 
 /**
- * Measure the available width and return a 0..1 scale that fits `intrinsicWidth`.
+ * Measure the available width and return a scale that fits `intrinsicWidth`,
+ * capped at `maxScale` (1 by default). The subway map passes a maxScale > 1 so it
+ * can grow to fill the full-bleed scene; everything else stays capped at 1.
  * Exported so the subway renderer shares the exact same fit math.
  */
-export function useFitScale(intrinsicWidth: number) {
+export function useFitScale(intrinsicWidth: number, maxScale = 1) {
   const outerRef = useRef<HTMLDivElement>(null)
-  const [scale, setScale] = useState(1)
+  const [scale, setScale] = useState(maxScale < 1 ? maxScale : 1)
   useLayoutEffect(() => {
     const el = outerRef.current
     if (!el) return
     const measure = () => {
       const avail = el.clientWidth
-      setScale(avail > 0 ? Math.min(1, avail / intrinsicWidth) : 1)
+      setScale(avail > 0 ? Math.min(maxScale, avail / intrinsicWidth) : Math.min(1, maxScale))
     }
     measure()
     let ro: ResizeObserver | undefined
@@ -97,7 +99,7 @@ export function useFitScale(intrinsicWidth: number) {
       ro?.disconnect()
       window.removeEventListener("resize", measure)
     }
-  }, [intrinsicWidth])
+  }, [intrinsicWidth, maxScale])
   return { outerRef, scale }
 }
 

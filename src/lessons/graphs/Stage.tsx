@@ -1,5 +1,6 @@
-import { useState, type Dispatch } from "react"
-import { useReducedMotion } from "motion/react"
+import { useState, type CSSProperties, type Dispatch } from "react"
+import { Check, X } from "lucide-react"
+import { motion, useReducedMotion } from "motion/react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -25,6 +26,7 @@ import { AdjacencyPanel } from "./AdjacencyPanel"
 import { GraphCanvas } from "./GraphCanvas"
 import { SameGraphView } from "./SameGraphView"
 import { SubwayMap, type SubwayVariant } from "./SubwayMap"
+import { METRO, TRANSIT_LINES } from "./transitData"
 
 /**
  * The Graphs stage. Routes the 12 beats: the drag-a-node + teach intros, four
@@ -454,48 +456,66 @@ function DrawPart({ state, dispatch }: PartProps) {
   const correct = feedback === "correct"
   const drawn = state.pendingEdge
 
-  const body = (
-    <>
-      <BinHeader state={state} transit={q.transit} />
+  // The transit draw beat takes over the whole stage as a station map poster.
+  if (q.transit) {
+    return (
+      <MetroScene
+        eyebrow={metroEyebrow(state)}
+        prompt={q.prompt}
+        footer={<MetroFeedbackFooter state={state} dispatch={dispatch} canCheck={canCheckGraphs(state)} />}
+      >
+        <RewireSurface
+          legalTargets={legalDrawTargets(state)}
+          onRewire={(from, to) => dispatch({ type: "rewire", from, to })}
+          label="Add the missing line by dragging between two stations"
+          className="flex w-full justify-center"
+        >
+          <SubwayMap
+            mode="draw"
+            fill
+            nodes={q.nodes}
+            adj={state.workingAdj}
+            layout={q.layout}
+            variant="geographic"
+            pendingEdge={drawn}
+            missingEdge={q.missingEdge}
+            terminal={terminal}
+          />
+        </RewireSurface>
+        <AdjacencyPanel
+          nodes={q.nodes}
+          adj={q.adj}
+          transit
+          highlightNodes={correct && q.missingEdge ? [q.missingEdge[0], q.missingEdge[1]] : undefined}
+        />
+      </MetroScene>
+    )
+  }
+
+  return (
+    <div className="flex flex-1 flex-col">
+      <BinHeader state={state} />
 
       <div className="flex flex-1 flex-col items-center justify-center gap-3 py-3">
         <RewireSurface
           legalTargets={legalDrawTargets(state)}
           onRewire={(from, to) => dispatch({ type: "rewire", from, to })}
-          label={
-            q.transit
-              ? "Add the missing line by dragging between two stations"
-              : "Draw the missing edge by dragging between two nodes"
-          }
+          label="Draw the missing edge by dragging between two nodes"
           className="flex w-full justify-center"
         >
-          {q.transit ? (
-            <SubwayMap
-              mode="draw"
-              nodes={q.nodes}
-              adj={state.workingAdj}
-              layout={q.layout}
-              variant="geographic"
-              pendingEdge={drawn}
-              missingEdge={q.missingEdge}
-              terminal={terminal}
-            />
-          ) : (
-            <GraphCanvas
-              mode="draw"
-              nodes={q.nodes}
-              adj={state.workingAdj}
-              layout={q.layout}
-              pendingEdge={drawn}
-              missingEdge={q.missingEdge}
-              terminal={terminal}
-            />
-          )}
+          <GraphCanvas
+            mode="draw"
+            nodes={q.nodes}
+            adj={state.workingAdj}
+            layout={q.layout}
+            pendingEdge={drawn}
+            missingEdge={q.missingEdge}
+            terminal={terminal}
+          />
         </RewireSurface>
         <AdjacencyPanel
           nodes={q.nodes}
           adj={q.adj}
-          transit={q.transit}
           highlightNodes={correct && q.missingEdge ? [q.missingEdge[0], q.missingEdge[1]] : undefined}
         />
       </div>
@@ -509,17 +529,8 @@ function DrawPart({ state, dispatch }: PartProps) {
         copy={feedbackCopy(q)}
         dispatch={dispatch}
       />
-    </>
+    </div>
   )
-
-  if (q.transit) {
-    return (
-      <div className="flex flex-1 flex-col rounded-3xl border border-lilac-strong/30 bg-lilac-soft/15 px-3">
-        {body}
-      </div>
-    )
-  }
-  return <div className="flex flex-1 flex-col">{body}</div>
 }
 
 /* ----------------------------- beat 10: redraw demo --------------------------- */
@@ -535,38 +546,37 @@ function RedrawDemoPart({ state, dispatch }: PartProps) {
   const layout = variant === "geographic" ? q.layout : (q.layoutB ?? q.layout)
 
   return (
-    <div className="flex flex-1 flex-col">
-      <div className="mt-7 text-center">
-        <h2 className="text-xl font-bold text-foreground">Same network, new picture</h2>
-        <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground">{q.prompt}</p>
-      </div>
-
-      <div className="flex flex-1 flex-col items-center justify-center gap-3 py-3">
-        <SubwayMap
-          mode="display"
-          nodes={q.nodes}
-          adj={q.adj}
-          layout={layout}
-          variant={variant}
-          reducedMotion={reduced}
-        />
-        <Button
-          variant="soft"
-          size="sm"
-          aria-pressed={variant === "diagrammatic"}
-          onClick={() => setVariant((v) => (v === "geographic" ? "diagrammatic" : "geographic"))}
-        >
-          {variant === "geographic" ? "Straighten to diagram" : "Back to street map"}
-        </Button>
-        <AdjacencyPanel nodes={q.nodes} adj={q.adj} transit />
-      </div>
-
-      <div className="mt-auto">
-        <Button variant="tactile" size="lg" className="w-full" onClick={() => dispatch({ type: "continue" })}>
-          Continue
-        </Button>
-      </div>
-    </div>
+    <MetroScene
+      eyebrow="Same network, two drawings"
+      prompt={q.prompt}
+      footer={
+        <div className="mt-auto pt-2">
+          <MetroButton className="w-full" onClick={() => dispatch({ type: "continue" })}>
+            Continue
+          </MetroButton>
+        </div>
+      }
+    >
+      <SubwayMap
+        mode="display"
+        fill
+        nodes={q.nodes}
+        adj={q.adj}
+        layout={layout}
+        variant={variant}
+        reducedMotion={reduced}
+      />
+      <button
+        type="button"
+        aria-pressed={variant === "diagrammatic"}
+        onClick={() => setVariant((v) => (v === "geographic" ? "diagrammatic" : "geographic"))}
+        className="rounded-full px-4 py-2 text-[13px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-lilac-strong/70"
+        style={{ background: "#ffffff", color: METRO.ink, border: `1px solid ${METRO.cardEdge}` }}
+      >
+        {variant === "geographic" ? "Straighten to diagram" : "Back to street map"}
+      </button>
+      <AdjacencyPanel nodes={q.nodes} adj={q.adj} transit />
+    </MetroScene>
   )
 }
 
@@ -578,24 +588,45 @@ function ClassifyPart({ state, dispatch }: PartProps) {
   if (!q) return null
   const { feedback, selected, showWhy } = state
   const terminal = isTerminalGraphs(state)
-  const isSame = q.kind === "same-graph"
   const reveal = feedback === "correct" || (feedback === "fail" && showWhy)
+
+  // The same-graph beat is the subway "two drawings, one network" proof, so it
+  // takes over the stage as a map poster. Tree-or-not stays the plain figure.
+  if (q.kind === "same-graph") {
+    return (
+      <MetroScene
+        eyebrow={metroEyebrow(state)}
+        prompt={q.prompt}
+        footer={<MetroFeedbackFooter state={state} dispatch={dispatch} canCheck={canCheckGraphs(state)} />}
+      >
+        <SameGraphView
+          before={{ nodes: q.nodes, adj: q.adj, layout: q.layout }}
+          after={{ nodes: q.nodes, adj: q.adjB ?? q.adj, layout: q.layoutB ?? q.layout }}
+          reducedMotion={reduced}
+          revealLists={reveal}
+        />
+        <div className="flex w-full gap-3">
+          {q.options.map((opt) => (
+            <MetroOption
+              key={opt.id}
+              label={opt.label}
+              state={optionState(feedback, selected, showWhy, opt.id, q.answer)}
+              isAnswer={opt.id === q.answer}
+              disabled={terminal}
+              onSelect={() => dispatch({ type: "select", letter: opt.id })}
+            />
+          ))}
+        </div>
+      </MetroScene>
+    )
+  }
 
   return (
     <div className="flex flex-1 flex-col">
-      <BinHeader state={state} transit={q.transit} />
+      <BinHeader state={state} />
 
       <div className="flex flex-col items-center gap-3 py-3">
-        {isSame ? (
-          <SameGraphView
-            before={{ nodes: q.nodes, adj: q.adj, layout: q.layout }}
-            after={{ nodes: q.nodes, adj: q.adjB ?? q.adj, layout: q.layoutB ?? q.layout }}
-            reducedMotion={reduced}
-            revealLists={reveal}
-          />
-        ) : (
-          <GraphCanvas mode="display" nodes={q.nodes} adj={q.adj} layout={q.layout} />
-        )}
+        <GraphCanvas mode="display" nodes={q.nodes} adj={q.adj} layout={q.layout} />
       </div>
 
       <div className="flex gap-3">
@@ -623,5 +654,268 @@ function ClassifyPart({ state, dispatch }: PartProps) {
         dispatch={dispatch}
       />
     </div>
+  )
+}
+
+/* --------------------------------- metro scene --------------------------------- */
+
+const SCENE_BG = `linear-gradient(180deg, ${METRO.paper}, ${METRO.paperEdge})`
+
+/** The bin label + cumulative gate count, shown in the metro header. */
+function metroEyebrow(state: GraphsState): string {
+  const quota = partQuotaGraphs(state)
+  const label = currentBinLabel(state)
+  if (quota && label) return `${label} · ${quota.done} / ${quota.total} correct`
+  return "Transit map"
+}
+
+/**
+ * The full-bleed "transit map poster" surface: cancels the lesson's px-5/pb-6
+ * padding to go edge-to-edge (the Linked Lists technique), then lays out a metro
+ * header, the map, the line legend, and a themed footer. Honors reduced motion.
+ */
+function MetroScene({
+  eyebrow,
+  prompt,
+  children,
+  footer,
+}: {
+  eyebrow: string
+  prompt?: string
+  children: React.ReactNode
+  footer: React.ReactNode
+}) {
+  const reduced = useReducedMotion() ?? false
+  return (
+    <motion.div
+      initial={reduced ? false : { opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={reduced ? { duration: 0 } : { duration: 0.45, ease: "easeOut" }}
+      className="-mx-5 -mb-6 flex flex-1 flex-col px-5 pb-6 pt-6"
+      style={{ background: SCENE_BG }}
+    >
+      <MetroHeader eyebrow={eyebrow} prompt={prompt} />
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 py-2">{children}</div>
+      <MetroLegend />
+      {footer}
+    </motion.div>
+  )
+}
+
+function MetroHeader({ eyebrow, prompt }: { eyebrow: string; prompt?: string }) {
+  return (
+    <div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <MetroRoundel />
+          <div className="leading-tight">
+            <p className="text-[15px] font-extrabold tracking-tight" style={{ color: METRO.ink }}>
+              City Metro
+            </p>
+            <p className="text-[11px] font-medium" style={{ color: METRO.muted }}>
+              {eyebrow}
+            </p>
+          </div>
+        </div>
+        <span
+          className="rounded-full px-3 py-1 text-[11px] font-bold"
+          style={{ background: METRO.ink, color: METRO.station }}
+        >
+          Zone 1
+        </span>
+      </div>
+      {prompt && (
+        <p className="mt-3 text-[15px] font-semibold leading-snug" style={{ color: METRO.ink }}>
+          {prompt}
+        </p>
+      )}
+    </div>
+  )
+}
+
+function MetroRoundel() {
+  return (
+    <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden>
+      <circle cx="15" cy="15" r="10.5" fill="none" stroke={METRO.ink} strokeWidth="4" />
+      <rect x="1" y="12.5" width="28" height="5" rx="1" fill={TRANSIT_LINES[0]?.color ?? METRO.ink} />
+    </svg>
+  )
+}
+
+function MetroLegend() {
+  return (
+    <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1" aria-hidden>
+      {TRANSIT_LINES.map((l) => (
+        <span
+          key={l.id}
+          className="flex items-center gap-1.5 text-[11px] font-semibold"
+          style={{ color: METRO.muted }}
+        >
+          <span className="h-1.5 w-5 rounded-full" style={{ background: l.color }} />
+          {l.name}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+function MetroButton({
+  children,
+  onClick,
+  disabled,
+  className,
+  tone = "primary",
+}: {
+  children: React.ReactNode
+  onClick: () => void
+  disabled?: boolean
+  className?: string
+  tone?: "primary" | "secondary"
+}) {
+  const style: CSSProperties =
+    tone === "primary"
+      ? { background: METRO.ink, color: METRO.station }
+      : { background: "#ffffff", color: METRO.ink, border: `1px solid ${METRO.cardEdge}` }
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        "rounded-full py-3.5 text-center text-[15px] font-bold outline-none transition-transform active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-lilac-strong/70 disabled:opacity-40",
+        className,
+      )}
+      style={style}
+    >
+      {children}
+    </button>
+  )
+}
+
+function MetroChip({ tone, children }: { tone: "ok" | "bad" | "hint"; children: React.ReactNode }) {
+  const color = tone === "ok" ? "#1f9d57" : tone === "bad" ? "#d4493a" : METRO.muted
+  return (
+    <div className="mb-3 flex flex-col items-center gap-1.5 text-center">
+      <span
+        className="flex size-6 items-center justify-center rounded-full text-white"
+        style={{ background: color }}
+        aria-hidden
+      >
+        {tone === "ok" ? (
+          <Check className="size-3.5" strokeWidth={3} />
+        ) : tone === "bad" ? (
+          <X className="size-3.5" strokeWidth={3} />
+        ) : (
+          <span className="size-1.5 rounded-full bg-white" />
+        )}
+      </span>
+      <p role="status" aria-live="polite" className="text-sm" style={{ color: METRO.ink }}>
+        {children}
+      </p>
+    </div>
+  )
+}
+
+/** A themed clone of FeedbackFooter for the metro surface; same dispatched actions. */
+function MetroFeedbackFooter({
+  state,
+  dispatch,
+  canCheck,
+}: {
+  state: GraphsState
+  dispatch: Dispatch<LessonAction>
+  canCheck: boolean
+}) {
+  const q = state.question
+  const { feedback, showWhy } = state
+  if (!q) return null
+  return (
+    <div className="mt-auto min-h-[128px] pt-2">
+      {feedback === "idle" && (
+        <>
+          <p className="mb-3 text-center text-sm" style={{ color: METRO.muted }}>
+            {q.hint}
+          </p>
+          <MetroButton className="w-full" disabled={!canCheck} onClick={() => dispatch({ type: "check" })}>
+            Check
+          </MetroButton>
+        </>
+      )}
+      {feedback === "nudge" && (
+        <>
+          <MetroChip tone="hint">{q.nudge}</MetroChip>
+          <MetroButton className="w-full" disabled={!canCheck} onClick={() => dispatch({ type: "check" })}>
+            Check
+          </MetroButton>
+        </>
+      )}
+      {feedback === "correct" && (
+        <>
+          <MetroChip tone="ok">{q.correct}</MetroChip>
+          <MetroButton className="w-full" onClick={() => dispatch({ type: "next" })}>
+            Continue
+          </MetroButton>
+        </>
+      )}
+      {feedback === "fail" && (
+        <>
+          <MetroChip tone="bad">
+            {showWhy ? q.why : "Not quite. Tap Why for the answer, or reattempt."}
+          </MetroChip>
+          <div className="flex gap-3">
+            <MetroButton tone="secondary" className="flex-1" disabled={showWhy} onClick={() => dispatch({ type: "reveal" })}>
+              Why?
+            </MetroButton>
+            <MetroButton className="flex-1" onClick={() => dispatch({ type: "reattempt" })}>
+              Reattempt
+            </MetroButton>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+const METRO_OPTION: Record<AnswerState, CSSProperties> = {
+  default: { background: "#ffffff", borderColor: METRO.cardEdge, color: METRO.ink },
+  selected: { background: METRO.activeSoft, borderColor: METRO.active, color: METRO.active },
+  correct: { background: "#e7f5ec", borderColor: "#1f9d57", color: "#15683b" },
+  nudge: { background: "#fdf3e0", borderColor: "#d8a23a", color: "#855612" },
+  fail: { background: "#fbe9e7", borderColor: "#d4493a", color: "#9a2c21" },
+}
+
+/** Themed same/different option, carrying the e2e data-answer hook byte-for-byte. */
+function MetroOption({
+  label,
+  state,
+  isAnswer,
+  disabled,
+  onSelect,
+}: {
+  label: string
+  state: AnswerState
+  isAnswer: boolean
+  disabled?: boolean
+  onSelect: () => void
+}) {
+  return (
+    <button
+      type="button"
+      data-testid="answer-card"
+      data-answer={isAnswer && import.meta.env.DEV ? "1" : undefined}
+      aria-pressed={state === "selected"}
+      disabled={disabled}
+      onClick={onSelect}
+      className={cn(
+        "flex flex-1 items-center justify-center gap-2 rounded-2xl border-2 px-3 py-3.5 text-center text-sm font-bold outline-none transition-colors",
+        "focus-visible:ring-2 focus-visible:ring-lilac-strong/70 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+        disabled && state === "default" && "cursor-default",
+      )}
+      style={METRO_OPTION[state]}
+    >
+      {state === "correct" && <Check className="size-4" strokeWidth={3} aria-hidden />}
+      {state === "fail" && <X className="size-4" strokeWidth={3} aria-hidden />}
+      {label}
+    </button>
   )
 }
