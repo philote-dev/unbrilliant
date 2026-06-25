@@ -1,3 +1,4 @@
+import { useId } from "react"
 import { MapPin } from "lucide-react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 
@@ -7,17 +8,19 @@ import type { ArrayOp, ArrayResize } from "@/features/lesson/arraysEngine"
 import { ARRIVAL_LABEL, carFor, type Car } from "./parkingData"
 
 /**
- * The Arrays "parking lot" skin: a flat lot of numbered bays where the bay number
- * IS the index and a parked car IS the value. It is the live structure across all
- * four beats, and its choreography makes the cost felt:
+ * The Arrays "parking lot" skin, drawn as an AERIAL view of a real lot: an
+ * asphalt surface with painted, numbered bays (the bay number IS the index) and
+ * top-down car silhouettes parked in them (a car IS the value, its letter on the
+ * roof). It is the live structure across all four beats, and its choreography
+ * makes the cost felt:
  *
  *  - Access: a "you are here" pin SNAPS onto the tapped bay with no travel, so
  *    reaching bay 0 and bay 9 look identical (free, direct).
  *  - Shift insert: on reveal the cars from the spot onward roll forward one bay,
  *    staggered by distance (a ripple), and the arrival car pulls into the spot.
- *  - Shift delete: the car at the spot lifts out and the rest roll back.
+ *  - Shift delete: the car at the spot pulls out and the rest roll back.
  *  - Resize: a lot with room quietly parks the new car in the first empty bay;
- *    a full lot doubles in size, the cars copy over, then the new car parks.
+ *    a full lot doubles in size, the cars convoy over, then the new car parks.
  *
  * The wave only fires on `reveal` (post-verdict), so nothing leaks. Reduced motion
  * snaps every case straight to its end-state, and a polite live region announces
@@ -26,15 +29,17 @@ import { ARRIVAL_LABEL, carFor, type Car } from "./parkingData"
  */
 
 const BAY_W = 46
-const BAY_H = 60
-const GAP = 8
+const BAY_H = 64
+const GAP = 6
 const CAR_W = 36
-const CAR_H = 44
+const CAR_H = 50
 const STEP_X = BAY_W + GAP
 const STEP_Y = BAY_H + GAP
 const RESIZE_COLS = 4
 /** Per-bay stagger (seconds) that turns the shifts into a visible ripple. */
 const PER = 0.06
+/** Asphalt surface colour (also used for the focus-ring offset on a bay). */
+const ASPHALT = "#30353f"
 
 type Cost = { word: CostWord; count: number; unit: string }
 
@@ -288,6 +293,8 @@ export function ParkingLot({
       className="relative mx-auto"
       style={{ width: plan.width, height: plan.height }}
     >
+      <Asphalt />
+
       {plan.bays.map((bay) => (
         <BaySlot
           key={`bay-${bay.index}`}
@@ -313,11 +320,11 @@ export function ParkingLot({
                   reduced
                     ? false
                     : car.arrival
-                      ? { x, y: y - 30, opacity: 0, scale: 0.7 }
+                      ? { x, y: y - 32, opacity: 0, scale: 0.7 }
                       : false
                 }
                 animate={{ x, y, opacity: 1, scale: !reduced && car.pulse ? [1, 1.08, 1] : 1 }}
-                exit={reduced ? { opacity: 0, transition: { duration: 0 } } : { opacity: 0, y: y - 34, scale: 0.7 }}
+                exit={reduced ? { opacity: 0, transition: { duration: 0 } } : { opacity: 0, y: y - 36, scale: 0.7 }}
                 transition={
                   reduced
                     ? { duration: 0 }
@@ -328,8 +335,8 @@ export function ParkingLot({
                         scale: { duration: 0.45, delay: car.delay },
                       }
                 }
-                className="absolute left-0 top-0 flex items-center justify-center"
-                style={{ width: BAY_W, height: BAY_H }}
+                className="absolute left-0 top-0 flex items-start justify-center"
+                style={{ width: BAY_W, height: BAY_H, paddingTop: 3 }}
               >
                 <CarSprite car={car.sprite} />
               </motion.div>
@@ -350,6 +357,30 @@ export function ParkingLot({
 
 /* --------------------------------- pieces ---------------------------------- */
 
+/** The asphalt surface under the bays: a dark, faintly speckled slab with a soft
+ * top-down vignette and a curb edge, so the lot reads as tarmac, not a card. */
+function Asphalt() {
+  return (
+    <div
+      aria-hidden
+      className="pointer-events-none absolute -inset-2 rounded-2xl"
+      style={{
+        background: `linear-gradient(165deg, #454c59, ${ASPHALT} 58%, #272b33)`,
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.06), inset 0 0 0 1px rgba(0,0,0,0.4), 0 12px 26px -14px rgba(0,0,0,0.6)",
+      }}
+    >
+      <div
+        className="absolute inset-0 rounded-2xl opacity-50"
+        style={{
+          backgroundImage: "radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1.4px)",
+          backgroundSize: "7px 7px",
+        }}
+      />
+    </div>
+  )
+}
+
 function BaySlot({
   bay,
   cols,
@@ -362,13 +393,14 @@ function BaySlot({
   onTap?: () => void
 }) {
   const { x, y } = bayXY(bay.index, cols)
-  const tone = bay.pinned
-    ? "border-lilac-strong bg-lilac-soft"
+  // Painted slot lines (left/right/head) on the asphalt; highlights recolour them.
+  const lines = bay.pinned
+    ? "border-lilac-strong bg-lilac-soft/25"
     : bay.highlight === "spot" || bay.highlight === "target"
-      ? "border-dashed border-lilac-strong bg-lilac-soft/30"
+      ? "border-dashed border-lilac-strong/80 bg-lilac-soft/15"
       : bay.highlight === "leaving"
-        ? "border-dashed border-danger bg-danger-soft/30"
-        : "border-dashed border-border/70 bg-muted/15"
+        ? "border-dashed border-rose-400/80 bg-rose-500/10"
+        : "border-white/55 bg-white/[0.03]"
 
   const motionProps = {
     initial: reduced ? false : ({ opacity: 0, scale: 0.6, x, y } as const),
@@ -376,15 +408,21 @@ function BaySlot({
     transition: reduced ? { duration: 0 } : { type: "spring" as const, stiffness: 300, damping: 26 },
     style: { width: BAY_W, height: BAY_H, position: "absolute" as const, left: 0, top: 0 },
     "data-testid": "bay",
+    // Open at the bottom (the drive aisle); lines on the sides + head.
+    className: cn(
+      "rounded-t-md border-l-2 border-r-2 border-t-2 border-b-0 transition-colors",
+      lines,
+    ),
   }
 
   const number = (
     <span
       aria-hidden
       className={cn(
-        "absolute bottom-1 right-1.5 text-[10px] font-bold tabular-nums",
-        bay.pinned ? "text-lilac-strong" : "text-faint",
+        "absolute inset-x-0 bottom-0.5 text-center text-[10px] font-extrabold tabular-nums",
+        bay.pinned ? "text-lilac-strong" : "text-white/65",
       )}
+      style={{ textShadow: "0 1px 1px rgba(0,0,0,0.5)" }}
     >
       {bay.index}
     </span>
@@ -398,11 +436,11 @@ function BaySlot({
         onClick={onTap}
         aria-label={bay.ariaLabel}
         className={cn(
-          "flex items-center justify-center rounded-lg border-2 outline-none transition-colors",
-          "cursor-pointer hover:border-lilac-strong/60",
-          "focus-visible:ring-2 focus-visible:ring-lilac-strong/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-          tone,
+          motionProps.className,
+          "cursor-pointer outline-none hover:border-lilac-strong/70",
+          "focus-visible:ring-2 focus-visible:ring-lilac-strong focus-visible:ring-offset-2",
         )}
+        style={{ ...motionProps.style, ["--tw-ring-offset-color" as string]: ASPHALT }}
       >
         {number}
       </motion.button>
@@ -410,34 +448,61 @@ function BaySlot({
   }
 
   return (
-    <motion.div
-      {...motionProps}
-      role="img"
-      aria-label={bay.ariaLabel}
-      className={cn("flex items-center justify-center rounded-lg border-2 transition-colors", tone)}
-    >
+    <motion.div {...motionProps} role="img" aria-label={bay.ariaLabel}>
       {number}
     </motion.div>
   )
 }
 
+/** A simple top-down car silhouette tinted with the car's gradient, with the
+ * array value on a roof plate so the data stays legible. The arrival car (X) is
+ * the bright gold one, ringed so the eye tracks the new item. */
 function CarSprite({ car }: { car: Car }) {
+  const gid = `car-${useId().replace(/[:]/g, "")}`
+  const [c0, c1] = car.body
   return (
-    <span
-      aria-hidden
-      className={cn(
-        "relative flex items-center justify-center rounded-[10px] text-sm font-extrabold shadow-soft",
-        car.arrival ? "text-neutral-900 ring-2 ring-yellow-300 ring-offset-2 ring-offset-background" : "text-white",
-      )}
-      style={{
-        width: CAR_W,
-        height: CAR_H,
-        backgroundImage: `linear-gradient(155deg, ${car.body[0]}, ${car.body[1]})`,
-      }}
-    >
-      <span className="absolute inset-x-1.5 top-1 h-1.5 rounded-full bg-white/35" />
-      <span className="absolute inset-x-1.5 bottom-1 h-1 rounded-full bg-black/15" />
-      <span className="relative drop-shadow-sm">{car.label}</span>
+    <span aria-hidden className="relative block drop-shadow-[0_2px_2px_rgba(0,0,0,0.45)]" style={{ width: CAR_W, height: CAR_H }}>
+      <svg width={CAR_W} height={CAR_H} viewBox="0 0 36 50" className="block">
+        <defs>
+          <linearGradient id={gid} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor={c0} />
+            <stop offset="100%" stopColor={c1} />
+          </linearGradient>
+        </defs>
+        {/* wheels peeking from under the body */}
+        <g fill="#0f172a">
+          <rect x="2.5" y="10" width="3.5" height="9" rx="1.5" />
+          <rect x="30" y="10" width="3.5" height="9" rx="1.5" />
+          <rect x="2.5" y="31" width="3.5" height="9" rx="1.5" />
+          <rect x="30" y="31" width="3.5" height="9" rx="1.5" />
+        </g>
+        {/* body */}
+        <rect
+          x="5"
+          y="2"
+          width="26"
+          height="46"
+          rx="11"
+          fill={`url(#${gid})`}
+          stroke={car.arrival ? "#fde047" : "rgba(0,0,0,0.28)"}
+          strokeWidth={car.arrival ? 1.6 : 0.75}
+        />
+        {/* windshield (front) + rear window, tinted glass */}
+        <path d="M10 13 H26 L24 19 H12 Z" fill="#dbeafe" opacity="0.9" />
+        <path d="M12 37 H24 L26 43 H10 Z" fill="#dbeafe" opacity="0.5" />
+        {/* side mirrors */}
+        <rect x="3.5" y="16" width="2.6" height="2.6" rx="1" fill={c1} />
+        <rect x="29.9" y="16" width="2.6" height="2.6" rx="1" fill={c1} />
+      </svg>
+      <span
+        className={cn(
+          "absolute left-1/2 top-1/2 flex h-[15px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-[3px] px-0.5 text-[11px] font-extrabold leading-none",
+          car.arrival ? "bg-neutral-900/85 text-amber-200" : "bg-white/90 text-neutral-900",
+        )}
+        style={{ minWidth: 14 }}
+      >
+        {car.label}
+      </span>
     </span>
   )
 }
@@ -451,7 +516,7 @@ function YouAreHerePin({ bay, cols }: { bay: number; cols: number }) {
       initial={false}
       // SNAP: zero-duration so the pin teleports to the bay (no travel), the felt
       // proof that access is direct no matter which index you pick.
-      animate={{ x: x + BAY_W / 2 - 30, y: y - 20 }}
+      animate={{ x: x + BAY_W / 2 - 30, y: y - 22 }}
       transition={{ duration: 0 }}
       style={{ width: 60 }}
     >
