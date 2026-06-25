@@ -14,6 +14,7 @@ import {
   isTerminal,
   legalTargets,
   partQuota,
+  removablePushedCell,
   targetEmitStep,
   type Cell,
   type ClassifyQuestion,
@@ -23,20 +24,13 @@ import {
   type PredictQuestion,
   type SQState,
 } from "@/features/lesson/stacksQueuesEngine"
+import { StageSplit, StageCenter } from "@/components/willow/lesson/StageLayout"
 import { StackBin } from "./StackBin"
 import { QueueTube } from "./QueueTube"
 import { ContrastReplay } from "./ContrastReplay"
 import { ClassifyReplay } from "./ClassifyReplay"
 import { BrowserShowpiece } from "./BrowserShowpiece"
-import { DriveThruLane } from "./DriveThruLane"
 import { PrinterShowpiece } from "./PrinterShowpiece"
-
-/**
- * Which skin the queue real-world beat wears. "drivethru" is the primary,
- * locked skin; flip to "printer" to fall back to the print-queue showpiece. The
- * engine still tags the beat theme "drivethru"; this switch picks the component.
- */
-const REALWORLD_QUEUE_SKIN: "drivethru" | "printer" = "drivethru"
 
 /**
  * How long the resolved "correct" state (green + check) is held before the
@@ -114,6 +108,7 @@ function BuildingContainer({
   cellState,
   onSelectCell,
   answerId,
+  showEnds,
 }: {
   discipline: Discipline
   cells: Cell[]
@@ -122,6 +117,7 @@ function BuildingContainer({
   cellState?: (id: string) => AnswerState
   onSelectCell?: (id: string) => void
   answerId?: string
+  showEnds?: boolean
 }) {
   const built = useBuildIn(arrival)
   const visible = new Set(arrival.slice(0, built))
@@ -135,6 +131,7 @@ function BuildingContainer({
       cellState={cellState}
       onSelectCell={onSelectCell}
       answerId={answerId}
+      showEnds={showEnds}
     />
   )
 }
@@ -178,7 +175,7 @@ function DemoPart({
   const remove = () => setPlay((s) => ({ ...s, cells: s.cells.slice(1) }))
 
   return (
-    <div className="flex flex-1 flex-col">
+    <StageCenter>
       <div className="mt-7 text-center">
         <h2 className="text-xl font-bold text-foreground">
           {isStack ? "Play with the stack" : "Play with the queue"}
@@ -221,7 +218,7 @@ function DemoPart({
       >
         Continue
       </Button>
-    </div>
+    </StageCenter>
   )
 }
 
@@ -248,7 +245,7 @@ function TeachPart({
       ]
 
   return (
-    <div className="flex flex-1 flex-col">
+    <StageCenter>
       <div className="mt-7 text-center">
         <h2 className="text-xl font-bold text-foreground">
           {isStack ? "This is a stack" : "This is a queue"}
@@ -257,12 +254,15 @@ function TeachPart({
           {isStack ? (
             <>
               <span className="font-semibold text-foreground">Last in, first out.</span>{" "}
-              One opening: cards go in and come out the same end, the top.
+              One opening: cards go in and come out the same end, the{" "}
+              <span className="font-semibold text-lilac-strong">top</span>.
             </>
           ) : (
             <>
               <span className="font-semibold text-foreground">First in, first out.</span>{" "}
-              Two ends: items enter the back and leave from the front.
+              Two ends: items enter the{" "}
+              <span className="font-semibold text-lilac-strong">back</span> and leave from
+              the <span className="font-semibold text-lilac-strong">front</span>.
             </>
           )}
         </p>
@@ -273,6 +273,7 @@ function TeachPart({
           discipline={discipline}
           cells={cells}
           arrival={(isStack ? [...cells].reverse() : cells).map((c) => c.id)}
+          showEnds
         />
       </div>
 
@@ -284,7 +285,7 @@ function TeachPart({
       >
         Continue
       </Button>
-    </div>
+    </StageCenter>
   )
 }
 
@@ -390,7 +391,7 @@ function PredictPart({
   // The real-world skins transform the whole page: render full-bleed scenes with
   // their own integrated prompt + themed footer (dispatching the same actions),
   // instead of the boxed prompt + figure + FeedbackFooter layout.
-  if (!isAfterK && (q.theme === "browser" || q.theme === "drivethru")) {
+  if (!isAfterK && (q.theme === "browser" || q.theme === "printer")) {
     const sceneProps = {
       cells: builtCells,
       arrival: q.arrival,
@@ -407,8 +408,17 @@ function PredictPart({
       copy: q,
       dispatch,
     }
-    if (q.theme === "browser") return <BrowserShowpiece {...sceneProps} />
-    if (REALWORLD_QUEUE_SKIN === "drivethru") return <DriveThruLane {...sceneProps} />
+    if (q.theme === "browser")
+      return (
+        <StageCenter>
+          <BrowserShowpiece {...sceneProps} />
+        </StageCenter>
+      )
+    return (
+      <StageCenter>
+        <PrinterShowpiece {...sceneProps} />
+      </StageCenter>
+    )
   }
 
   let figure: ReactNode
@@ -447,18 +457,6 @@ function PredictPart({
         )}
       </div>
     )
-  } else if (q.theme === "drivethru" || q.theme === "printer") {
-    figure = (
-      <PrinterShowpiece
-        cells={builtCells}
-        selectable={!terminal && ready}
-        cellState={cellState}
-        onSelectCell={onSelectCell}
-        answerId={q.answer}
-        popping={popping}
-        reducedMotion={reduce}
-      />
-    )
   } else {
     figure = (
       <Container
@@ -473,7 +471,7 @@ function PredictPart({
   }
 
   return (
-    <div className="flex flex-1 flex-col">
+    <StageCenter>
       <div className="mt-7">
         <QuotaLine state={state} />
         <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground">
@@ -491,7 +489,7 @@ function PredictPart({
         dispatch={dispatch}
         hideFailHint
       />
-    </div>
+    </StageCenter>
   )
 }
 
@@ -663,6 +661,15 @@ function ConstructPart({
   const canDrop = building && legalTargets(state).has("mouth")
   const zoneLabel = q.discipline === "stack" ? "the stack" : "the queue"
 
+  // While building, the open-end cell (top of the stack / back of the queue) can
+  // be tapped to return it to the tray, the one accessible end a stack/queue has.
+  const removableCell = removablePushedCell(state)
+  const removeEnd = q.discipline === "stack" ? "the top of the stack" : "the back of the queue"
+  const removeHint =
+    q.discipline === "stack"
+      ? "Tap the top card to take it back"
+      : "Tap the back card to take it back"
+
   // Forgiving geometry hit-test against the live drop-zone rect (viewport space).
   const hitTest = (p: { x: number; y: number }) => {
     const el = dropRef.current
@@ -681,73 +688,85 @@ function ConstructPart({
 
   return (
     <div className="relative flex flex-1 flex-col">
-      <div className="mt-7">
-        <QuotaLine state={state} />
-        <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground">
-          {q.prompt}
-        </h2>
-        <div className="mt-3 flex items-center justify-center gap-1.5">
-          <span className="text-xs font-medium text-muted-foreground">Goal: leaves as</span>
-          {q.target.map((c, i) => (
-            <span key={c.id} className="flex items-center gap-1.5">
-              <span className="flex size-7 items-center justify-center rounded-md border border-border bg-card text-xs font-bold text-foreground">
-                {c.label}
+      <StageCenter>
+        <div className="mt-7">
+          <QuotaLine state={state} />
+          <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground">
+            {q.prompt}
+          </h2>
+          <div className="mt-3 flex items-center justify-center gap-1.5">
+            {q.target.map((c, i) => (
+              <span key={c.id} className="flex items-center gap-1.5">
+                <span className="flex size-7 items-center justify-center rounded-md border border-border bg-card text-xs font-bold text-foreground">
+                  {c.label}
+                </span>
+                {i < q.target.length - 1 && (
+                  <ArrowRight className="size-3 text-faint" strokeWidth={2.5} />
+                )}
               </span>
-              {i < q.target.length - 1 && (
-                <ArrowRight className="size-3 text-faint" strokeWidth={2.5} />
-              )}
-            </span>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
 
-      <div className="flex flex-1 flex-col items-center justify-center gap-6 py-4">
-        <Container
-          discipline={q.discipline}
-          cells={shownCells}
-          layoutIdFor={(id) => (reduce ? undefined : `construct-${id}`)}
-          dropRef={building ? dropRef : undefined}
-          dropActive={canDrop && dragging}
-          dropOver={canDrop && over}
-        />
-
-        {work.loose.length > 0 && !terminal && state.feedback !== "correct" && (
+        <div className="flex flex-1 flex-col items-center justify-center gap-6 py-4">
           <div className="flex flex-col items-center gap-2">
-            <div className="flex flex-wrap justify-center gap-2">
-              {work.loose.map((id) => (
-                <DraggableCard
-                  key={id}
-                  id={id}
-                  label={labels[id]}
-                  order={q.correctPush.indexOf(id)}
-                  reduce={!!reduce}
-                  missMode={missMode}
-                  hitTest={hitTest}
-                  onActive={onActive}
-                  onPush={() => dispatch({ type: "rewire", from: id, to: "mouth" })}
-                  ariaLabel={`Add ${labels[id]} to ${zoneLabel}`}
-                  layoutId={reduce ? undefined : `construct-${id}`}
-                />
-              ))}
-            </div>
-            {!dragging && (
-              <span className="text-xs font-medium text-faint">
-                Drag a card into {zoneLabel}
-              </span>
+            <Container
+              discipline={q.discipline}
+              cells={shownCells}
+              selectable={building}
+              selectableId={removableCell ?? undefined}
+              onSelectCell={(id) => dispatch({ type: "rewire", from: id, to: "tray" })}
+              cellAriaLabel={(id) =>
+                id === removableCell ? `Remove ${labels[id]} from ${removeEnd}` : undefined
+              }
+              layoutIdFor={(id) => (reduce ? undefined : `construct-${id}`)}
+              dropRef={building ? dropRef : undefined}
+              dropActive={canDrop && dragging}
+              dropOver={canDrop && over}
+            />
+            {removableCell && !dragging && (
+              <span className="text-xs font-medium text-faint">{removeHint}</span>
             )}
           </div>
-        )}
-      </div>
 
-      <FeedbackFooter
-        feedback={state.feedback}
-        selected={null}
-        showWhy={state.showWhy}
-        copy={q}
-        dispatch={dispatch}
-        canCheck={ready}
-        hideFailHint
-      />
+          {work.loose.length > 0 && !terminal && state.feedback !== "correct" && (
+            <div className="flex flex-col items-center gap-2">
+              <div className="flex flex-wrap justify-center gap-2">
+                {work.loose.map((id) => (
+                  <DraggableCard
+                    key={id}
+                    id={id}
+                    label={labels[id]}
+                    order={q.correctPush.indexOf(id)}
+                    reduce={!!reduce}
+                    missMode={missMode}
+                    hitTest={hitTest}
+                    onActive={onActive}
+                    onPush={() => dispatch({ type: "rewire", from: id, to: "mouth" })}
+                    ariaLabel={`Add ${labels[id]} to ${zoneLabel}`}
+                    layoutId={reduce ? undefined : `construct-${id}`}
+                  />
+                ))}
+              </div>
+              {!dragging && (
+                <span className="text-xs font-medium text-faint">
+                  Drag a card into {zoneLabel}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+
+        <FeedbackFooter
+          feedback={state.feedback}
+          selected={null}
+          showWhy={state.showWhy}
+          copy={q}
+          dispatch={dispatch}
+          canCheck={ready}
+          hideFailHint
+        />
+      </StageCenter>
 
       {import.meta.env.DEV && work.loose.length > 0 && !terminal && (
         <button
@@ -789,59 +808,65 @@ function ComparePart({
   }
 
   return (
-    <div className="flex flex-1 flex-col">
-      <div className="mt-7">
-        <QuotaLine state={state} />
-        <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground">
-          {q.prompt}
-        </h2>
-      </div>
+    <StageSplit
+      header={
+        <div className="mt-7">
+          <QuotaLine state={state} />
+          <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground">
+            {q.prompt}
+          </h2>
+        </div>
+      }
+      figure={
+        <div className="flex justify-center py-5">
+          {q.kind === "classify" ? (
+            <ClassifyReplay
+              inOrder={q.inOrder}
+              outOrder={q.outOrder}
+              verdict={q.answer as "stack" | "queue" | "neither"}
+              replay={revealing}
+              reducedMotion={reduce}
+              srLabel={revealing ? classifySrLabel(q) : undefined}
+            />
+          ) : (
+            <ContrastReplay
+              arrival={q.arrival}
+              target={q.target}
+              winner={q.answer as Discipline}
+              replay={revealing}
+              reducedMotion={reduce}
+              srLabel={revealing ? contrastSrLabel(q) : undefined}
+            />
+          )}
+        </div>
+      }
+      interaction={
+        <>
+          <div className="flex flex-1 flex-col justify-center gap-3 pb-6">
+            {q.options.map((opt, i) => (
+              <AnswerCard
+                key={opt.id}
+                letter={String.fromCharCode(65 + i)}
+                label={opt.label}
+                state={cardState(opt.id)}
+                disabled={terminal}
+                answerMarker={opt.id === q.answer}
+                onSelect={() => dispatch({ type: "select", letter: opt.id })}
+              />
+            ))}
+          </div>
 
-      <div className="flex justify-center py-5">
-        {q.kind === "classify" ? (
-          <ClassifyReplay
-            inOrder={q.inOrder}
-            outOrder={q.outOrder}
-            verdict={q.answer as "stack" | "queue" | "neither"}
-            replay={revealing}
-            reducedMotion={reduce}
-            srLabel={revealing ? classifySrLabel(q) : undefined}
+          <FeedbackFooter
+            feedback={feedback}
+            selected={selected}
+            showWhy={showWhy}
+            copy={q}
+            dispatch={dispatch}
+            hideFailHint
           />
-        ) : (
-          <ContrastReplay
-            arrival={q.arrival}
-            target={q.target}
-            winner={q.answer as Discipline}
-            replay={revealing}
-            reducedMotion={reduce}
-            srLabel={revealing ? contrastSrLabel(q) : undefined}
-          />
-        )}
-      </div>
-
-      <div className="flex flex-1 flex-col justify-center gap-3 pb-6">
-        {q.options.map((opt, i) => (
-          <AnswerCard
-            key={opt.id}
-            letter={String.fromCharCode(65 + i)}
-            label={opt.label}
-            state={cardState(opt.id)}
-            disabled={terminal}
-            answerMarker={opt.id === q.answer}
-            onSelect={() => dispatch({ type: "select", letter: opt.id })}
-          />
-        ))}
-      </div>
-
-      <FeedbackFooter
-        feedback={feedback}
-        selected={selected}
-        showWhy={showWhy}
-        copy={q}
-        dispatch={dispatch}
-        hideFailHint
-      />
-    </div>
+        </>
+      }
+    />
   )
 }
 

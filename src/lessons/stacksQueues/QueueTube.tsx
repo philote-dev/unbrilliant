@@ -1,4 +1,5 @@
 import type { RefObject } from "react"
+import { ChevronLeft } from "lucide-react"
 import { AnimatePresence } from "motion/react"
 
 import { cn } from "@/lib/utils"
@@ -28,9 +29,12 @@ const INNER_W = 236
 export function QueueTube({
   cells,
   selectable,
+  selectableId,
   cellState,
+  cellAriaLabel,
   onSelectCell,
   answerId,
+  showEnds,
   layoutIdFor,
   dropRef,
   dropActive,
@@ -39,9 +43,15 @@ export function QueueTube({
 }: {
   cells: Cell[] // container order: index 0 = front (the exit)
   selectable?: boolean
+  /** When set, only this cell is selectable (the construct beat's open end). */
+  selectableId?: string
   cellState?: (id: string) => AnswerState
+  /** Per-cell accessible name (e.g. "Remove A from the back of the queue"). */
+  cellAriaLabel?: (id: string) => string | undefined
   onSelectCell?: (id: string) => void
   answerId?: string
+  /** Teach-only: label the FRONT (exit) and BACK (entry) ends. Off in predict. */
+  showEnds?: boolean
   /** Maps a cell id to a shared-layout id (continuous construct drop handoff). */
   layoutIdFor?: (id: string) => string | undefined
   dropRef?: RefObject<HTMLDivElement | null>
@@ -53,6 +63,8 @@ export function QueueTube({
   // left to its slot; the distance shrinks as the queue fills toward the back.
   const backX = INNER_W - CELL_PX
   const last = cells.length - 1
+  const cellSelectable = (id: string) =>
+    !!selectable && (selectableId === undefined || id === selectableId)
 
   return (
     <div className={cn("flex flex-col items-center gap-2", className)}>
@@ -86,7 +98,8 @@ export function QueueTube({
               id={c.id}
               label={c.label}
               state={cellState?.(c.id) ?? "default"}
-              selectable={selectable}
+              selectable={cellSelectable(c.id)}
+              ariaLabel={cellAriaLabel?.(c.id)}
               onSelect={() => onSelectCell?.(c.id)}
               isAnswer={answerId === c.id}
               layoutId={layoutIdFor?.(c.id)}
@@ -96,6 +109,21 @@ export function QueueTube({
           ))}
         </AnimatePresence>
       </div>
+      {showEnds && (
+        <div
+          aria-hidden
+          className="flex w-full min-w-[260px] justify-between px-1 text-[10px] font-bold uppercase tracking-wide text-lilac-strong"
+        >
+          <span data-testid="end-marker-front" className="flex items-center gap-0.5">
+            <ChevronLeft className="size-3" strokeWidth={2.5} />
+            Front
+          </span>
+          <span data-testid="end-marker-back" className="flex items-center gap-0.5">
+            Back
+            <ChevronLeft className="size-3" strokeWidth={2.5} />
+          </span>
+        </div>
+      )}
     </div>
   )
 }

@@ -61,6 +61,11 @@
   --shadow-pop: 0 12px 40px -12px rgba(40, 50, 80, 0.28);
 
   --radius: 1rem;
+
+  /* desktop (lg+) shell metrics */
+  --willow-sidebar-w: 260px; /* persistent left rail width */
+  --willow-content-max: 1440px; /* centered main cap on ultrawide */
+  --willow-lesson-max: 1180px; /* narrower cap for lesson readability */
 }
 
 .dark {

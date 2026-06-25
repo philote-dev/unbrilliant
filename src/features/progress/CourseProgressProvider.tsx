@@ -12,12 +12,15 @@ import {
 import { useAuth } from "@/lib/auth"
 import { db } from "@/lib/firebase"
 import { createFirestoreProgressRepository } from "@/features/progress/firestoreProgressRepository"
+import { mergeActivity } from "@/features/progress/mergeActivity"
+import { lastNDayKeys } from "@/features/progress/activityDate"
 import { useLessonRun } from "@/features/lesson/useLessonRun"
 import {
   DATA_STRUCTURES_LESSONS,
   deriveCourseProgress,
   type ProgressByLesson,
 } from "@/lessons/catalog"
+import type { ActivityDay } from "@/features/progress/ProgressRepository"
 
 /**
  * The learner's real progress, read once per signed-in user through the
@@ -35,6 +38,8 @@ interface CourseProgressValue {
   currentCourseId: string | null
   /** The on-fire streak (persisted best, overlaid with the live run's combo). */
   streak: { current: number; longest: number }
+  /** Per-day answer activity (persisted log overlaid with this session's deltas). */
+  activity: ActivityDay[]
   /** Mark a course as entered (flips Home to dashboard; persists when signed-in). */
   enterCourse: (courseId: string) => void
   /** Re-read persisted progress (e.g. after completing a lesson). */
@@ -45,12 +50,17 @@ const CourseProgressContext = createContext<CourseProgressValue | null>(null)
 
 export function CourseProgressProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
-  const { state: runState, module: runModule, lessonId: runLessonId } =
-    useLessonRun()
+  const {
+    state: runState,
+    module: runModule,
+    lessonId: runLessonId,
+    sessionActivity,
+  } = useLessonRun()
   const repo = useMemo(() => createFirestoreProgressRepository(db), [])
   const [server, setServer] = useState<ProgressByLesson>({})
   const [currentCourseId, setCurrentCourseId] = useState<string | null>(null)
   const [serverStreak, setServerStreak] = useState({ current: 0, longest: 0 })
+  const [serverActivity, setServerActivity] = useState<ActivityDay[]>([])
   const [reloadKey, setReloadKey] = useState(0)
 
   const currentCourseIdRef = useRef(currentCourseId)
@@ -95,6 +105,27 @@ export function CourseProgressProvider({ children }: { children: ReactNode }) {
     }
   }, [user, repo, reloadKey])
 
+  // Load the persisted activity log once per signed-in user, deliberately NOT on
+  // `refresh()`. The session overlay already reflects this run's answers live, and
+  // those answers are persisted fire-and-forget; re-reading the server mid-session
+  // would return rows that already include the overlay's deltas, so merging would
+  // double-count today. A full reload (overlay cleared) picks up the server total.
+  useEffect(() => {
+    if (!user) {
+      setServerActivity([])
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      // A little over the 365-day calendar window so the oldest column is full.
+      const days = await repo.getActivity(user.uid, lastNDayKeys(Date.now(), 370)[0])
+      if (!cancelled) setServerActivity(days)
+    })().catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [user, repo])
+
   // Signing out drops the (now-irrelevant) in-memory course selection.
   useEffect(() => {
     if (!user) setCurrentCourseId(null)
@@ -134,12 +165,20 @@ export function CourseProgressProvider({ children }: { children: ReactNode }) {
     [serverStreak, liveCombo],
   )
 
+  // The persisted log overlaid with this session's deltas, so "today" reflects
+  // the live run at once (and an anonymous run shows for the session).
+  const activity = useMemo(
+    () => mergeActivity(serverActivity, sessionActivity),
+    [serverActivity, sessionActivity],
+  )
+
   const value = useMemo<CourseProgressValue>(
     () => ({
       progressByLesson,
       courseProgress,
       currentCourseId,
       streak,
+      activity,
       enterCourse,
       refresh,
     }),
@@ -148,6 +187,7 @@ export function CourseProgressProvider({ children }: { children: ReactNode }) {
       courseProgress,
       currentCourseId,
       streak,
+      activity,
       enterCourse,
       refresh,
     ],

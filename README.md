@@ -1,6 +1,6 @@
 # Willow
 
-A mobile-first, **deterministic, no-AI** "learn data structures by doing" web app.
+A mobile-first, **deterministic, no-AI** "learn algorithmic thinking by doing" web app. The first track, Data Structures, is live; Algorithms and Probability are on the way.
 Grading is pure functions. The same state always yields the same feedback. Play
 signed-out (a transient in-memory run) or sign in to save durable progress.
 

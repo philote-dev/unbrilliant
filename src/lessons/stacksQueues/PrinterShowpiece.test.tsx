@@ -1,70 +1,91 @@
-import { render, screen, fireEvent } from "@testing-library/react"
-import { describe, it, expect, vi } from "vitest"
+import { render, screen } from "@testing-library/react"
+import { describe, it, expect, beforeAll } from "vitest"
 
-import { PrinterShowpiece } from "./PrinterShowpiece"
 import type { Cell } from "@/features/lesson/stacksQueuesEngine"
+import { PrinterShowpiece } from "./PrinterShowpiece"
 
-// Container order: index 0 = the front (the next file to print).
-const JOBS: Cell[] = [
-  { id: "j1", label: "report" },
-  { id: "j2", label: "essay" },
-  { id: "j3", label: "photo" },
+/**
+ * The full-bleed print-queue scene for the queue real-world predict. jsdom can't
+ * measure motion, so these cover what it CAN: the scene renders, the FRONT
+ * document (next to print) carries the single data-answer hook, the prompt shows
+ * on the job display, the output tray stays empty until popping (then holds the
+ * printed sheet), and reduced motion snaps to the end-state. No verdict is ever
+ * computed here; the front document is the FIFO answer the engine already picked.
+ */
+beforeAll(() => {
+  if (typeof window.matchMedia !== "function") {
+    window.matchMedia = (query: string): MediaQueryList =>
+      ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        addListener: () => {},
+        removeListener: () => {},
+        dispatchEvent: () => false,
+      }) as MediaQueryList
+  }
+})
+
+const CELLS: Cell[] = [
+  { id: "c1", label: "Report" },
+  { id: "c2", label: "Essay" },
+  { id: "c3", label: "Photo" },
+  { id: "c4", label: "Memo" },
 ]
+const ARRIVAL = ["c1", "c2", "c3", "c4"]
 
-describe("PrinterShowpiece (queue fallback skin)", () => {
-  it("wraps the graded queue with every job in arrival order", () => {
-    render(<PrinterShowpiece cells={JOBS} />)
+function renderScene(props: Partial<Parameters<typeof PrinterShowpiece>[0]> = {}) {
+  return render(
+    <PrinterShowpiece
+      cells={CELLS}
+      arrival={ARRIVAL}
+      answerId="c1"
+      cellState={() => "default"}
+      {...props}
+    />,
+  )
+}
+
+describe("PrinterShowpiece", () => {
+  it("renders the print queue and marks only the front document, leaking no verdict", () => {
+    renderScene({ selectable: true })
     expect(screen.getByTestId("printer-showpiece")).toBeInTheDocument()
-    expect(
-      screen.getByTestId("printer-showpiece").querySelectorAll("[data-cell]"),
-    ).toHaveLength(3)
+    // every document is shown
+    for (const c of CELLS) expect(screen.getByText(c.label)).toBeInTheDocument()
+    // nothing has printed yet
+    expect(screen.getByTestId("printer-output").querySelectorAll("[data-cell]")).toHaveLength(0)
+    // no SR status reveals anything before the learner answers
+    expect(screen.queryByRole("status")).toBeNull()
+    if (import.meta.env.DEV) {
+      const marked = document.querySelectorAll('[data-answer="1"]')
+      expect(marked).toHaveLength(1)
+      expect(marked[0].getAttribute("data-cell")).toBe("c1")
+    }
   })
 
-  it("marks the FRONT job as 'Now printing', never a later job", () => {
-    render(<PrinterShowpiece cells={JOBS} />)
-    const indicator = screen.getByTestId("printer-now-printing")
-    expect(indicator).toHaveTextContent("Now printing")
-    expect(indicator).toHaveTextContent("report")
+  it("shows the prompt on the job display", () => {
+    renderScene({ prompt: "Which document prints first?" })
+    expect(screen.getByText("Which document prints first?")).toBeInTheDocument()
   })
 
-  it("offers no cancel control, keeping the queue a pure FIFO", () => {
-    render(<PrinterShowpiece cells={JOBS} />)
-    expect(screen.queryByText(/cancel/i)).toBeNull()
-    expect(screen.queryByRole("button", { name: /cancel/i })).toBeNull()
+  it("feeds the front document into the output tray once popping", () => {
+    renderScene({
+      popping: true,
+      answerId: "c1",
+      reducedMotion: true,
+      cellState: (id) => (id === "c1" ? "correct" : "default"),
+    })
+    const output = screen.getByTestId("printer-output")
+    expect(output.querySelector('[data-cell="c1"]')).not.toBeNull()
+    // the printed document has left the waiting queue (only c2..c4 remain there)
+    const queueButtons = document.querySelectorAll('button[data-cell]')
+    expect(queueButtons).toHaveLength(3)
   })
 
-  it("exposes the dev data-answer hook on the winning job (graded surface)", () => {
-    render(<PrinterShowpiece cells={JOBS} answerId="j1" selectable />)
-    const marked = screen
-      .getByTestId("printer-showpiece")
-      .querySelectorAll('[data-answer="1"]')
-    expect(marked).toHaveLength(1)
-    expect(marked[0]).toHaveAttribute("data-cell", "j1")
-  })
-
-  it("commits a job by tap (keyboard + tap parity via the cell button)", () => {
-    const onSelectCell = vi.fn()
-    render(<PrinterShowpiece cells={JOBS} selectable onSelectCell={onSelectCell} />)
-    const cell = screen
-      .getByTestId("printer-showpiece")
-      .querySelector('[data-cell="j1"]') as HTMLElement
-    fireEvent.click(cell)
-    expect(onSelectCell).toHaveBeenCalledWith("j1")
-  })
-
-  it("on popping, the front job leaves and the next becomes 'Now printing'", () => {
-    render(<PrinterShowpiece cells={JOBS} answerId="j1" popping reducedMotion />)
-    const showpiece = screen.getByTestId("printer-showpiece")
-    expect(showpiece.querySelector('[data-cell="j1"]')).toBeNull()
-    expect(showpiece.querySelectorAll("[data-cell]")).toHaveLength(2)
-    expect(screen.getByTestId("printer-now-printing")).toHaveTextContent("essay")
-  })
-
-  it("snaps for reduced motion", () => {
-    render(<PrinterShowpiece cells={JOBS} reducedMotion />)
-    expect(screen.getByTestId("printer-showpiece")).toHaveAttribute(
-      "data-reduced-motion",
-      "1",
-    )
+  it("snaps to the end-state under reduced motion", () => {
+    const { container } = renderScene({ reducedMotion: true })
+    expect(container.querySelector("[data-reduced-motion='1']")).not.toBeNull()
   })
 })

@@ -13,14 +13,18 @@ export function ChooseCourse() {
   const [notice, setNotice] = useState<string | null>(null)
 
   return (
-    <div className="flex flex-1 flex-col px-5 pb-28 pt-6">
-      <div className="flex justify-center">
+    <div className="flex flex-1 flex-col px-5 pb-28 pt-6 lg:px-0 lg:pb-0 lg:pt-0">
+      <div className="flex justify-center lg:hidden">
         <WillowLogo size="md" />
       </div>
 
-      <h1 className="mt-6 text-[28px] font-bold text-foreground">
+      <h1 className="mt-6 text-[28px] font-bold text-foreground lg:mt-0 lg:text-4xl">
         Choose a course
       </h1>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Learn to think in algorithms, by doing. Start with data structures and
+        grow from there.
+      </p>
 
       {notice && (
         <p className="mt-3 rounded-xl border border-border bg-muted/60 px-4 py-2 text-sm text-muted-foreground">
@@ -28,7 +32,7 @@ export function ChooseCourse() {
         </p>
       )}
 
-      <div className="mt-5 space-y-4">
+      <div className="mt-5 space-y-4 lg:mt-8 lg:grid lg:grid-cols-2 lg:gap-5 lg:space-y-0">
         {COURSES.map((course) => (
           <CourseCard
             key={course.id}

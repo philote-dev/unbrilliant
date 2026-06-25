@@ -399,7 +399,7 @@ function makeDemo(): GraphsQuestion {
     nodes: G6_NODES,
     adj: G6,
     layout: G6_LAYOUT,
-    hint: "Position is decoration. Only the connections are the graph.",
+    hint: "",
   })
 }
 
@@ -425,7 +425,7 @@ function makeReadList(): GraphsQuestion {
     layout: G6_LAYOUT,
     markedNodes: [focus],
     answerSet: set,
-    hint: `Read ${focus}'s row in the list, then tap those nodes. Check when ready.`,
+    hint: "",
     nudge: `Re-read ${focus}'s row. Tap exactly the nodes listed there, no more, no less.`,
     correct: `${focus} connects to ${set.join(", ")}.`,
     why: `${focus}'s row in the data is ${set.join(", ")}. That's its connection list, whatever the picture looks like.`,
@@ -444,7 +444,7 @@ function makeReadDegree(): GraphsQuestion {
     layout: G6_LAYOUT,
     markedNodes: [focus],
     answerSet: set,
-    hint: `Degree = how many connections ${focus} has. Tap each one, then check.`,
+    hint: "",
     nudge: `Count only ${focus}'s direct connections. Tap exactly those nodes.`,
     correct: `${focus} has degree ${set.length}. It connects to ${set.join(", ")}.`,
     why: `${focus}'s row is ${set.join(", ")}, so its degree is the size of that set: ${set.length}.`,
@@ -467,7 +467,7 @@ function makeReadPath(seed: number): { question: GraphsQuestion; next: number } 
       markedNodes: [pair[0], pair[1]],
       options: result,
       answer: yes ? "yes" : "no",
-      hint: "A path is any chain of edges, not a single direct link. Pick Yes or No, then check.",
+      hint: "",
       nudge: "Trace the connections step by step. Can you reach the other node at all?",
       correct: yes
         ? `Yes: you can reach ${pair[1]} from ${pair[0]} by following the edges.`
@@ -510,7 +510,7 @@ function makeMatchList(seed: number): { question: GraphsQuestion; next: number }
       layout: G6_LAYOUT,
       options: result,
       answer: "correct",
-      hint: "Translate the whole picture into rows, then find the matching list.",
+      hint: "",
       nudge: "Check each row against the picture. One wrong neighbor means the wrong list.",
       correct: "That list is the picture's exact connection set.",
       why: "Every row matches the picture's edges. Each distractor changes exactly one real connection.",
@@ -528,7 +528,7 @@ function makeDrawDemo(): GraphsQuestion {
     adj: shown,
     shownAdj: shown,
     layout: DRAW_DEMO_LAYOUT,
-    hint: "An undirected edge connects both ways, so it lands in both rows.",
+    hint: "",
   })
 }
 
@@ -543,7 +543,7 @@ function makeDrawEdge(): GraphsQuestion {
     shownAdj: shown,
     missingEdge: normalizeEdge("B", "D"),
     layout: G6_LAYOUT,
-    hint: "Compare each row to the picture. Exactly one connection is missing. Drag between those two nodes.",
+    hint: "",
     nudge: "One row in the list has a neighbor the picture doesn't show. Draw that edge.",
     correct: "B–D drawn. The picture now matches the data.",
     why: "The list connects B and D, but the picture didn't. Drawing B–D adds each to the other's row.",
@@ -562,7 +562,7 @@ function makeDrawTransit(): GraphsQuestion {
     shownAdj: shown,
     missingEdge: normalizeEdge("A", "E"),
     layout: TRANSIT_GEO_LAYOUT,
-    hint: "The route list (the data) has a connection the map is missing. Drag between those two stations.",
+    hint: "",
     nudge: "One station pair is connected in the list but not on the map. Draw that line.",
     correct: "A to E connected: the Harbor loop is complete.",
     why: "The route list joins A and E, closing the loop; the map just had not drawn it yet.",
@@ -629,7 +629,7 @@ export function makeSameGraph(
       layoutB: TRANSIT_DIAGRAM_LAYOUT,
       options: result,
       answer: same ? "same" : "different",
-      hint: "Compare the connections, not the positions. Tap your answer, then check.",
+      hint: "",
       nudge: "Ignore where the stations sit. Check whether the same pairs of stations connect.",
       correct: same
         ? "Same network: the connections match, only the layout changed."
@@ -660,7 +660,7 @@ export function makeTreeOrNot(
       layout,
       options: result,
       answer: tree ? "tree" : "graph",
-      hint: "A tree has no cycles. Exactly one route between any two nodes. Tap your answer, then check.",
+      hint: "",
       nudge: "Look for a cycle: can you start at a node and get back to it without repeating an edge?",
       correct: tree
         ? "A tree. No cycles, exactly one path between any two nodes."

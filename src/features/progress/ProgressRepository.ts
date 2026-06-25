@@ -34,6 +34,17 @@ export interface UserUpdate {
   streak?: Streak
 }
 
+/**
+ * One local day of answer activity. `date` is the UTC-midnight epoch ms encoding
+ * the bucketed local day (so the contribution calendar's UTC-based rendering
+ * shows the right day in any timezone); counts are non-negative integers.
+ */
+export interface ActivityDay {
+  date: number
+  attempted: number
+  correct: number
+}
+
 export interface ProgressRepository {
   /** Create the user doc once (on first sign-in); refresh displayName/updatedAt. */
   ensureUser(uid: string, profile: UserProfile): Promise<void>
@@ -49,4 +60,12 @@ export interface ProgressRepository {
     lessonId: string,
     progress: LessonProgress,
   ): Promise<void>
+  /** Add a day's answer activity (atomic increment; optimistic, fire-and-forget). */
+  recordActivity(
+    uid: string,
+    dayKey: string,
+    delta: { attempted: number; correct: number },
+  ): Promise<void>
+  /** Days with activity on/after `sinceDayKey` (yyyymmdd), ascending by date. */
+  getActivity(uid: string, sinceDayKey: string): Promise<ActivityDay[]>
 }

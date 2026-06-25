@@ -99,9 +99,11 @@ export function FeedbackFooter({
 
       {feedback === "idle" && (
         <>
-          <p className="mb-3 text-center text-sm text-muted-foreground">
-            {copy.hint}
-          </p>
+          {copy.hint && (
+            <p className="mb-3 text-center text-sm text-muted-foreground">
+              {copy.hint}
+            </p>
+          )}
           <CheckButton selected={selected} dispatch={dispatch} canCheck={canCheck} />
         </>
       )}

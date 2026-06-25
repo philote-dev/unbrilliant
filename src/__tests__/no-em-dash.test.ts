@@ -13,7 +13,9 @@ import { describe, expect, it } from "vitest"
  *  - test files (`*.test.*`) and this guard itself,
  *  - the deferred / in-flight files owned by a parallel agent (rewire infra,
  *    progress feature, auth/firebase libs, linked-lists lesson + engine, the
- *    shared FeedbackFooter).
+ *    shared FeedbackFooter),
+ *  - the dev-only gallery tooling under `/src/dev/` (not shipped learner content;
+ *    part of the parallel "gallery / real-life-skin" effort, cleaned with it).
  */
 
 const EM_DASH = "\u2014"
@@ -42,6 +44,7 @@ const EXCLUDED = [
   "/src/lib/firebase.ts",
   "/src/lessons/linkedLists/",
   "/src/features/lesson/linkedListsEngine.ts",
+  "/src/dev/", // dev-only gallery tooling (parallel effort, coordinated phase)
 ]
 
 const scanned = Object.keys(sources)

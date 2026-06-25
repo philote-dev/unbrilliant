@@ -37,6 +37,7 @@ playwright-report
 .cursor/
 .agents/
 .playwright-mcp/
+.superpowers/
 CLAUDE.md
 skills-lock.json
 

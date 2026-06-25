@@ -1,5 +1,6 @@
 import { useNavigation, type Screen } from "@/lib/navigation"
 import { AppShell } from "@/components/willow/AppShell"
+import { CommandPalette } from "@/components/willow/CommandPalette"
 import { Home } from "@/screens/Home"
 import { ChooseCourse } from "@/screens/ChooseCourse"
 import { CourseDetail } from "@/screens/CourseDetail"
@@ -45,9 +46,12 @@ function renderScreen(screen: Screen) {
 function App() {
   const { screen } = useNavigation()
   return (
-    <AppShell bottomNav={NAV_SCREENS.has(screen.name)}>
-      {renderScreen(screen)}
-    </AppShell>
+    <>
+      <AppShell bottomNav={NAV_SCREENS.has(screen.name)}>
+        {renderScreen(screen)}
+      </AppShell>
+      <CommandPalette />
+    </>
   )
 }
 

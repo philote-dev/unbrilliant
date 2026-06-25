@@ -4,9 +4,9 @@ import { cn } from "@/lib/utils"
 import type { ShiftFrame } from "@/features/lesson/arraysEngine"
 
 /**
- * A horizontal row of indexed, contiguous cells (value on top, index beneath):
- * the Arrays counterpart to StructureColumn. In the default mode cells can be
- * tapped (the access intro) and the touched index is highlighted.
+ * A horizontal row of indexed, contiguous cells (value on top, index beneath).
+ * In the default mode cells can be tapped (the access intro) and the touched
+ * index is highlighted.
  *
  * Passing a `frame` switches to the POST-VERDICT wave-of-shifts view: cells slide
  * between fixed address slots one move at a time (frames come from the pure

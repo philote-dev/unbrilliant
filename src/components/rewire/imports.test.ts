@@ -4,10 +4,10 @@ import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 
 /**
- * Bundle discipline guard (PRD: "no heavy libraries"). These libs are installed
- * for future per-lesson use, so absence can't be relied on — instead we assert
- * the rewire surface itself imports none of them. It must stay native Pointer
- * Events only. If this fails, you reached for a heavy dep; find a lighter path.
+ * Bundle discipline guard (PRD: "no heavy libraries"). Rather than relying on
+ * whether such libs are installed, we assert the rewire surface itself imports
+ * none of them. It must stay native Pointer Events only. If this fails, you
+ * reached for a heavy dep; find a lighter path.
  */
 const HERE = dirname(fileURLToPath(import.meta.url))
 

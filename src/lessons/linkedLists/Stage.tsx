@@ -17,6 +17,7 @@ import {
   orphanedNodes,
   type LinkedListsState,
 } from "@/features/lesson/linkedListsEngine"
+import { StageSplit, StageCenter } from "@/components/willow/lesson/StageLayout"
 import { ArrayRow } from "@/lessons/arrays/ArrayRow"
 import { NodeGraph } from "./NodeGraph"
 import { PlaylistQueue } from "./PlaylistQueue"
@@ -68,7 +69,7 @@ function DemoPart({
   const q = state.question
   if (!q) return null
   return (
-    <div className="flex flex-1 flex-col">
+    <StageCenter>
       <div className="mt-7 text-center">
         <h2 className="text-xl font-bold text-foreground">Linked Lists: it's the arrows</h2>
         <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground">{q.prompt}</p>
@@ -86,7 +87,7 @@ function DemoPart({
           Continue
         </Button>
       </div>
-    </div>
+    </StageCenter>
   )
 }
 
@@ -102,7 +103,7 @@ function TeachPart({
   const q = state.question
   if (!q) return null
   return (
-    <div className="flex flex-1 flex-col">
+    <StageCenter>
       <div className="mt-7 text-center">
         <h2 className="text-xl font-bold text-foreground">Pointers, not position</h2>
       </div>
@@ -126,7 +127,7 @@ function TeachPart({
           Continue
         </Button>
       </div>
-    </div>
+    </StageCenter>
   )
 }
 
@@ -161,7 +162,7 @@ function TraversePart({
   const costCount = feedback === "correct" ? q.cost.count : Math.max(0, cursor)
 
   return (
-    <div className="flex flex-1 flex-col">
+    <StageCenter>
       <div className="mt-7">
         <p className="text-center text-xs font-medium uppercase tracking-wide text-lilac-strong">Traverse</p>
         <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground">{q.prompt}</h2>
@@ -193,7 +194,7 @@ function TraversePart({
         copy={{ prompt: q.prompt, hint: q.hint, nudge: q.nudge, correct: q.correct, why: q.why }}
         dispatch={dispatch}
       />
-    </div>
+    </StageCenter>
   )
 }
 
@@ -213,7 +214,7 @@ function RewirePart({
   const stuck = isStuckLL(state)
 
   return (
-    <div className="flex flex-1 flex-col">
+    <StageCenter>
       <div className="mt-7 flex flex-col items-center">
         <p className="text-center text-xs font-medium uppercase tracking-wide text-lilac-strong">Rewire</p>
         <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground">{q.prompt}</h2>
@@ -260,7 +261,7 @@ function RewirePart({
         copy={{ prompt: q.prompt, hint: q.hint, nudge: q.nudge, correct: q.correct, why: q.why }}
         dispatch={dispatch}
       />
-    </div>
+    </StageCenter>
   )
 }
 
@@ -287,49 +288,51 @@ function PlaylistPart({
   const stuck = isStuckLL(state)
 
   return (
-    <motion.div
-      initial={reduced ? false : { opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={reduced ? { duration: 0 } : { duration: 0.45, ease: "easeOut" }}
-      className="-mx-5 -mb-6 flex flex-1 flex-col bg-[#121212] px-5 pb-6 pt-7 text-white"
-    >
-      <div className="flex items-start justify-between">
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-tight">Queue</h2>
-          <p className="mt-0.5 text-sm text-white/60">
-            Playing <span className="font-semibold text-white">Liked Songs</span>
-          </p>
+    <StageCenter>
+      <motion.div
+        initial={reduced ? false : { opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={reduced ? { duration: 0 } : { duration: 0.45, ease: "easeOut" }}
+        className="-mx-5 -mb-6 flex flex-1 flex-col bg-[#121212] px-5 pb-6 pt-7 text-white"
+      >
+        <div className="flex items-start justify-between">
+          <div>
+            <h2 className="text-2xl font-extrabold tracking-tight">Queue</h2>
+            <p className="mt-0.5 text-sm text-white/60">
+              Playing <span className="font-semibold text-white">Liked Songs</span>
+            </p>
+          </div>
+          <span className="rounded-full bg-white/10 px-4 py-1.5 text-sm font-semibold">Edit</span>
         </div>
-        <span className="rounded-full bg-white/10 px-4 py-1.5 text-sm font-semibold">Edit</span>
-      </div>
 
-      <p className="mt-3 text-sm text-white/70">{q.prompt}</p>
+        <p className="mt-3 text-sm text-white/70">{q.prompt}</p>
 
-      <div className="flex flex-1 flex-col justify-center py-3">
-        <RewireSurface
-          legalTargets={legalTargets(state)}
-          onRewire={(from, to) => dispatch({ type: "rewire", from, to })}
-          label="Re-aim a track's arrow onto another track to queue the new song"
-        >
-          <PlaylistQueue
-            nodes={q.nodes}
-            newNode={q.newNode}
-            prev={q.prev}
-            workingNext={state.workingNext}
-            orphaned={orphanedNodes(state)}
-            rewires={q.rewires}
-          />
-        </RewireSurface>
+        <div className="flex flex-1 flex-col justify-center py-3">
+          <RewireSurface
+            legalTargets={legalTargets(state)}
+            onRewire={(from, to) => dispatch({ type: "rewire", from, to })}
+            label="Re-aim a track's arrow onto another track to queue the new song"
+          >
+            <PlaylistQueue
+              nodes={q.nodes}
+              newNode={q.newNode}
+              prev={q.prev}
+              workingNext={state.workingNext}
+              orphaned={orphanedNodes(state)}
+              rewires={q.rewires}
+            />
+          </RewireSurface>
 
-        {stuck && feedback !== "fail" && (
-          <p className="mt-4 text-center text-sm text-white/45">
-            The rest of the queue floated off — nothing points to it anymore.
-          </p>
-        )}
-      </div>
+          {stuck && feedback !== "fail" && (
+            <p className="mt-4 text-center text-sm text-white/45">
+              The rest of the queue floated off — nothing points to it anymore.
+            </p>
+          )}
+        </div>
 
-      <PlaylistFooter state={state} dispatch={dispatch} canCheck={canCheck} showWhy={showWhy} />
-    </motion.div>
+        <PlaylistFooter state={state} dispatch={dispatch} canCheck={canCheck} showWhy={showWhy} />
+      </motion.div>
+    </StageCenter>
   )
 }
 
@@ -450,41 +453,47 @@ function PredictPart({
   }
 
   return (
-    <div className="flex flex-1 flex-col">
-      <div className="mt-7">
-        <p className="text-center text-xs font-medium uppercase tracking-wide text-lilac-strong">
-          Predict the break
-        </p>
-        <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground">{q.prompt}</h2>
-      </div>
+    <StageSplit
+      header={
+        <div className="mt-7">
+          <p className="text-center text-xs font-medium uppercase tracking-wide text-lilac-strong">
+            Predict the break
+          </p>
+          <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground">{q.prompt}</h2>
+        </div>
+      }
+      figure={
+        <div className="flex justify-center py-5">
+          <NodeGraph mode="walk" nodes={q.nodes} cursor={q.nodes.length} layout="wrap" />
+        </div>
+      }
+      interaction={
+        <>
+          <div className="flex flex-col gap-3">
+            {q.options.map((opt, i) => (
+              <AnswerCard
+                key={opt.id}
+                letter={String.fromCharCode(65 + i)}
+                label={opt.label}
+                state={cardState(opt.id)}
+                disabled={terminal}
+                answerMarker={opt.id === q.answer}
+                onSelect={() => dispatch({ type: "select", letter: opt.id })}
+              />
+            ))}
+          </div>
 
-      <div className="flex justify-center py-5">
-        <NodeGraph mode="walk" nodes={q.nodes} cursor={q.nodes.length} layout="wrap" />
-      </div>
-
-      <div className="flex flex-col gap-3">
-        {q.options.map((opt, i) => (
-          <AnswerCard
-            key={opt.id}
-            letter={String.fromCharCode(65 + i)}
-            label={opt.label}
-            state={cardState(opt.id)}
-            disabled={terminal}
-            answerMarker={opt.id === q.answer}
-            onSelect={() => dispatch({ type: "select", letter: opt.id })}
+          <FeedbackFooter
+            feedback={feedback}
+            selected={selected}
+            showWhy={showWhy}
+            hideFailHint
+            copy={{ prompt: q.prompt, hint: q.hint, nudge: q.nudge, correct: q.correct, why: q.why }}
+            dispatch={dispatch}
           />
-        ))}
-      </div>
-
-      <FeedbackFooter
-        feedback={feedback}
-        selected={selected}
-        showWhy={showWhy}
-        hideFailHint
-        copy={{ prompt: q.prompt, hint: q.hint, nudge: q.nudge, correct: q.correct, why: q.why }}
-        dispatch={dispatch}
-      />
-    </div>
+        </>
+      }
+    />
   )
 }
 
@@ -522,55 +531,63 @@ function ContrastPart({
   }
 
   return (
-    <div className="flex flex-1 flex-col">
-      <div className="mt-7">
-        <p className="text-center text-xs font-medium uppercase tracking-wide text-lilac-strong">
-          Array vs list
-        </p>
-        <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground">{q.prompt}</h2>
-      </div>
-
-      <div className="flex flex-col items-center gap-4 py-4">
-        <div className="flex flex-col items-center gap-1.5">
-          <CompareLabel>Array</CompareLabel>
-          <ArrayRow cells={items} highlight={arrayHighlight} />
+    <StageSplit
+      header={
+        <div className="mt-7">
+          <p className="text-center text-xs font-medium uppercase tracking-wide text-lilac-strong">
+            Array vs list
+          </p>
+          <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground">{q.prompt}</h2>
         </div>
-        <div className="flex flex-col items-center gap-1.5">
-          <CompareLabel>List</CompareLabel>
-          <NodeGraph mode="walk" nodes={q.nodes} cursor={listCursor} layout="wrap" spotlight={isInsert} />
-        </div>
-      </div>
+      }
+      figure={
+        <>
+          <div className="flex flex-col items-center gap-4 py-4">
+            <div className="flex flex-col items-center gap-1.5">
+              <CompareLabel>Array</CompareLabel>
+              <ArrayRow cells={items} highlight={arrayHighlight} />
+            </div>
+            <div className="flex flex-col items-center gap-1.5">
+              <CompareLabel>List</CompareLabel>
+              <NodeGraph mode="walk" nodes={q.nodes} cursor={listCursor} layout="wrap" spotlight={isInsert} />
+            </div>
+          </div>
 
-      {feedback === "correct" && q.arrayCost && q.listCost && (
-        <div className="mb-4 flex flex-wrap justify-center gap-2">
-          <LabeledCost label="Array" cost={q.arrayCost} />
-          <LabeledCost label="List" cost={q.listCost} />
-        </div>
-      )}
+          {feedback === "correct" && q.arrayCost && q.listCost && (
+            <div className="mb-4 flex flex-wrap justify-center gap-2">
+              <LabeledCost label="Array" cost={q.arrayCost} />
+              <LabeledCost label="List" cost={q.listCost} />
+            </div>
+          )}
+        </>
+      }
+      interaction={
+        <>
+          <div className="flex flex-col gap-3">
+            {q.options.map((opt, i) => (
+              <AnswerCard
+                key={opt.id}
+                letter={String.fromCharCode(65 + i)}
+                label={opt.label}
+                state={cardState(opt.id)}
+                disabled={terminal}
+                answerMarker={opt.id === q.answer}
+                onSelect={() => dispatch({ type: "select", letter: opt.id })}
+              />
+            ))}
+          </div>
 
-      <div className="flex flex-col gap-3">
-        {q.options.map((opt, i) => (
-          <AnswerCard
-            key={opt.id}
-            letter={String.fromCharCode(65 + i)}
-            label={opt.label}
-            state={cardState(opt.id)}
-            disabled={terminal}
-            answerMarker={opt.id === q.answer}
-            onSelect={() => dispatch({ type: "select", letter: opt.id })}
+          <FeedbackFooter
+            feedback={feedback}
+            selected={selected}
+            showWhy={showWhy}
+            hideFailHint
+            copy={{ prompt: q.prompt, hint: q.hint, nudge: q.nudge, correct: q.correct, why: q.why }}
+            dispatch={dispatch}
           />
-        ))}
-      </div>
-
-      <FeedbackFooter
-        feedback={feedback}
-        selected={selected}
-        showWhy={showWhy}
-        hideFailHint
-        copy={{ prompt: q.prompt, hint: q.hint, nudge: q.nudge, correct: q.correct, why: q.why }}
-        dispatch={dispatch}
-      />
-    </div>
+        </>
+      }
+    />
   )
 }
 
@@ -615,7 +632,7 @@ function DoublyPart({
   const steps = [`${X}.next = ${B}`, `${X}.prev = ${A}`, `${A}.next = ${X}`, `${B}.prev = ${X}`]
 
   return (
-    <div className="flex flex-1 flex-col">
+    <StageCenter>
       <div className="mt-7 text-center">
         <p className="text-xs font-medium uppercase tracking-wide text-lilac-strong">
           Doubly-linked · the twist
@@ -705,7 +722,7 @@ function DoublyPart({
           Finish lesson
         </Button>
       </div>
-    </div>
+    </StageCenter>
   )
 }
 

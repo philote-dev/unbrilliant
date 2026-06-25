@@ -1,12 +1,22 @@
 import {
+  collection,
   doc,
+  documentId,
   getDoc,
+  getDocs,
+  increment,
+  limit,
+  orderBy,
+  query,
   serverTimestamp,
   setDoc,
+  where,
   type Firestore,
 } from "firebase/firestore"
 
+import { dayKeyToUTCDate } from "@/features/progress/activityDate"
 import type {
+  ActivityDay,
   LessonProgress,
   ProgressRepository,
   UserProfile,
@@ -17,12 +27,22 @@ import type {
  *   users/{uid}                                  displayName, createdAt, updatedAt
  *   users/{uid}/lessonProgress/{lessonId}        counts, currentPart, completed, …
  */
+/**
+ * Upper bound on activity docs read in one call. A little over a year so the
+ * 365-day calendar window is fully covered, while capping a learner's own read
+ * volume even if they somehow accumulate far more (e.g. future-dated) docs.
+ */
+const MAX_ACTIVITY_DAYS = 400
+
 export function createFirestoreProgressRepository(
   db: Firestore,
 ): ProgressRepository {
   const userRef = (uid: string) => doc(db, "users", uid)
   const progressRef = (uid: string, lessonId: string) =>
     doc(db, "users", uid, "lessonProgress", lessonId)
+  const activityCol = (uid: string) => collection(db, "users", uid, "activity")
+  const activityRef = (uid: string, dayKey: string) =>
+    doc(db, "users", uid, "activity", dayKey)
 
   return {
     async ensureUser(uid, profile: UserProfile) {
@@ -94,6 +114,40 @@ export function createFirestoreProgressRepository(
         },
         { merge: true },
       )
+    },
+
+    async recordActivity(uid, dayKey, delta) {
+      await setDoc(
+        activityRef(uid, dayKey),
+        {
+          date: dayKeyToUTCDate(dayKey),
+          attempted: increment(delta.attempted),
+          correct: increment(delta.correct),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      )
+    },
+
+    async getActivity(uid, sinceDayKey): Promise<ActivityDay[]> {
+      const snap = await getDocs(
+        query(
+          activityCol(uid),
+          where(documentId(), ">=", sinceDayKey),
+          orderBy(documentId()),
+          limit(MAX_ACTIVITY_DAYS),
+        ),
+      )
+      // Coerce counts defensively: the docs are self-owned, so a hand-edited
+      // non-numeric value must degrade to 0 rather than poison arithmetic.
+      return snap.docs.map((d) => {
+        const data = d.data()
+        return {
+          date: typeof data.date === "number" ? data.date : dayKeyToUTCDate(d.id),
+          attempted: Number(data.attempted) || 0,
+          correct: Number(data.correct) || 0,
+        }
+      })
     },
   }
 }
