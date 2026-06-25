@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState, type Dispatch, type ReactNode } from
 import { motion, useReducedMotion } from "motion/react"
 
 import { cn } from "@/lib/utils"
+import { useIsDesktop } from "@/hooks/useMediaQuery"
 import type { LessonAction } from "@/features/lesson/engine"
 import {
   candidatesRemaining,
@@ -130,14 +131,18 @@ function FitBox({
   children: ReactNode
 }) {
   const outerRef = useRef<HTMLDivElement>(null)
+  const isDesktop = useIsDesktop()
   const [scale, setScale] = useState(1)
 
+  // Desktop stages are far wider than the intrinsic tree, so allow the fit to grow
+  // past 1x (capped) to fill the room; mobile only ever scales down to fit.
+  const cap = isDesktop ? 1.4 : 1
   useLayoutEffect(() => {
     const el = outerRef.current
     if (!el) return
     const measure = () => {
       const avail = el.clientWidth
-      setScale(avail > 0 ? Math.min(1, avail / figW) : 1)
+      setScale(avail > 0 ? Math.min(cap, avail / figW) : 1)
     }
     measure()
     let ro: ResizeObserver | undefined
@@ -151,7 +156,7 @@ function FitBox({
       ro?.disconnect()
       window.removeEventListener("resize", measure)
     }
-  }, [figW])
+  }, [figW, cap])
 
   return (
     <div ref={outerRef} className="w-full overflow-hidden">

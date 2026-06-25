@@ -9,6 +9,7 @@ import {
 import { motion, useReducedMotion } from "motion/react"
 
 import { cn } from "@/lib/utils"
+import { useIsDesktop } from "@/hooks/useMediaQuery"
 import { RewireContext } from "@/components/rewire/RewireContext"
 import { useRewireNode } from "@/components/rewire/useRewireNode"
 import {
@@ -24,6 +25,12 @@ import {
 export const CANVAS_W = 280
 export const CANVAS_H = 240
 export const NODE_R = 22
+/**
+ * On desktop the stage column is far wider than the intrinsic canvas, so let the
+ * fit scale grow past 1x (it stays width-fit, just with a higher ceiling) to fill
+ * the room. Mobile keeps the 1x cap so the figure only ever scales down to fit.
+ */
+const DESKTOP_FIT_CAP = 1.4
 const NODE_D = NODE_R * 2
 /**
  * The hard floor for a node's on-screen size. The canvas coordinates scale down
@@ -178,7 +185,8 @@ function StaticCanvas({
   terminal,
   reduced,
 }: GraphCanvasProps & { reduced: boolean }) {
-  const { outerRef, scale } = useFitScale(CANVAS_W)
+  const isDesktop = useIsDesktop()
+  const { outerRef, scale } = useFitScale(CANVAS_W, isDesktop ? DESKTOP_FIT_CAP : 1)
   const innerRef = useRef<HTMLDivElement>(null)
   const { armedSource, cursor } = useArmedCursor(innerRef, scale)
 
@@ -424,7 +432,8 @@ function DemoCanvas({
   layout: Record<NodeId, Pt>
   reduced: boolean
 }) {
-  const { outerRef, scale } = useFitScale(CANVAS_W)
+  const isDesktop = useIsDesktop()
+  const { outerRef, scale } = useFitScale(CANVAS_W, isDesktop ? DESKTOP_FIT_CAP : 1)
   const [pos, setPos] = useState<Record<NodeId, Pt>>(() => ({ ...layout }))
   const [announce, setAnnounce] = useState("")
   const dragRef = useRef<{ id: NodeId; ptr: number } | null>(null)

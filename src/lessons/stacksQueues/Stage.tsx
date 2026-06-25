@@ -63,9 +63,19 @@ export function StacksQueuesStage({
 /** Pick the container that matches the discipline (the shape teaches the rule). */
 function Container({
   discipline,
+  className,
   ...props
 }: { discipline: Discipline } & Parameters<typeof StackBin>[0]) {
-  return discipline === "stack" ? <StackBin {...props} /> : <QueueTube {...props} />
+  // On desktop the boxed beats sit in a roomy stage column, so enlarge the figure
+  // with a transform. A CSS scale keeps the deterministic px math (CELL_PX,
+  // INNER_H/INNER_W, drop-zone rects) in its original coordinate space, and drop
+  // hit-testing is rect-based (getBoundingClientRect), so drag still lands.
+  const scaled = cn("origin-center lg:scale-[1.2]", className)
+  return discipline === "stack" ? (
+    <StackBin className={scaled} {...props} />
+  ) : (
+    <QueueTube className={scaled} {...props} />
+  )
 }
 
 /**
@@ -177,10 +187,10 @@ function DemoPart({
   return (
     <StageCenter>
       <div className="mt-7 text-center">
-        <h2 className="text-xl font-bold text-foreground">
+        <h2 className="text-xl font-bold text-foreground lg:text-2xl">
           {isStack ? "Play with the stack" : "Play with the queue"}
         </h2>
-        <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground">
+        <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground lg:max-w-sm lg:text-base">
           {isStack
             ? "Push cards on, pop them off. They go in and out the same end, the top."
             : "Add at the back, remove from the front. The oldest one always leaves first."}
@@ -247,10 +257,10 @@ function TeachPart({
   return (
     <StageCenter>
       <div className="mt-7 text-center">
-        <h2 className="text-xl font-bold text-foreground">
+        <h2 className="text-xl font-bold text-foreground lg:text-2xl">
           {isStack ? "This is a stack" : "This is a queue"}
         </h2>
-        <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground">
+        <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground lg:max-w-sm lg:text-base">
           {isStack ? (
             <>
               <span className="font-semibold text-foreground">Last in, first out.</span>{" "}
@@ -474,7 +484,7 @@ function PredictPart({
     <StageCenter>
       <div className="mt-7">
         <QuotaLine state={state} />
-        <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground">
+        <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground lg:text-2xl">
           {q.prompt}
         </h2>
       </div>
@@ -691,7 +701,7 @@ function ConstructPart({
       <StageCenter>
         <div className="mt-7">
           <QuotaLine state={state} />
-          <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground">
+          <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground lg:text-2xl">
             {q.prompt}
           </h2>
           <div className="mt-3 flex items-center justify-center gap-1.5">
@@ -812,7 +822,7 @@ function ComparePart({
       header={
         <div className="mt-7">
           <QuotaLine state={state} />
-          <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground">
+          <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground lg:text-2xl">
             {q.prompt}
           </h2>
         </div>

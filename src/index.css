@@ -65,7 +65,7 @@
   /* desktop (lg+) shell metrics */
   --willow-sidebar-w: 260px; /* persistent left rail width */
   --willow-content-max: 1440px; /* centered main cap on ultrawide */
-  --willow-lesson-max: 1180px; /* narrower cap for lesson readability */
+  --willow-lesson-max: 1240px; /* narrower cap for lesson readability */
 }
 
 .dark {

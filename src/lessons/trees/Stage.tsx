@@ -98,7 +98,7 @@ function GradedHeader({ state }: { state: TreesState }) {
           {quota.label} · {quota.done} / {quota.total} correct
         </p>
       )}
-      <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground">
+      <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground lg:text-2xl">
         {q?.prompt}
       </h2>
     </div>
@@ -148,8 +148,8 @@ function DemoPart({
   return (
     <StageCenter>
       <div className="mt-7 text-center">
-        <h2 className="text-xl font-bold text-foreground">{q.title}</h2>
-        <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground">{q.prompt}</p>
+        <h2 className="text-xl font-bold text-foreground lg:text-2xl">{q.title}</h2>
+        <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground lg:max-w-sm lg:text-base">{q.prompt}</p>
       </div>
 
       <div className="flex flex-1 items-center justify-center py-6">
@@ -190,7 +190,7 @@ function TeachPart({
   return (
     <StageCenter>
       <div className="mt-7 text-center">
-        <h2 className="text-xl font-bold text-foreground">{q.title}</h2>
+        <h2 className="text-xl font-bold text-foreground lg:text-2xl">{q.title}</h2>
       </div>
 
       <div className="flex flex-1 flex-col items-center justify-center gap-6 py-6">

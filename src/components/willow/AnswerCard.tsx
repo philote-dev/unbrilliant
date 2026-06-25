@@ -64,7 +64,9 @@ export function AnswerCard({
         "focus-visible:ring-2 focus-visible:ring-lilac-strong/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         disabled && "cursor-default",
         SURFACE[state],
-        compact ? "flex items-center gap-4 p-4" : "flex min-h-24 items-center justify-center p-5",
+        compact
+          ? "flex items-center gap-4 p-4 lg:gap-5 lg:p-5"
+          : "flex min-h-24 items-center justify-center p-5 lg:min-h-28 lg:p-6",
         className,
       )}
     >
@@ -78,16 +80,16 @@ export function AnswerCard({
         <>
           <span
             className={cn(
-              "flex size-11 shrink-0 items-center justify-center rounded-full text-lg font-bold transition-colors",
+              "flex size-11 shrink-0 items-center justify-center rounded-full text-lg font-bold transition-colors lg:size-12 lg:text-xl",
               BADGE[state],
             )}
           >
             {letter}
           </span>
-          <span className="text-[15px] font-medium text-foreground">{label}</span>
+          <span className="text-[15px] font-medium text-foreground lg:text-lg">{label}</span>
         </>
       ) : (
-        <span className="text-3xl font-bold text-foreground">{letter}</span>
+        <span className="text-3xl font-bold text-foreground lg:text-4xl">{letter}</span>
       )}
 
       {state === "correct" && (

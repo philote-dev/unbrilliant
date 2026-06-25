@@ -160,7 +160,7 @@ export function HeapDualView({
     <div
       data-testid="heap-dual-view"
       data-reduced-motion={reduced ? "1" : undefined}
-      className={cn("flex w-full max-w-[360px] flex-col gap-3", className)}
+      className={cn("flex w-full max-w-[360px] flex-col gap-3 lg:max-w-[460px]", className)}
     >
       {/* ----------------------------- tree panel ----------------------------- */}
       <svg
