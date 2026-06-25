@@ -62,7 +62,9 @@ export const heatmapPopulated: HeatmapVM = {
     [2, 1, 3, 0],
   ],
 }
-export const heatmapEmpty: HeatmapVM = { weeks: [] }
+export const heatmapEmpty: HeatmapVM = {
+  weeks: Array.from({ length: 14 }, () => [0, 0, 0, 0, 0, 0, 0]),
+}
 
 export const accuracyTrendPopulated: SeriesVM = {
   points: [0.52, 0.55, 0.58, 0.6, 0.61, 0.64, 0.67, 0.7, 0.72, 0.78, 0.81, 0.84],
