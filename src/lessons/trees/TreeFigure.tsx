@@ -405,7 +405,7 @@ function DescendFigure({
         // The halving is felt through the eliminated (greyed) half of the bracket,
         // so the abstract pip meter is folded away; the count survives in the SR
         // line + a compact "seeds still in" caption.
-        <p className="text-xs font-bold tabular-nums" style={{ color: "#0f2a4a" }}>
+        <p className="text-xs font-bold uppercase tracking-wide tabular-nums" style={{ color: "#0b1f4d" }}>
           {candidatesRemaining(state)} seed{candidatesRemaining(state) === 1 ? "" : "s"} still in
         </p>
       ) : (

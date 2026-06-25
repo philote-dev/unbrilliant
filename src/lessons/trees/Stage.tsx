@@ -20,7 +20,14 @@ import {
 import { DisplayTree, TreeFigure } from "./TreeFigure"
 import { SortedChain } from "./SortedChain"
 import { ContrastRace } from "./ContrastRace"
-import { ArenaContinue, ArenaFooter, ArenaShell, RebalanceBracket, type ArenaQuota } from "./Arena"
+import {
+  ARENA_COLORS,
+  ArenaContinue,
+  ArenaFooter,
+  ArenaShell,
+  RebalanceBracket,
+  type ArenaQuota,
+} from "./Arena"
 
 /**
  * The Trees stage, skinned as a March Madness TOURNAMENT BRACKET. Every beat
@@ -87,8 +94,8 @@ const feedbackCopy = (q: TreesQuestion) => ({
 function ArenaLabel({ children }: { children: React.ReactNode }) {
   return (
     <span
-      className="text-[10px] font-semibold uppercase tracking-wide"
-      style={{ color: "#64748b" }}
+      className="text-[10px] font-bold uppercase tracking-wide"
+      style={{ color: ARENA_COLORS.ink }}
     >
       {children}
     </span>
@@ -129,7 +136,7 @@ function DemoPart({
   if (!q) return null
   return (
     <ArenaShell
-      eyebrow="Tip-off"
+      eyebrow="Championship Bracket"
       title="It's a bracket: tap a seed to advance, and the half you skip is out"
       footer={
         <ArenaContinue
@@ -159,7 +166,7 @@ function TeachPart({
 
   return (
     <ArenaShell
-      eyebrow={isDescend ? "Scouting report" : "Seeding"}
+      eyebrow={isDescend ? "Scouting Report" : "Seeding Order"}
       title={q.title}
       footer={<ArenaContinue onClick={() => dispatch({ type: "continue" })} />}
     >
@@ -170,15 +177,15 @@ function TeachPart({
         variant="bracket"
       />
       {isDescend ? (
-        <p className="mx-auto max-w-xs text-center text-sm" style={{ color: "#475569" }}>
+        <p className="mx-auto max-w-xs text-center text-sm font-medium" style={{ color: ARENA_COLORS.body }}>
           Compare, advance left if smaller or right if larger, and the half you skip is
           eliminated.
         </p>
       ) : (
-        <p className="mx-auto max-w-xs text-center text-sm" style={{ color: "#475569" }}>
+        <p className="mx-auto max-w-xs text-center text-sm font-medium" style={{ color: ARENA_COLORS.body }}>
           The badges count the visit order: left bracket, then the seed, then the right
           bracket, and it comes out{" "}
-          <span className="font-semibold" style={{ color: "#0f2a4a" }}>
+          <span className="font-bold" style={{ color: ARENA_COLORS.ink }}>
             sorted
           </span>
           .
@@ -203,7 +210,7 @@ function DescendPart({
 
   return (
     <ArenaShell
-      eyebrow="Bracket search"
+      eyebrow="Championship Search"
       title={q.prompt}
       quota={arenaQuota(state)}
       footer={
@@ -239,7 +246,7 @@ function SequencePart({
 
   return (
     <ArenaShell
-      eyebrow="Seed the bracket"
+      eyebrow="Seed The Bracket"
       title={q.prompt}
       quota={arenaQuota(state)}
       footer={
@@ -254,8 +261,8 @@ function SequencePart({
     >
       <TreeFigure state={state} dispatch={dispatch} variant="bracket" />
       <p
-        className="min-h-6 text-center text-sm font-semibold tabular-nums"
-        style={{ color: "#0f2a4a" }}
+        className="min-h-6 text-center text-sm font-bold tabular-nums"
+        style={{ color: ARENA_COLORS.ink }}
       >
         {tappedKeys.length > 0 ? tappedKeys.join(" → ") : "Tap the seeds in order"}
       </p>
@@ -278,7 +285,7 @@ function RealWorldPart({
 
   return (
     <ArenaShell
-      eyebrow="Championship search"
+      eyebrow="Championship Search"
       title={q.prompt}
       quota={arenaQuota(state)}
       footer={
@@ -315,7 +322,7 @@ function ComparePart({
 
   return (
     <ArenaShell
-      eyebrow="Bracket math"
+      eyebrow="Bracket Math"
       title={q.prompt}
       quota={arenaQuota(state)}
       footer={
@@ -378,7 +385,7 @@ function ContrastPart({
 
   return (
     <ArenaShell
-      eyebrow="Seed line vs bracket"
+      eyebrow="Seed Line vs Bracket"
       title={q.prompt}
       quota={arenaQuota(state)}
       footer={
@@ -410,7 +417,7 @@ function ContrastPart({
             <ArenaLabel>Bracket: advance it</ArenaLabel>
             <TreeFigure state={state} dispatch={dispatch} variant="bracket" lockDescend={!walkDone} />
             {!walkDone && (
-              <p className="max-w-xs text-center text-xs" style={{ color: "#94a3b8" }}>
+              <p className="max-w-xs text-center text-xs font-medium" style={{ color: ARENA_COLORS.muted }}>
                 Finish the walk first, then advance the bracket.
               </p>
             )}

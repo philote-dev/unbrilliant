@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties, type Dispatch, type ReactNode } from "react"
-import { RotateCcw, Trophy } from "lucide-react"
+import { RotateCcw } from "lucide-react"
 import { motion, useReducedMotion } from "motion/react"
 
 import { cn } from "@/lib/utils"
@@ -9,39 +9,52 @@ import { inorderKeys, type TreeNode } from "@/features/lesson/treesEngine"
 import { NODE_H, NODE_W, tidyLayout } from "./treeLayout"
 
 /**
- * The tournament-bracket ("March Madness") skin for Trees: a full-bleed, page
- * transforming arena that the interactive beats render inside, mirroring the
- * Linked Lists Spotify immersion (negative-margin bleed, themed header band,
- * integrated prompt, themed footer dispatching the SAME actions, fills the
- * vertical space).
+ * The tournament-bracket arena skin for Trees, themed after a college-basketball
+ * championship bracket: a deep-navy header band with bold condensed athletic
+ * type and a royal-blue / orange feather motif, set over a warm hardwood court
+ * with faint court lines. It is a generic "Championship Bracket" mark, not any
+ * trademarked logo or wordmark.
  *
- * Re-theming trick: instead of hardcoding colors into the figure, the shell
- * overrides the design-token CSS variables (`--card`, `--foreground`,
- * `--lilac-strong`, ...) for its whole subtree. Every token-based child
- * (TreeFigure, CostReadout, AnswerCard, SortedChain, the meter) re-skins to the
- * arena palette automatically, in both app themes, while semantic success/danger
- * tokens are left untouched. So the bracket figure keeps its logic + e2e
- * `data-*` hooks byte-for-byte; only the paint changes.
+ * It is a full-bleed, page-transforming arena (negative-margin bleed, themed
+ * header, integrated prompt, themed footer dispatching the SAME actions, fills
+ * the vertical space), like the Linked Lists Spotify immersion.
+ *
+ * Re-theming trick: the shell overrides the design-token CSS variables (`--card`,
+ * `--foreground`, `--lilac-strong`, ...) for its whole subtree, so every
+ * token-based child (the bracket figure, CostReadout, AnswerCard, SortedChain,
+ * the meter) repaints to the arena palette automatically in both app themes,
+ * while semantic success/danger tokens are untouched. The figure keeps its pure
+ * logic + every `data-*` hook byte-for-byte; only the paint changes.
  */
 
-const ARENA_SHEET = "#eef2f7"
-const ARENA_INK = "#102a43"
-const ARENA_BAND = "#0f2a4a"
-const ARENA_ACCENT = "#f59e0b"
-const ARENA_HINT = "#475569"
+const COURT_TOP = "#ddc596"
+const COURT_BOTTOM = "#c8a76d"
+const BAND_TOP = "#0b1f4d"
+const BAND_BOTTOM = "#13286a"
+const ROYAL = "#1d4ed8"
+const ORANGE = "#f97316"
+
+/** Shared arena ink colors for the (non-token) copy the Stage paints on court. */
+export const ARENA_COLORS = {
+  ink: "#0b1f4d",
+  body: "#1f2937",
+  muted: "#44403c",
+  royal: ROYAL,
+  orange: ORANGE,
+}
 
 /** Arena palette mapped onto the design tokens the figure already uses. */
 const ARENA_VARS = {
   "--card": "#ffffff",
-  "--foreground": ARENA_INK,
-  "--muted": "#e2e8f0",
-  "--muted-foreground": "#64748b",
-  "--faint": "#94a3b8",
+  "--foreground": "#0b1f4d",
+  "--muted": "#e8dec8",
+  "--muted-foreground": "#44403c",
+  "--faint": "#a8a29e",
   "--border": "#cbd5e1",
-  "--lilac": ARENA_ACCENT,
-  "--lilac-foreground": "#1f2937",
-  "--lilac-strong": "#d97706",
-  "--lilac-soft": "#fef3c7",
+  "--lilac": "#2563eb",
+  "--lilac-foreground": "#ffffff",
+  "--lilac-strong": ROYAL,
+  "--lilac-soft": "#dbeafe",
 } as CSSProperties
 
 export interface ArenaQuota {
@@ -72,18 +85,59 @@ export function ArenaShell({
     <motion.div
       data-testid="bracket-arena"
       data-reduced-motion={reduced ? "1" : undefined}
-      style={{ ...ARENA_VARS, backgroundColor: ARENA_SHEET, color: ARENA_INK }}
+      style={{
+        ...ARENA_VARS,
+        background: `linear-gradient(180deg, ${COURT_TOP} 0%, ${COURT_BOTTOM} 100%)`,
+        color: ARENA_COLORS.ink,
+      }}
       initial={reduced ? false : { opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={reduced ? { duration: 0 } : { duration: 0.4, ease: "easeOut" }}
-      className="-mx-5 -mb-6 flex flex-1 flex-col pb-6"
+      className="relative -mx-5 -mb-6 flex flex-1 flex-col overflow-hidden pb-6"
     >
-      <ArenaHeader eyebrow={eyebrow} title={title} quota={quota} />
-      <div className="flex flex-1 flex-col items-center justify-center gap-4 px-5 py-4">
-        {children}
+      <CourtLines />
+      <div className="relative z-10 flex flex-1 flex-col">
+        <ArenaHeader eyebrow={eyebrow} title={title} quota={quota} />
+        <div className="flex flex-1 flex-col items-center justify-center gap-4 px-5 py-4">
+          {children}
+        </div>
+        <div className="px-5">{footer}</div>
       </div>
-      <div className="px-5">{footer}</div>
     </motion.div>
+  )
+}
+
+/** Faint basketball-court markings under the bracket (decorative). */
+function CourtLines() {
+  return (
+    <svg
+      className="pointer-events-none absolute inset-0 size-full"
+      viewBox="0 0 100 170"
+      preserveAspectRatio="xMidYMid slice"
+      aria-hidden
+      style={{ opacity: 0.16 }}
+    >
+      <g fill="none" stroke="#fffaf0" strokeWidth="0.7">
+        <rect x="4" y="4" width="92" height="162" rx="3" />
+        <line x1="4" y1="85" x2="96" y2="85" />
+        <circle cx="50" cy="85" r="13" />
+        <rect x="34" y="4" width="32" height="32" />
+        <rect x="34" y="134" width="32" height="32" />
+        <path d="M34 36 a16 16 0 0 0 32 0" />
+        <path d="M34 134 a16 16 0 0 1 32 0" />
+      </g>
+    </svg>
+  )
+}
+
+/** The royal-blue feather / comb motif with an orange dash (generic, not a logo). */
+function FeatherMark() {
+  return (
+    <span className="flex flex-col gap-[2.5px]" aria-hidden>
+      <span className="block h-[3px] w-4 rounded-full" style={{ backgroundColor: ORANGE }} />
+      <span className="block h-[3px] w-2.5 rounded-full" style={{ backgroundColor: ROYAL }} />
+      <span className="block h-[3px] w-5 rounded-full" style={{ backgroundColor: ROYAL }} />
+    </span>
   )
 }
 
@@ -97,24 +151,37 @@ function ArenaHeader({
   quota?: ArenaQuota | null
 }) {
   return (
-    <div className="px-5 pb-4 pt-5 text-white" style={{ backgroundColor: ARENA_BAND }}>
+    <div
+      className="relative px-5 pb-4 pt-5 text-white"
+      style={{ background: `linear-gradient(180deg, ${BAND_TOP} 0%, ${BAND_BOTTOM} 100%)` }}
+    >
       <div className="flex items-center justify-between">
-        <span
-          className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.18em]"
-          style={{ color: ARENA_ACCENT }}
-        >
-          <Trophy className="size-3.5" aria-hidden />
-          {eyebrow}
+        <span className="flex items-center gap-2">
+          <FeatherMark />
+          <span
+            className="text-[11px] font-black uppercase italic tracking-[0.2em]"
+            style={{ color: ORANGE, fontStretch: "condensed" }}
+          >
+            {eyebrow}
+          </span>
         </span>
         {quota && (
-          <span className="text-[11px] font-semibold text-white/70">
+          <span className="text-[11px] font-bold uppercase tracking-wide text-white/70">
             {quota.label} {quota.done}/{quota.total}
           </span>
         )}
       </div>
-      <h2 className="mx-auto mt-1.5 max-w-sm text-balance text-center text-lg font-extrabold leading-tight">
+      <h2
+        className="mx-auto mt-1.5 max-w-sm text-balance text-center text-lg font-extrabold leading-tight text-white"
+        style={{ fontStretch: "condensed" }}
+      >
         {title}
       </h2>
+      <span
+        className="absolute inset-x-0 bottom-0 block h-[3px]"
+        style={{ backgroundColor: ORANGE }}
+        aria-hidden
+      />
     </div>
   )
 }
@@ -138,14 +205,14 @@ export function ArenaButton({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "w-full rounded-full py-3.5 text-center text-[15px] font-bold outline-none transition-transform",
-        "focus-visible:ring-2 focus-visible:ring-offset-2 active:scale-[0.99] disabled:opacity-40",
-        tone === "primary" ? "text-[#1f2937]" : "border-2 text-white",
+        "w-full rounded-full py-3.5 text-center text-[15px] font-black uppercase tracking-wide outline-none transition-transform",
+        "focus-visible:ring-2 focus-visible:ring-[#0b1f4d] focus-visible:ring-offset-2 active:scale-[0.99] disabled:opacity-40",
+        tone === "primary" ? "text-[#0b1f4d]" : "border-2 text-white",
       )}
       style={
         tone === "primary"
-          ? { backgroundColor: ARENA_ACCENT }
-          : { borderColor: "rgba(255,255,255,0.25)", backgroundColor: "transparent" }
+          ? { backgroundColor: ORANGE }
+          : { borderColor: "rgba(255,255,255,0.3)", backgroundColor: "transparent" }
       }
     >
       {children}
@@ -165,7 +232,11 @@ export function ArenaContinue({
 }) {
   return (
     <div className="mt-auto pt-2">
-      {hint && <p className="mb-3 text-center text-sm" style={{ color: ARENA_HINT }}>{hint}</p>}
+      {hint && (
+        <p className="mb-3 text-center text-sm font-medium" style={{ color: ARENA_COLORS.body }}>
+          {hint}
+        </p>
+      )}
       <ArenaButton onClick={onClick}>{label}</ArenaButton>
     </div>
   )
@@ -194,7 +265,7 @@ export function ArenaFooter({
     <div className="mt-auto min-h-[132px] pt-2">
       {feedback === "idle" && (
         <>
-          <p className="mb-3 text-center text-sm" style={{ color: ARENA_HINT }}>
+          <p className="mb-3 text-center text-sm font-medium" style={{ color: ARENA_COLORS.body }}>
             {copy.hint}
           </p>
           <ArenaButton disabled={!canCheck} onClick={() => dispatch({ type: "check" })}>
@@ -207,7 +278,7 @@ export function ArenaFooter({
         <>
           <div className="mb-3 flex flex-col items-center gap-2 text-center">
             <StatusChip status="hint" />
-            <p className="text-sm" style={{ color: ARENA_HINT }}>
+            <p className="text-sm font-medium" style={{ color: ARENA_COLORS.body }}>
               {copy.nudge}
             </p>
           </div>
@@ -221,7 +292,7 @@ export function ArenaFooter({
         <>
           <div className="mb-3 flex flex-col items-center gap-2 text-center">
             <StatusChip status="correct" />
-            <p className="text-sm" style={{ color: ARENA_HINT }}>
+            <p className="text-sm font-medium" style={{ color: ARENA_COLORS.body }}>
               {copy.correct}
             </p>
           </div>
@@ -234,8 +305,8 @@ export function ArenaFooter({
           <div className="mb-3 flex flex-col items-center gap-2 text-center">
             <StatusChip status="fail" />
             <p
-              className={showWhy ? "text-sm" : "sr-only"}
-              style={showWhy ? { color: ARENA_HINT } : undefined}
+              className={showWhy ? "text-sm font-medium" : "sr-only"}
+              style={showWhy ? { color: ARENA_COLORS.body } : undefined}
               role="status"
             >
               {showWhy ? copy.why : "Try again. Tap Why for the answer, or reattempt."}
@@ -246,8 +317,8 @@ export function ArenaFooter({
               type="button"
               disabled={showWhy}
               onClick={() => dispatch({ type: "reveal" })}
-              className="flex-1 rounded-full border-2 py-3.5 font-semibold text-white outline-none transition-colors disabled:opacity-40"
-              style={{ borderColor: "rgba(15,42,74,0.25)", color: ARENA_BAND }}
+              className="flex-1 rounded-full border-2 py-3.5 font-bold uppercase tracking-wide outline-none transition-colors disabled:opacity-40"
+              style={{ borderColor: "rgba(11,31,77,0.3)", color: ARENA_COLORS.ink }}
             >
               Why?
             </button>
@@ -294,7 +365,6 @@ export function RebalanceBracket({
 
   const balLayout = tidyLayout(balanced)
   const stickLayout = tidyLayout(stick)
-  // Position every seed (by key) in both layouts so the cards can glide between.
   const balByKey = positionsByKey(balanced, balLayout)
   const stickByKey = positionsByKey(stick, stickLayout)
   const keys = inorderKeys(balanced)
@@ -308,8 +378,8 @@ export function RebalanceBracket({
   return (
     <div data-testid="rebalance-bracket" className="flex w-full flex-col items-center gap-2">
       <div className="relative" style={{ width: figW, height: figH }}>
-        <BracketLines tree={stick} byKey={stickByKey} on={!isBalanced} reduced={reduced} />
-        <BracketLines tree={balanced} byKey={balByKey} on={isBalanced} reduced={reduced} />
+        <BracketLines tree={stick} byKey={stickByKey} on={!isBalanced} color="#a8a29e" reduced={reduced} />
+        <BracketLines tree={balanced} byKey={balByKey} on={isBalanced} color={ROYAL} reduced={reduced} />
         {keys.map((k) => {
           const from = stickByKey.get(k)!
           const to = balByKey.get(k)!
@@ -320,13 +390,13 @@ export function RebalanceBracket({
               initial={false}
               animate={{ left: target.x - NODE_W / 2, top: target.y - NODE_H / 2 }}
               transition={transition}
-              className="absolute flex items-center justify-center rounded-lg border-2 text-sm font-bold"
+              className="absolute flex items-center justify-center rounded-xl border-2 text-sm font-bold"
               style={{
                 width: NODE_W,
                 height: NODE_H,
                 backgroundColor: "#ffffff",
-                borderColor: "#cbd5e1",
-                color: ARENA_INK,
+                borderColor: isBalanced ? ROYAL : "#cbd5e1",
+                color: ARENA_COLORS.ink,
               }}
             >
               {k}
@@ -335,7 +405,7 @@ export function RebalanceBracket({
         })}
       </div>
       <div className="flex items-center gap-2">
-        <span className="text-xs font-semibold" style={{ color: ARENA_HINT }}>
+        <span className="text-xs font-semibold" style={{ color: ARENA_COLORS.muted }}>
           {isBalanced ? "Rebalanced: every seed within reach" : "Lopsided: a bracket gone stringy"}
         </span>
         <button
@@ -345,8 +415,8 @@ export function RebalanceBracket({
             if (!reduced) setTimeout(() => setIsBalanced(true), 120)
             else setIsBalanced(true)
           }}
-          className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-bold text-white"
-          style={{ backgroundColor: ARENA_BAND }}
+          className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-bold uppercase tracking-wide text-white"
+          style={{ backgroundColor: ARENA_COLORS.ink }}
         >
           <RotateCcw className="size-3" aria-hidden /> Replay
         </button>
@@ -359,11 +429,13 @@ function BracketLines({
   tree,
   byKey,
   on,
+  color,
   reduced,
 }: {
   tree: TreeNode
   byKey: Map<number, { x: number; y: number }>
   on: boolean
+  color: string
   reduced: boolean
 }) {
   const segs: { a: { x: number; y: number }; b: { x: number; y: number } }[] = []
@@ -391,8 +463,8 @@ function BracketLines({
           y1={s.a.y}
           x2={s.b.x}
           y2={s.b.y}
-          stroke="#94a3b8"
-          strokeWidth={2.2}
+          stroke={color}
+          strokeWidth={2.4}
           strokeLinecap="round"
         />
       ))}
