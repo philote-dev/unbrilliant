@@ -27,25 +27,26 @@ import { patientFor, type PatientIcon } from "./triagePatients"
 import type { HeapFigureProps } from "./HeapDualView"
 
 /**
- * The ER triage real-life skin of the heap figure: the SAME dual tree+array view
- * as HeapDualView (it reuses `heapLayout`, so the index map is byte-for-byte
- * identical), re-dressed as a hospital triage board. Each tree node becomes a
- * patient card placed by `nodePositions`, the parent->child edges are an SVG layer
- * behind the cards, and the index-ruled array strip stays ALWAYS visible beneath
- * (the "it's secretly an array" idea). The root is tagged MOST URGENT. The
- * max-heap promise, in plain language.
+ * The ER triage real-life skin of the heap figure, dressed as a hospital triage
+ * MONITOR (always clinical-dark, like the Spotify queue is always dark). It is the
+ * SAME dual tree+array view as HeapDualView (it reuses `heapLayout`, so the index
+ * map is byte-for-byte identical): each tree node is a patient card placed by
+ * `nodePositions`, the parent->child edges are an SVG layer behind the cards, and
+ * the index-ruled "intake list" (the packed array) stays ALWAYS visible beneath.
+ * The root is tagged MOST URGENT (the max-heap promise, in plain language).
  *
- * Presentational only: it reads `heap` and a couple of highlight/lift hints and
- * NEVER computes correctness (severities are the distinct keys, so the sift path
- * is already unique). It honours the same sync contract as HeapDualView
+ * Presentational only: it reads `heap` plus a few highlight/lift hints and NEVER
+ * computes correctness (severities are the distinct keys, so the sift path is
+ * already unique). It honours the same sync contract as HeapDualView
  * (highlightSlots, liftPair, connectorSlot, reducedMotion, srLabel) and snaps to
  * the end-state under reduced motion.
  */
 
-const CARD_W = 72
-const CARD_H = 46
+const CARD_W = 76
+const CARD_H = 48
 
-const ICON: Record<PatientIcon, LucideIcon> = {
+/** Shared patient-icon map (also used by the monitor's SEEN NEXT banner). */
+export const PATIENT_ICON: Record<PatientIcon, LucideIcon> = {
   heart: Heart,
   activity: Activity,
   bone: Bone,
@@ -55,6 +56,11 @@ const ICON: Record<PatientIcon, LucideIcon> = {
   bandage: Bandage,
   brain: Brain,
 }
+
+// Clinical monitor palette (hardcoded so the figure stays dark in any app theme).
+const EDGE_FAINT = "rgba(148,163,184,0.30)"
+const EDGE_FAMILY = "#5eead4"
+const CONNECTOR = "#5eead4"
 
 export function ERTriageBoard({
   heap,
@@ -92,7 +98,7 @@ export function ERTriageBoard({
     <div
       data-testid="er-triage-board"
       data-reduced-motion={reduced ? "1" : undefined}
-      className={cn("flex w-full max-w-[360px] flex-col gap-3", className)}
+      className={cn("mx-auto flex w-full max-w-[360px] flex-col gap-2.5", className)}
     >
       {/* ----------------------------- triage tree ---------------------------- */}
       <div className="w-full overflow-x-auto">
@@ -114,7 +120,7 @@ export function ERTriageBoard({
                   y1={p.cy}
                   x2={node.cx}
                   y2={node.cy}
-                  stroke={familyEdge(node.i) ? "var(--lilac-strong)" : "var(--border)"}
+                  stroke={familyEdge(node.i) ? EDGE_FAMILY : EDGE_FAINT}
                   strokeWidth={familyEdge(node.i) ? 2.5 : 1.5}
                 />
               )
@@ -123,21 +129,22 @@ export function ERTriageBoard({
 
           {nodes.map((node) => {
             const patient = patientFor(heap[node.i], heap)
-            const Glyph = ICON[patient.icon]
+            const Glyph = PATIENT_ICON[patient.icon]
             const isRoot = node.i === 0
+            const on = lit(node.i)
             return (
               <motion.div
                 key={`card-${node.i}`}
                 data-testid="triage-card"
                 data-slot={node.i}
-                data-lit={lit(node.i) ? "1" : undefined}
+                data-lit={on ? "1" : undefined}
                 data-lifted={lifted(node.i) ? "1" : undefined}
                 aria-hidden
                 animate={{ y: lifted(node.i) && !reduced ? -7 : 0 }}
                 transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 360, damping: 24 }}
                 className={cn(
-                  "absolute flex items-stretch overflow-hidden rounded-lg border-2 bg-card shadow-soft",
-                  lit(node.i) ? "border-lilac-strong ring-4 ring-lilac-strong/15" : "border-border",
+                  "absolute flex items-stretch overflow-hidden rounded-lg border bg-white/[0.04] shadow-[0_2px_10px_-4px_rgba(0,0,0,0.6)] backdrop-blur-sm",
+                  on ? "border-teal-300 ring-2 ring-teal-300/30" : "border-white/10",
                 )}
                 style={{
                   width: CARD_W,
@@ -150,11 +157,11 @@ export function ERTriageBoard({
                 <span className="flex min-w-0 flex-1 flex-col justify-center px-1.5 py-1">
                   <span className="flex items-center gap-1">
                     <Glyph className="size-3 shrink-0" style={{ color: patient.accent }} />
-                    <span className="text-[15px] font-bold leading-none text-foreground">
+                    <span className="text-[15px] font-bold leading-none text-white">
                       {patient.severity}
                     </span>
                   </span>
-                  <span className="mt-0.5 truncate text-[8px] font-medium leading-tight text-muted-foreground">
+                  <span className="mt-0.5 truncate text-[8px] font-medium leading-tight text-slate-400">
                     {patient.name} · L{patient.level}
                   </span>
                 </span>
@@ -166,7 +173,7 @@ export function ERTriageBoard({
                     Most urgent
                   </span>
                 )}
-                <span className="absolute bottom-0 right-0.5 text-[7px] font-medium leading-none text-faint">
+                <span className="absolute bottom-0 right-0.5 text-[7px] font-medium leading-none text-slate-500">
                   {node.i}
                 </span>
               </motion.div>
@@ -175,8 +182,8 @@ export function ERTriageBoard({
         </div>
       </div>
 
-      <p className="text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-        the board is an array
+      <p className="text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+        Intake list · packed array
       </p>
 
       {/* ----------------------- board log (the array) ------------------------ */}
@@ -194,7 +201,7 @@ export function ERTriageBoard({
                   data-testid="triage-connector"
                   d={`M ${x1} ${BAND_H} Q ${mid} ${apex} ${x2} ${BAND_H}`}
                   fill="none"
-                  stroke="var(--lilac-strong)"
+                  stroke={CONNECTOR}
                   strokeWidth={2}
                   strokeLinecap="round"
                 />
@@ -205,20 +212,21 @@ export function ERTriageBoard({
           <div className="flex" style={{ gap: GAP }}>
             {heap.map((v, i) => {
               const patient = patientFor(v, heap)
+              const on = lit(i)
               return (
                 <motion.div
                   key={`slot-${i}`}
                   data-testid="triage-cell"
                   data-slot={i}
                   data-value={v}
-                  data-lit={lit(i) ? "1" : undefined}
+                  data-lit={on ? "1" : undefined}
                   data-lifted={lifted(i) ? "1" : undefined}
                   aria-hidden
                   animate={{ y: lifted(i) && !reduced ? -7 : 0 }}
                   transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 360, damping: 24 }}
                   className={cn(
-                    "relative flex flex-col items-center justify-center rounded-lg border-2 font-bold text-foreground transition-colors",
-                    lit(i) ? "border-lilac-strong bg-lilac-soft" : "border-border bg-card",
+                    "relative flex flex-col items-center justify-center rounded-lg border font-bold text-white transition-colors",
+                    on ? "border-teal-300 bg-teal-400/10" : "border-white/10 bg-white/[0.04]",
                   )}
                   style={{ width: CELL, height: CELL }}
                 >
@@ -226,8 +234,8 @@ export function ERTriageBoard({
                     className="absolute left-0.5 top-0.5 size-1.5 rounded-full"
                     style={{ backgroundColor: patient.accent }}
                   />
-                  <span className="text-[15px] leading-none">{v}</span>
-                  <span className="mt-0.5 text-[9px] font-medium leading-none text-faint">{i}</span>
+                  <span className="text-[15px] leading-none text-slate-50">{v}</span>
+                  <span className="mt-0.5 text-[9px] font-medium leading-none text-slate-500">{i}</span>
                 </motion.div>
               )
             })}
