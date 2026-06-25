@@ -31,9 +31,11 @@ export function StageSplit({
   if (isDesktop) {
     return (
       <div className="grid flex-1 grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] items-stretch gap-10 xl:gap-14">
-        <div className="flex min-w-0 flex-col items-center justify-center">
-          {figure}
-        </div>
+        {/* Figure cell stretches its child to the full column width (no
+            items-center) so width-fit figures and `w-full max-w-*` figures
+            measure the real column and scale up; each figure centers its own
+            content internally. */}
+        <div className="flex min-w-0 flex-col justify-center">{figure}</div>
         <div className="flex min-w-0 flex-col">
           {header}
           {interaction}
