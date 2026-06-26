@@ -71,6 +71,42 @@ function Eyebrow({ children, className }: { children: ReactNode; className?: str
   )
 }
 
+/**
+ * An inline highlighted word that also drives a live demo: hovering, focusing, or
+ * tapping it turns `active` on (and tap latches it), so "index" can light up the
+ * ruler beneath the strip. Reads as the same lilac `.concept` term, with a dotted
+ * underline to signal it is interactive.
+ */
+function ConceptTrigger({
+  active,
+  onChange,
+  children,
+}: {
+  active: boolean
+  onChange: (on: boolean) => void
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        "concept rounded underline decoration-dotted decoration-from-font underline-offset-4 outline-none",
+        "focus-visible:ring-2 focus-visible:ring-lilac-strong/60",
+        active && "bg-lilac-soft",
+      )}
+      style={{ animationDelay: "200ms" }}
+      aria-pressed={active}
+      onPointerEnter={() => onChange(true)}
+      onPointerLeave={() => onChange(false)}
+      onFocus={() => onChange(true)}
+      onBlur={() => onChange(false)}
+      onClick={() => onChange(!active)}
+    >
+      {children}
+    </button>
+  )
+}
+
 function Header({ kicker, prompt }: { kicker: string; prompt: string }) {
   return (
     <div className="mt-7">
@@ -123,6 +159,7 @@ const PLAY_CELLS = ["A", "B", "C", "D", "E", "F"]
 
 function PlayAccessPart({ dispatch }: { dispatch: Dispatch<LessonAction> }) {
   const [touched, setTouched] = useState(-1)
+  const [indexLit, setIndexLit] = useState(false)
 
   return (
     <StageCenter maxWidthClass="max-w-xl">
@@ -133,7 +170,7 @@ function PlayAccessPart({ dispatch }: { dispatch: Dispatch<LessonAction> }) {
         </h2>
       </div>
 
-      <div className="flex flex-1 flex-col items-center justify-center gap-7 py-6">
+      <div className="flex flex-1 flex-col items-center justify-center gap-9 py-6">
         <ArrayStrip
           mode="read"
           cells={PLAY_CELLS}
@@ -141,6 +178,8 @@ function PlayAccessPart({ dispatch }: { dispatch: Dispatch<LessonAction> }) {
           tone="active"
           overlay={touched >= 0 ? ({ kind: "jump", k: touched } as Overlay) : null}
           onTap={setTouched}
+          rulerLit={indexLit}
+          scale={1.35}
         />
         <p
           key={touched}
@@ -154,9 +193,9 @@ function PlayAccessPart({ dispatch }: { dispatch: Dispatch<LessonAction> }) {
           ) : (
             <>
               Tap any cell. The number under it is its{" "}
-              <span className="concept" style={{ animationDelay: "200ms" }}>
+              <ConceptTrigger active={indexLit} onChange={setIndexLit}>
                 index
-              </span>
+              </ConceptTrigger>
               , and you{" "}
               <span className="concept" style={{ animationDelay: "650ms" }}>
                 jump

@@ -55,6 +55,10 @@ export function ArrayStrip(props: {
   overlay?: Overlay
   /** Dev-only tracer hook: marks the correct cell so the e2e tracer can tap it. */
   answerIndex?: number
+  /** Light up the WHOLE address ruler (e.g. when the learner hovers "index"). */
+  rulerLit?: boolean
+  /** Visually enlarge the figure without touching the deterministic px math. */
+  scale?: number
   frame?: ShiftFrame
   opIndex?: number
   /** place mode: the gap the learner has chosen so far (e.g. "gap-3"). */
@@ -81,7 +85,7 @@ export function ArrayStrip(props: {
       />
     )
   }
-  return (
+  const read = (
     <ReadStrip
       cells={props.cells ?? []}
       ruler={props.ruler ?? true}
@@ -90,8 +94,24 @@ export function ArrayStrip(props: {
       onTap={props.onTap}
       overlay={props.overlay ?? null}
       answerIndex={props.answerIndex ?? -1}
+      rulerLit={props.rulerLit ?? false}
       reduced={isReduced}
     />
+  )
+  const scale = props.scale ?? 1
+  if (scale === 1) return read
+  // CSS-scale the whole subtree so the SVG overlay coordinates stay consistent;
+  // reserve the scaled box so siblings still lay out around it.
+  const ext = stripExtent((props.cells ?? []).length)
+  return (
+    <div
+      className="mx-auto"
+      style={{ width: ext.width * scale, height: ext.height * scale }}
+    >
+      <div style={{ transform: `scale(${scale})`, transformOrigin: "top left", width: ext.width }}>
+        {read}
+      </div>
+    </div>
   )
 }
 
@@ -105,6 +125,7 @@ function ReadStrip({
   onTap,
   overlay,
   answerIndex,
+  rulerLit,
   reduced,
 }: {
   cells: string[]
@@ -114,6 +135,7 @@ function ReadStrip({
   onTap?: (i: number) => void
   overlay: Overlay
   answerIndex: number
+  rulerLit: boolean
   reduced: boolean
 }) {
   const n = cells.length
@@ -142,7 +164,7 @@ function ReadStrip({
                 "first:rounded-l-xl last:rounded-r-xl",
                 lit ? cn("relative z-10", TONE_RING[tone]) : "border-border bg-card",
                 onTap &&
-                  "cursor-pointer transition-colors hover:bg-lilac-soft/40 focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-lilac-strong/60",
+                  "cursor-pointer transition-[background-color,border-color,transform] duration-150 hover:relative hover:z-10 hover:-translate-y-0.5 hover:border-lilac-strong hover:bg-lilac-soft focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-lilac-strong/60",
               )}
               style={{ width: CELL, height: CELL }}
             >
@@ -159,18 +181,26 @@ function ReadStrip({
           style={{ height: RULER_H, marginTop: RULER_GAP }}
           aria-hidden
         >
-          {cells.map((_, i) => (
-            <span
-              key={i}
-              className={cn(
-                "flex items-center justify-center text-xs tabular-nums",
-                i === highlight ? "font-bold text-lilac-strong" : "text-faint",
-              )}
-              style={{ width: CELL }}
-            >
-              {i}
-            </span>
-          ))}
+          {cells.map((_, i) => {
+            const on = rulerLit || i === highlight
+            return (
+              <span
+                key={i}
+                className={cn(
+                  "flex items-center justify-center text-xs tabular-nums transition-all duration-200",
+                  on ? "scale-125 font-bold text-lilac-strong" : "text-faint",
+                )}
+                style={{
+                  width: CELL,
+                  textShadow: rulerLit
+                    ? "0 0 10px color-mix(in srgb, var(--lilac-strong) 60%, transparent)"
+                    : undefined,
+                }}
+              >
+                {i}
+              </span>
+            )
+          })}
         </div>
       )}
 
