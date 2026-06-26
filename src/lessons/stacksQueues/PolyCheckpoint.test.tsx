@@ -23,6 +23,7 @@ describe("PolyCheckpoint", () => {
   it("affirms and continues when the explanation covers everything", async () => {
     const props = deps()
     render(<PolyCheckpoint {...props} />)
+    expect(screen.getByRole("textbox", { name: /your explanation/i })).toBeInTheDocument()
     await userEvent.type(screen.getByRole("textbox"), "last in first out")
     await userEvent.click(screen.getByRole("button", { name: /submit/i }))
     await waitFor(() => expect(screen.getByRole("button", { name: /continue/i })).toBeInTheDocument())

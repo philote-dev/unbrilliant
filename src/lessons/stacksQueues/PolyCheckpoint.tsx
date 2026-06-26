@@ -101,7 +101,12 @@ export function PolyCheckpoint({
       {scores.length > 0 && (
         <div className="mt-4 flex justify-center gap-2" aria-label="coverage">
           {scores.map((s) => (
-            <span key={s.id} className={cn("size-3 rounded-full", dotClass(s.verdict))} />
+            <span
+              key={s.id}
+              role="img"
+              aria-label={s.verdict}
+              className={cn("size-3 rounded-full", dotClass(s.verdict))}
+            />
           ))}
         </div>
       )}
@@ -120,7 +125,9 @@ export function PolyCheckpoint({
           <>
             <textarea
               className="mb-3 min-h-24 w-full rounded-xl border border-border bg-card p-3 text-sm text-foreground"
+              aria-label="Your explanation"
               placeholder="Type your explanation..."
+              maxLength={5000}
               value={answer}
               disabled={phase === "thinking"}
               onChange={(e) => setAnswer(e.target.value)}
