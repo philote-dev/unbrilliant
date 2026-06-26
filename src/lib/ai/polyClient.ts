@@ -99,3 +99,18 @@ export async function transcribe(req: TranscribeRequest): Promise<TranscribeResp
   const res = await callable(req)
   return res.data
 }
+
+export interface RealtimeTokenResponse {
+  token: string | null
+  expiresAt: number | null
+  model: string | null
+}
+
+export async function realtimeToken(): Promise<RealtimeTokenResponse> {
+  const callable = httpsCallable<Record<string, never>, RealtimeTokenResponse>(
+    functions,
+    "polyRealtimeToken",
+  )
+  const res = await callable({})
+  return res.data
+}
