@@ -50,6 +50,10 @@ const CHECKPOINTS: { id: string; afterIndex: number; conceptId: string; conceptN
   { id: "cp-queues", afterIndex: 9, conceptId: "queues", conceptName: "queues" },
 ]
 
+// Poly voice on the S&Q checkpoints (the Friday demo target). Fails soft to the
+// text loop if TTS, the mic, or transcription is unavailable.
+const CHECKPOINT_VOICE = true
+
 export function StacksQueuesStage({
   state,
   dispatch,
@@ -69,6 +73,7 @@ export function StacksQueuesStage({
         conceptId={due.conceptId}
         conceptName={due.conceptName}
         uid={user?.uid ?? null}
+        voice={CHECKPOINT_VOICE}
         onDone={() => setDoneCheckpoints((prev) => [...prev, due.id])}
       />
     )

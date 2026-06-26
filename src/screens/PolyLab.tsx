@@ -420,6 +420,7 @@ function CheckpointPanel({ mode, uid }: { mode: Mode; uid: string | null }) {
   const [concept, setConcept] = useState<Discipline>("stack")
   const [runId, setRunId] = useState(0)
   const [completed, setCompleted] = useState(false)
+  const [voice, setVoice] = useState(false)
 
   const conceptId = concept === "stack" ? "stacks" : "queues"
   const conceptName = concept === "stack" ? "stacks" : "queues"
@@ -435,6 +436,22 @@ function CheckpointPanel({ mode, uid }: { mode: Mode; uid: string | null }) {
           scoreExplanation: mock.score,
           requestProbe: mock.probe,
           saveExplanation: async () => {},
+        }
+      : {}
+
+  // In mock mode, inject fake voice so the toggle is demoable with no key: the
+  // speaker resolves instantly and the recorder returns a canned transcript on
+  // stop. In live mode, omit these so the checkpoint uses the real TTS/STT.
+  const mockVoice =
+    mode === "mock"
+      ? {
+          speakText: async () => {},
+          createRecorder: () => ({
+            start: async () => {},
+            stop: async () =>
+              concept === "stack" ? "last in first out, only the top" : "first in first out",
+            cancel: () => {},
+          }),
         }
       : {}
 
@@ -465,6 +482,13 @@ function CheckpointPanel({ mode, uid }: { mode: Mode; uid: string | null }) {
           <RefreshCw className="size-4" />
           Replay
         </Button>
+        <Button
+          variant={voice ? "tactile" : "secondary"}
+          size="default"
+          onClick={() => setVoice((v) => !v)}
+        >
+          {voice ? "Voice on" : "Voice off"}
+        </Button>
       </div>
       <p className="mt-3 text-xs text-faint">
         Mock tip: the first answer leaves a gap (so a probe fires); a second answer covers
@@ -480,12 +504,14 @@ function CheckpointPanel({ mode, uid }: { mode: Mode; uid: string | null }) {
           </div>
         ) : (
           <PolyCheckpoint
-            key={`${conceptId}-${mode}-${runId}`}
+            key={`${conceptId}-${mode}-${runId}-${voice ? "v" : "t"}`}
             conceptId={conceptId}
             conceptName={conceptName}
             uid={uid}
+            voice={voice}
             onDone={() => setCompleted(true)}
             {...injected}
+            {...mockVoice}
           />
         )}
       </div>
