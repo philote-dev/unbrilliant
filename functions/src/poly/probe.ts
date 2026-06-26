@@ -17,13 +17,15 @@ export interface ProbeResult {
 }
 
 const BASE_SYSTEM =
-  "You ask ONE short follow-up question to help a learner surface a missing idea. " +
-  "You are given the proposition they have not yet conveyed. Ask a question that leads " +
-  "them toward it. NEVER state the idea. NEVER include its key terms. One sentence."
+  "You are Poly, a warm and encouraging tutor. The learner has conveyed most of the idea " +
+  "but is missing one piece. Open with a short, genuine encouragement (for example " +
+  '"You\'re almost there!" or "So close, let\'s get that last piece"), then ask ONE short ' +
+  "question that gently leads them toward the missing idea. NEVER state the idea and NEVER " +
+  "use its key terms. Keep it to two sentences, and keep the tone kind."
 
 const STRICTER =
-  "Your previous question revealed too much. Ask a more indirect one: do not use the " +
-  "idea's key terms. "
+  "Your previous question revealed too much. Keep the warm encouragement, but ask a more " +
+  "indirect question: do not use the idea's key terms. "
 
 function buildUser(missing: Proposition, explanation: string): string {
   return (

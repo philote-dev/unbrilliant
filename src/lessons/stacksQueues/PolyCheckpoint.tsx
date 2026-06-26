@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { Sparkles } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -53,6 +54,7 @@ export function PolyCheckpoint({
   const [answer, setAnswer] = useState("")
   const [scores, setScores] = useState<PropScore[]>([])
   const [exchanges, setExchanges] = useState(0)
+  const [succeeded, setSucceeded] = useState(false)
 
   async function submit() {
     const text = answer.trim()
@@ -67,6 +69,7 @@ export function PolyCheckpoint({
       const allCovered =
         res.scores.length > 0 && res.scores.every((s) => s.verdict === "covered")
       if (allCovered || n >= maxExchanges || !res.weakest) {
+        setSucceeded(allCovered)
         setPhase("done")
         return
       }
@@ -89,11 +92,17 @@ export function PolyCheckpoint({
 
   return (
     <div className="flex flex-1 flex-col">
-      <div className="mt-7 text-center">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Quick check
-        </p>
-        <h2 className="mx-auto mt-2 max-w-sm text-xl font-bold text-foreground lg:text-2xl">
+      <div className="mt-7 flex flex-col items-center text-center">
+        <div className="flex items-center gap-2">
+          <span className="flex size-7 items-center justify-center rounded-full bg-lilac-soft text-lilac-strong">
+            <Sparkles className="size-4" />
+          </span>
+          <span className="text-sm font-semibold text-foreground">Poly</span>
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-faint">
+            Quick check
+          </span>
+        </div>
+        <h2 className="mx-auto mt-3 max-w-sm text-xl font-bold text-foreground lg:text-2xl">
           {question}
         </h2>
       </div>
@@ -115,7 +124,9 @@ export function PolyCheckpoint({
         {phase === "done" ? (
           <div className="animate-fade-in">
             <p className="mb-4 text-center text-sm text-muted-foreground lg:text-base">
-              Thanks for explaining. Let us keep going.
+              {succeeded
+                ? `Beautiful, you've got ${conceptName} down. Let's keep going.`
+                : "Nice effort, you're on the right track. Let's keep going."}
             </p>
             <Button variant="tactile" size="lg" className="w-full" onClick={onDone}>
               Continue
