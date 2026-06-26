@@ -28,6 +28,7 @@ export async function synthesizeSpeech(
   const text = (args?.text ?? "").trim().slice(0, MAX_TEXT)
   if (!text) return { audio: null, mime: null }
   const buf = await speaker.speak({ text, model, voice, instructions: POLY_INSTRUCTIONS })
+  // mime is coupled to OpenAI's mp3 default response_format for TTS audio.
   return { audio: buf.toString("base64"), mime: "audio/mpeg" }
 }
 

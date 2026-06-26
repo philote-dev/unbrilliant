@@ -11,6 +11,12 @@ describe("synthesizeSpeech", () => {
     const speaker = fakeSpeaker([1, 2, 3])
     const out = await synthesizeSpeech(speaker, "m", "alloy", { text: "hello" })
     expect(out).toEqual({ audio: Buffer.from([1, 2, 3]).toString("base64"), mime: "audio/mpeg" })
+    const arg = (speaker.speak as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(arg.model).toBe("m")
+    expect(arg.voice).toBe("alloy")
+    expect(arg.text).toBe("hello")
+    expect(typeof arg.instructions).toBe("string")
+    expect(arg.instructions.length).toBeGreaterThan(0)
   })
 
   it("returns nulls and does not call the speaker for empty text", async () => {
