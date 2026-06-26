@@ -41,7 +41,7 @@ function Harness({ initial }: { initial: ArraysState }) {
 const at = (part: string): ArraysState =>
   resumeArrays({ counters: {}, currentPart: part, completed: false }, SEED)
 
-describe("Arrays stage — de-cued access (overlay is post-verdict only)", () => {
+describe("Arrays stage: de-cued access (overlay is post-verdict only)", () => {
   it("draws no jump overlay until a verdict lands, then reveals it", () => {
     const { container } = render(<Harness initial={at("jump")} />)
     // de-cued: the access overlay (the only <path> here) is absent before the verdict
@@ -93,7 +93,7 @@ describe("Arrays stage: scan walk (reveal cell by cell, no shortcut)", () => {
   })
 })
 
-describe("Arrays stage — place-cheapest commits via tap and keyboard", () => {
+describe("Arrays stage: place-cheapest commits via tap and keyboard", () => {
   it("dropping the cell on the end gap (tap) clears the beat", () => {
     const init = at("place-cheapest")
     const n = init.question!.cells.length
@@ -153,7 +153,7 @@ describe("Arrays stage: insert & delete playground (directional, left-anchored)"
   })
 })
 
-describe("Arrays stage — minimal fail UX (SR-only, no fail sentence)", () => {
+describe("Arrays stage: minimal fail UX (SR-only, no fail sentence)", () => {
   it("hides the fail sentence until Why, keeping the answer withheld", () => {
     const init = at("insert")
     render(<Harness initial={init} />)
@@ -177,7 +177,7 @@ describe("Arrays stage — minimal fail UX (SR-only, no fail sentence)", () => {
   })
 })
 
-describe("Arrays stage — the graded shift wave plays to the end-state on reveal", () => {
+describe("Arrays stage: the graded shift wave plays to the end-state on reveal", () => {
   // Reduced motion is forced (matchMedia matches), so the wave snaps straight to
   // its final frame with no timers: the reveal is deterministic to assert.
   it("insert: the ripple lands on the shifted arrangement and announces the wave", () => {
