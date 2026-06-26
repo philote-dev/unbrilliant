@@ -42,7 +42,8 @@ export const ARRAYS_PARTS = [
   "delete", // 6 predict the delete shift count (graded)
   "place-cheapest", // 7 drop one cell where it costs least (meaningful gap drag) (graded)
   "realworld", // 8 spreadsheet row insert/delete: the same shift, concrete (graded)
-  "grow", // 9 capacity full -> append: double + copy, then "was it cheap?" (graded x2)
+  "teach-grow", // 9 dynamic-array setup: arrays have a fixed size; what happens when full? (intro)
+  "grow", // 10 capacity full -> append: double + copy, then "was it cheap?" (graded x2)
 ] as const
 export type ArraysPart = (typeof ARRAYS_PARTS)[number]
 export const ARRAYS_TOTAL_PARTS = ARRAYS_PARTS.length
@@ -210,6 +211,13 @@ function makeIntro(part: ArraysPart): ArraysQuestion {
       ...base,
       kind: "play-access",
       prompt: "Tap any cell to read it, or jump to any position. The number under each cell is its index.",
+    }
+  }
+  if (part === "teach-grow") {
+    return {
+      ...base,
+      kind: "teach-grow",
+      prompt: "Real arrays have a fixed size. What happens when you append past the end?",
     }
   }
   return {
@@ -405,14 +413,16 @@ function makeRealworld(seed: number): { question: ArraysQuestion; next: number }
     a = r.next
     index = 1 + r.value
     moved = len - index
-    prompt = `Insert a row at position ${index}. How many rows shift down?`
+    // Row numbers shown in the sheet are 1-based, so phrase the ask in those
+    // (index + 1), never the 0-based array index, to keep it unambiguous.
+    prompt = `A new row is added at row ${index + 1}. How many rows shift down to make room?`
     op = { kind: "insert", index, inserted: "X" }
   } else {
     r = rngInt(a, len - 1)
     a = r.next
     index = r.value // 0..len-2
     moved = len - 1 - index
-    prompt = `Delete the row at position ${index}. How many rows shift up?`
+    prompt = `Delete row ${index + 1}. How many rows shift up to close the gap?`
     op = { kind: "delete", index }
   }
   const opt = countOptions(moved, len, a)
@@ -429,7 +439,7 @@ function makeRealworld(seed: number): { question: ArraysQuestion; next: number }
       hint: "",
       nudge: "Only the rows past the spot move. Count exactly those.",
       correct: `Right: ${moved} row${plural(moved)} shift.`,
-      why: `The rows sit in one unbroken block, so the change at position ${index} slides every row after it: ${moved} move.`,
+      why: `Rows sit in one unbroken block, so a change at row ${index + 1} slides every row after it: ${moved} move.`,
     },
     next: a,
   }
@@ -510,7 +520,7 @@ const FRESH = {
   showWhy: false,
 }
 
-const INTRO_PARTS = new Set<ArraysPart>(["play-access", "play-mutate"])
+const INTRO_PARTS = new Set<ArraysPart>(["play-access", "play-mutate", "teach-grow"])
 
 export function isGradedPartArrays(part: ArraysPart): boolean {
   return !INTRO_PARTS.has(part)

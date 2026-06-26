@@ -58,7 +58,8 @@ function happyPath(seed = SEED): ArraysState {
   s = apply(solve(s), { type: "next" }) // insert -> delete
   s = apply(solve(s), { type: "next" }) // delete -> place-cheapest
   s = apply(solve(s), { type: "next" }) // place-cheapest -> realworld
-  s = apply(solve(s), { type: "next" }) // realworld -> grow step 0
+  s = apply(solve(s), { type: "next" }) // realworld -> teach-grow (intro)
+  s = apply(s, { type: "continue" }) // teach-grow -> grow step 0
   s = apply(solve(s), { type: "next" }) // grow step 0 -> grow step 1
   s = apply(solve(s), { type: "next" }) // grow step 1 -> completed
   return s
@@ -66,13 +67,19 @@ function happyPath(seed = SEED): ArraysState {
 
 const growStep1 = (): ArraysState => apply(solve(at("grow")), { type: "next" })
 
-describe("Arrays — flow (9 beats, intro vs graded)", () => {
+describe("Arrays — flow (10 beats, intro vs graded)", () => {
   it("starts on the access playground and steps to the first graded beat", () => {
     const s = createArrays(SEED)
     expect(currentPartArrays(s)).toBe("play-access")
-    expect(ARRAYS_TOTAL_PARTS).toBe(9)
+    expect(ARRAYS_TOTAL_PARTS).toBe(10)
     expect(ARRAYS_GATE).toBe(8)
     expect(currentPartArrays(apply(s, { type: "continue" }))).toBe("jump")
+  })
+
+  it("teaches dynamic-array context (an intro beat) right before the grow problem", () => {
+    const teach = at("teach-grow")
+    expect(partQuotaArrays(teach)).toBeNull() // intro, not graded
+    expect(currentPartArrays(apply(teach, { type: "continue" }))).toBe("grow")
   })
 
   it("a graded beat ignores continue (advances via next, not continue)", () => {

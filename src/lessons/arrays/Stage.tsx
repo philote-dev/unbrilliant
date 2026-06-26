@@ -53,6 +53,8 @@ export function ArraysStage({
       return <CountPart state={state} dispatch={dispatch} />
     case "place-cheapest":
       return <PlaceCheapestPart state={state} dispatch={dispatch} />
+    case "teach-grow":
+      return <TeachGrowPart dispatch={dispatch} />
     case "grow":
       return <GrowPart state={state} dispatch={dispatch} />
   }
@@ -764,6 +766,49 @@ function LabeledCost({ label, count }: { label: string; count: number }) {
       </span>
       <CostReadout word={word} count={count} unit={count === 1 ? "cell moved" : "cells moved"} />
     </div>
+  )
+}
+
+/* ----------------------------- teach: dynamic arrays ----------------------------- */
+
+/**
+ * A reading page right before the grow problem. It gives the missing context, a
+ * real array is one fixed-size block, so the learner can reason about what an
+ * over-capacity append must do before being asked to pick the cleanest fix.
+ */
+function TeachGrowPart({ dispatch }: { dispatch: Dispatch<LessonAction> }) {
+  return (
+    <StageCenter maxWidthClass="max-w-xl">
+      <div className="mt-8 text-center animate-fade-in">
+        <Eyebrow>Dynamic arrays</Eyebrow>
+        <h2 className="mt-3 text-balance text-3xl font-bold tracking-tight text-foreground lg:text-5xl">
+          When the block fills up
+        </h2>
+      </div>
+
+      <div className="flex flex-1 flex-col items-center justify-center gap-7 py-6">
+        <CapacityFrame
+          resize={{ size: 4, capacity: 4, resizes: true }}
+          cells={["A", "B", "C", "D"]}
+          reveal={false}
+        />
+        <p className="mx-auto max-w-md text-pretty text-center text-xl leading-relaxed text-foreground/90 lg:text-2xl">
+          So far every move had a clear cost. But a real array is one{" "}
+          <span className="concept" style={{ animationDelay: "200ms" }}>
+            fixed-size
+          </span>{" "}
+          block of memory: it only holds so many cells. So what happens when you{" "}
+          <span className="concept" style={{ animationDelay: "650ms" }}>
+            append
+          </span>{" "}
+          one more and there is no room left? Think it through, then pick the cleanest fix.
+        </p>
+      </div>
+
+      <Button variant="tactile" size="lg" className="w-full" onClick={() => dispatch({ type: "continue" })}>
+        Continue
+      </Button>
+    </StageCenter>
   )
 }
 
