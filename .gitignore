@@ -52,3 +52,6 @@ docs/*
 # Dev-only design gallery (excluded for now; include at your discretion)
 gallery.html
 src/dev/
+
+# Cloud Functions build output
+functions/lib
