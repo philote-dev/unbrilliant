@@ -1,27 +1,31 @@
 import { useEffect, useRef, useState } from "react"
-import { Sparkles, Mic, Square, Volume2 } from "lucide-react"
+import { AnimatePresence, motion, useReducedMotion, type PanInfo } from "motion/react"
+import { Sparkles, Mic, Keyboard } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import {
   scoreExplanation as defaultScore,
   requestProbe as defaultProbe,
+  realtimeToken as defaultRealtimeToken,
   type PropScore,
   type ScoreRequest,
   type ScoreResponse,
   type ProbeRequest,
   type ProbeResponse,
 } from "@/lib/ai/polyClient"
+import { speakText as defaultSpeakText } from "@/lib/ai/voice"
 import {
-  speakText as defaultSpeakText,
-  createRecorder as defaultCreateRecorder,
-  type VoiceRecorder,
-} from "@/lib/ai/voice"
+  createRealtimeTranscriber,
+  type RealtimeTranscriber,
+} from "@/lib/ai/realtimeTranscriber"
 import {
   saveExplanation as defaultSave,
   type ExplanationRecord,
 } from "@/features/poly/explanationStore"
 import { db } from "@/lib/firebase"
+
+type TranscriptUpdate = { finalText: string; interimText: string }
 
 export interface PolyCheckpointProps {
   conceptId: string
@@ -34,15 +38,51 @@ export interface PolyCheckpointProps {
   saveExplanation?: (uid: string, rec: ExplanationRecord) => Promise<void>
   voice?: boolean
   speakText?: (text: string) => Promise<void>
-  createRecorder?: () => VoiceRecorder
+  createTranscriber?: (opts: {
+    onUpdate: (t: TranscriptUpdate) => void
+    onError?: (e: unknown) => void
+  }) => RealtimeTranscriber
 }
 
-type Phase = "asking" | "thinking" | "done"
+type Phase = "answering" | "scoring" | "done"
+type Mode = "voice" | "keyboard"
+type VoicePhase = "speaking" | "listening"
 
 function dotClass(verdict: PropScore["verdict"]): string {
   if (verdict === "covered") return "bg-emerald-500"
   if (verdict === "partial") return "bg-amber-500"
   return "bg-muted-foreground/30"
+}
+
+/** Poly's avatar: a soft lilac orb that breathes while listening and glows while speaking. */
+function PolyOrb({ phase, reduce }: { phase: VoicePhase; reduce: boolean | null }) {
+  const listening = phase === "listening"
+  const Icon = listening ? Mic : Sparkles
+  return (
+    <div className="relative flex size-28 items-center justify-center" aria-hidden>
+      {listening && !reduce && (
+        <>
+          <motion.span
+            className="absolute size-24 rounded-full bg-lilac-soft"
+            animate={{ scale: [1, 1.4, 1], opacity: [0.45, 0, 0.45] }}
+            transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+          />
+          <motion.span
+            className="absolute size-24 rounded-full bg-lilac-soft"
+            animate={{ scale: [1, 1.25, 1], opacity: [0.6, 0.1, 0.6] }}
+            transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut", delay: 0.4 }}
+          />
+        </>
+      )}
+      <motion.span
+        className="relative flex size-16 items-center justify-center rounded-full bg-lilac-soft text-lilac-strong"
+        animate={reduce ? { scale: 1 } : { scale: listening ? [1, 1.06, 1] : [1, 1.03, 1] }}
+        transition={{ duration: listening ? 2.4 : 1.6, repeat: Infinity, ease: "easeInOut" }}
+      >
+        <Icon className="size-6" />
+      </motion.span>
+    </div>
+  )
 }
 
 export function PolyCheckpoint({
@@ -56,73 +96,101 @@ export function PolyCheckpoint({
   saveExplanation = (u, rec) => defaultSave(db, u, rec),
   voice = false,
   speakText = defaultSpeakText,
-  createRecorder = defaultCreateRecorder,
+  createTranscriber = (opts) =>
+    createRealtimeTranscriber({ ...opts, getToken: defaultRealtimeToken }),
 }: PolyCheckpointProps) {
-  const [phase, setPhase] = useState<Phase>("asking")
-  const [question, setQuestion] = useState(
-    `In your own words, explain ${conceptName}.`,
-  )
-  const [answer, setAnswer] = useState("")
+  const reduce = useReducedMotion()
+
+  const [phase, setPhase] = useState<Phase>("answering")
+  const [mode, setMode] = useState<Mode>(voice ? "voice" : "keyboard")
+  const [voicePhase, setVoicePhase] = useState<VoicePhase>("speaking")
+  const [question, setQuestion] = useState(`In your own words, explain ${conceptName}.`)
+  const [finalText, setFinalText] = useState("")
+  const [interimText, setInterimText] = useState("")
+  const [typed, setTyped] = useState("")
   const [scores, setScores] = useState<PropScore[]>([])
   const [exchanges, setExchanges] = useState(0)
   const [succeeded, setSucceeded] = useState(false)
-  const [recording, setRecording] = useState(false)
   const [voiceError, setVoiceError] = useState(false)
-  const recorderRef = useRef<VoiceRecorder | null>(null)
-  const spokenRef = useRef<string | null>(null)
 
-  // Release the mic if the component unmounts mid-recording.
-  useEffect(() => () => recorderRef.current?.cancel(), [])
+  const transcriberRef = useRef<RealtimeTranscriber | null>(null)
+  const submittingRef = useRef(false)
 
-  useEffect(() => {
-    if (!voice || phase !== "asking") return
-    // Speak each question once. The ref guard (not just the deps) prevents a
-    // double utterance under React StrictMode's dev double-invoke and avoids
-    // double-billing the TTS endpoint. It re-speaks when the question text
-    // changes (a new probe), which relies on submit() updating question and
-    // phase in the same render batch.
-    if (spokenRef.current === question) return
-    spokenRef.current = question
-    void speakText(question)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [question, voice])
+  const voiceText = [finalText, interimText].filter(Boolean).join(" ").trim()
 
-  // Drop a stale "voice unavailable" note so it does not carry to the next question.
-  useEffect(() => {
-    setVoiceError(false)
-  }, [question])
+  function stopListening() {
+    transcriberRef.current?.stop()
+    transcriberRef.current = null
+  }
 
-  async function startRecording() {
-    if (recorderRef.current) return
-    setVoiceError(false)
-    const rec = createRecorder()
-    recorderRef.current = rec
-    try {
-      await rec.start()
-      setRecording(true)
-    } catch {
-      recorderRef.current = null
+  // Release the realtime connection / mic on unmount.
+  useEffect(() => () => stopListening(), [])
+
+  function startListening() {
+    const transcriber = createTranscriber({
+      onUpdate: (u) => {
+        setFinalText(u.finalText)
+        setInterimText(u.interimText)
+      },
+      onError: () => setVoiceError(true),
+    })
+    transcriberRef.current = transcriber
+    setVoicePhase("listening")
+    transcriber.start().catch(() => {
+      transcriberRef.current = null
       setVoiceError(true)
+      setMode("keyboard")
+    })
+  }
+
+  // One voice turn: Poly speaks the question, then the mic opens. Re-runs when
+  // the question, mode, or phase changes; the cleanup cancels an in-flight turn
+  // and releases the mic, which keeps StrictMode's double-invoke safe (the first
+  // pass is cancelled and the second pass starts listening cleanly).
+  useEffect(() => {
+    if (mode !== "voice" || phase !== "answering") return
+    let cancelled = false
+    setVoiceError(false)
+    setVoicePhase("speaking")
+    void (async () => {
+      try {
+        await speakText(question)
+      } catch {
+        // ignore: autoplay/network; open the mic regardless
+      }
+      if (!cancelled) startListening()
+    })()
+    return () => {
+      cancelled = true
+      stopListening()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [question, mode, phase])
+
+  function switchToKeyboard() {
+    stopListening()
+    setMode("keyboard")
   }
 
-  async function stopRecording() {
-    const rec = recorderRef.current
-    recorderRef.current = null
-    setRecording(false)
-    if (!rec) return
-    const text = await rec.stop()
-    if (text) setAnswer(text)
-    else setVoiceError(true)
+  function switchToVoice() {
+    setVoiceError(false)
+    setFinalText("")
+    setInterimText("")
+    setMode("voice")
   }
 
-  async function submit() {
-    const text = answer.trim()
-    if (!text) return
-    setPhase("thinking")
-    if (uid) void saveExplanation(uid, { conceptId, explanation: text }).catch(() => {})
+  async function submit(text: string) {
+    const trimmed = text.trim()
+    // Only ever submit from an active answering turn, and never re-enter while a
+    // score is already in flight. This bounds the score/probe cycle to genuine
+    // user submissions.
+    if (!trimmed || phase !== "answering" || submittingRef.current) return
+    submittingRef.current = true
+    stopListening()
+    setPhase("scoring")
+    if (uid) void saveExplanation(uid, { conceptId, explanation: trimmed }).catch(() => {})
     try {
-      const res = await scoreExplanation({ conceptId, explanation: text })
+      const res = await scoreExplanation({ conceptId, explanation: trimmed })
       setScores(res.scores)
       const n = exchanges + 1
       setExchanges(n)
@@ -136,22 +204,30 @@ export function PolyCheckpoint({
       const probe = await requestProbe({
         conceptId,
         propositionId: res.weakest,
-        explanation: text,
+        explanation: trimmed,
       })
       if (!probe.question) {
         setPhase("done")
         return
       }
+      setFinalText("")
+      setInterimText("")
+      setTyped("")
       setQuestion(probe.question)
-      setAnswer("")
-      setPhase("asking")
+      setPhase("answering")
     } catch {
       setPhase("done")
+    } finally {
+      submittingRef.current = false
     }
   }
 
+  function onGrabberDragEnd(_: unknown, info: PanInfo) {
+    if (info.offset.y < -24) switchToKeyboard()
+  }
+
   return (
-    <div className="flex flex-1 flex-col">
+    <div className="relative flex flex-1 flex-col overflow-hidden">
       <div className="mt-7 flex flex-col items-center text-center">
         <div className="flex items-center gap-2">
           <span className="flex size-7 items-center justify-center rounded-full bg-lilac-soft text-lilac-strong">
@@ -180,75 +256,140 @@ export function PolyCheckpoint({
         </div>
       )}
 
-      <div className="mt-auto min-h-[132px]">
-        {phase === "done" ? (
-          <div className="animate-fade-in">
-            <p className="mb-4 text-center text-sm text-muted-foreground lg:text-base">
-              {succeeded
-                ? `Beautiful, you've got ${conceptName} down. Let's keep going.`
-                : "Nice effort, you're on the right track. Let's keep going."}
-            </p>
-            <Button variant="tactile" size="lg" className="w-full" onClick={onDone}>
-              Continue
-            </Button>
-          </div>
-        ) : (
-          <>
-            <textarea
-              className="mb-3 min-h-24 w-full rounded-xl border border-border bg-card p-3 text-sm text-foreground"
-              aria-label="Your explanation"
-              placeholder="Type your explanation..."
-              maxLength={5000}
-              value={answer}
-              disabled={phase === "thinking"}
-              onChange={(e) => setAnswer(e.target.value)}
-            />
-            {phase === "thinking" && (
-              <p className="mb-3 text-center text-sm text-muted-foreground">
-                Poly is thinking...
-              </p>
-            )}
-            {voice && (
-              <div className="mb-3 flex items-center justify-center gap-2">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="default"
-                  disabled={phase === "thinking"}
-                  onClick={recording ? stopRecording : startRecording}
-                >
-                  {recording ? <Square className="size-4" /> : <Mic className="size-4" />}
-                  {recording ? "Stop" : "Speak your answer"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="default"
-                  aria-label="Replay question"
-                  disabled={phase === "thinking" || recording}
-                  onClick={() => void speakText(question)}
-                >
-                  <Volume2 className="size-4" />
-                </Button>
-              </div>
-            )}
-            {voice && voiceError && (
-              <p role="status" className="mb-3 text-center text-xs text-muted-foreground">
+      {phase === "done" ? (
+        <div className="mt-auto animate-fade-in pb-1">
+          <p className="mb-4 text-center text-sm text-muted-foreground lg:text-base">
+            {succeeded
+              ? `Beautiful, you've got ${conceptName} down. Let's keep going.`
+              : "Nice effort, you're on the right track. Let's keep going."}
+          </p>
+          <Button variant="tactile" size="lg" className="w-full" onClick={onDone}>
+            Continue
+          </Button>
+        </div>
+      ) : phase === "scoring" ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-3">
+          {voice && <PolyOrb phase="speaking" reduce={reduce} />}
+          <p className="text-center text-sm text-muted-foreground">Poly is thinking...</p>
+        </div>
+      ) : voice ? (
+        <>
+          <div className="flex flex-1 flex-col items-center justify-center gap-4 px-2">
+            <PolyOrb phase={voicePhase} reduce={reduce} />
+            <div
+              aria-live="polite"
+              className="min-h-[3.5rem] max-w-md text-center text-lg leading-snug"
+            >
+              {voiceText ? (
+                <p>
+                  <span className="text-foreground">{finalText}</span>{" "}
+                  <span className="text-muted-foreground">{interimText}</span>
+                </p>
+              ) : (
+                <p className="text-muted-foreground">
+                  {voicePhase === "speaking" ? "Poly is speaking..." : "Listening..."}
+                </p>
+              )}
+            </div>
+            {voiceError && (
+              <p role="status" className="text-xs text-muted-foreground">
                 Voice unavailable, type instead.
               </p>
             )}
+          </div>
+
+          <div className="mt-auto flex flex-col items-center gap-3 pb-1">
             <Button
               variant="tactile"
               size="lg"
               className="w-full"
-              disabled={phase === "thinking" || answer.trim() === "" || recording}
-              onClick={submit}
+              disabled={!voiceText}
+              onClick={() => submit(voiceText)}
             >
-              Submit
+              Done
             </Button>
-          </>
-        )}
-      </div>
+            <motion.button
+              type="button"
+              onClick={switchToKeyboard}
+              drag="y"
+              dragConstraints={{ top: 0, bottom: 0 }}
+              dragElastic={0.4}
+              dragSnapToOrigin
+              onDragEnd={onGrabberDragEnd}
+              className="flex cursor-grab touch-none flex-col items-center gap-1 py-1 text-muted-foreground active:cursor-grabbing"
+              aria-label="Type instead"
+            >
+              <span className="h-1 w-9 rounded-full bg-muted-foreground/30" />
+              <span className="flex items-center gap-1.5 text-xs font-medium">
+                <Keyboard className="size-3.5" /> Type instead
+              </span>
+            </motion.button>
+          </div>
+
+          <AnimatePresence>
+            {mode === "keyboard" && (
+              <motion.div
+                key="keyboard-sheet"
+                className="absolute inset-x-0 bottom-0 rounded-t-3xl border-t border-border bg-card p-5 shadow-2xl"
+                initial={reduce ? false : { y: "100%" }}
+                animate={{ y: 0 }}
+                exit={reduce ? { opacity: 0 } : { y: "100%" }}
+                transition={{ type: "spring", stiffness: 360, damping: 34 }}
+              >
+                <button
+                  type="button"
+                  onClick={switchToVoice}
+                  aria-label="Back to voice"
+                  className="mx-auto mb-4 block h-1.5 w-10 rounded-full bg-muted-foreground/30"
+                />
+                <textarea
+                  className="min-h-24 w-full rounded-xl border border-border bg-background p-3 text-sm text-foreground"
+                  aria-label="Your explanation"
+                  placeholder="Type your explanation..."
+                  maxLength={5000}
+                  autoFocus
+                  value={typed}
+                  onChange={(e) => setTyped(e.target.value)}
+                />
+                <div className="mt-3 flex items-center gap-2">
+                  <Button variant="ghost" size="default" onClick={switchToVoice}>
+                    <Mic className="size-4" /> Use voice
+                  </Button>
+                  <Button
+                    variant="tactile"
+                    size="lg"
+                    className="flex-1"
+                    disabled={typed.trim() === ""}
+                    onClick={() => submit(typed)}
+                  >
+                    Submit
+                  </Button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </>
+      ) : (
+        <div className="mt-auto min-h-[132px]">
+          <textarea
+            className="mb-3 min-h-24 w-full rounded-xl border border-border bg-card p-3 text-sm text-foreground"
+            aria-label="Your explanation"
+            placeholder="Type your explanation..."
+            maxLength={5000}
+            value={typed}
+            onChange={(e) => setTyped(e.target.value)}
+          />
+          <Button
+            variant="tactile"
+            size="lg"
+            className="w-full"
+            disabled={typed.trim() === ""}
+            onClick={() => submit(typed)}
+          >
+            Submit
+          </Button>
+        </div>
+      )}
     </div>
   )
 }

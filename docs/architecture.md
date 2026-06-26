@@ -24,6 +24,13 @@ call is non-gating and falls back to the deterministic lesson on any failure.
   its checkpoint questions and accept spoken answers. The transcript feeds the
   same scorer as typed text; the OpenAI key stays server-side (same secret). All
   voice paths fall back to the text loop on any failure.
+- **Live voice (Realtime):** the checkpoint is a spoken conversation. Poly speaks
+  the question, then the mic opens and the learner's words stream in live. The
+  browser connects straight to OpenAI over WebRTC for streaming transcription
+  using a short-lived token minted by `polyRealtimeToken` (the real key never
+  reaches the client); the rolling transcript feeds the same scorer. Typing stays
+  available as a pull-up keyboard sheet, and any failure (no token, mic denied,
+  connection error) falls back to it.
 
 ## Tech stack
 

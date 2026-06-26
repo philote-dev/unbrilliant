@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest"
-import { render, screen, waitFor } from "@testing-library/react"
+import { render, screen, waitFor, act } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { PolyCheckpoint } from "./PolyCheckpoint"
 
@@ -19,23 +19,31 @@ function deps(over: Partial<Parameters<typeof PolyCheckpoint>[0]> = {}) {
   }
 }
 
-// A fake recorder whose stop() yields a canned transcript.
-function fakeRecorder(transcript: string) {
+type Update = { finalText: string; interimText: string }
+
+function makeFakeTranscriber() {
+  let onUpdate: (u: Update) => void = () => {}
+  const transcriber = { start: vi.fn().mockResolvedValue(undefined), stop: vi.fn() }
   return {
-    start: vi.fn().mockResolvedValue(undefined),
-    stop: vi.fn().mockResolvedValue(transcript),
-    cancel: vi.fn(),
+    transcriber,
+    create: (opts: { onUpdate: (u: Update) => void }) => {
+      onUpdate = opts.onUpdate
+      return transcriber
+    },
+    emit: (finalText: string, interimText = "") => onUpdate({ finalText, interimText }),
   }
 }
 
-describe("PolyCheckpoint", () => {
+describe("PolyCheckpoint (keyboard mode)", () => {
   it("affirms and continues when the explanation covers everything", async () => {
     const props = deps()
     render(<PolyCheckpoint {...props} />)
     expect(screen.getByRole("textbox", { name: /your explanation/i })).toBeInTheDocument()
     await userEvent.type(screen.getByRole("textbox"), "last in first out")
     await userEvent.click(screen.getByRole("button", { name: /submit/i }))
-    await waitFor(() => expect(screen.getByRole("button", { name: /continue/i })).toBeInTheDocument())
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /continue/i })).toBeInTheDocument(),
+    )
     await userEvent.click(screen.getByRole("button", { name: /continue/i }))
     expect(props.onDone).toHaveBeenCalledTimes(1)
   })
@@ -54,8 +62,9 @@ describe("PolyCheckpoint", () => {
     await waitFor(() => expect(screen.getByText("probe?")).toBeInTheDocument())
     await userEvent.type(screen.getByRole("textbox"), "second answer")
     await userEvent.click(screen.getByRole("button", { name: /submit/i }))
-    // Cap reached (2 exchanges): continue is offered regardless.
-    await waitFor(() => expect(screen.getByRole("button", { name: /continue/i })).toBeInTheDocument())
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /continue/i })).toBeInTheDocument(),
+    )
     expect(props.requestProbe).toHaveBeenCalledTimes(1)
   })
 
@@ -77,66 +86,85 @@ describe("PolyCheckpoint", () => {
     render(<PolyCheckpoint {...props} />)
     await userEvent.type(screen.getByRole("textbox"), "x")
     await userEvent.click(screen.getByRole("button", { name: /submit/i }))
-    await waitFor(() => expect(screen.getByRole("button", { name: /continue/i })).toBeInTheDocument())
-  })
-
-  it("speaks the question when voice is enabled", async () => {
-    const speakText = vi.fn().mockResolvedValue(undefined)
-    const props = deps({ voice: true, speakText, createRecorder: () => fakeRecorder("") })
-    render(<PolyCheckpoint {...props} />)
-    await waitFor(() => expect(speakText).toHaveBeenCalledWith("In your own words, explain stacks."))
-  })
-
-  it("records speech, fills the transcript into the answer, and scores it", async () => {
-    const rec = fakeRecorder("last in first out")
-    const props = deps({
-      voice: true,
-      speakText: vi.fn().mockResolvedValue(undefined),
-      createRecorder: () => rec,
-    })
-    render(<PolyCheckpoint {...props} />)
-    await userEvent.click(screen.getByRole("button", { name: /record|speak your answer|mic/i }))
-    await userEvent.click(screen.getByRole("button", { name: /stop/i }))
     await waitFor(() =>
-      expect(screen.getByRole("textbox", { name: /your explanation/i })).toHaveValue(
-        "last in first out",
-      ),
+      expect(screen.getByRole("button", { name: /continue/i })).toBeInTheDocument(),
     )
-    await userEvent.click(screen.getByRole("button", { name: /submit/i }))
-    await waitFor(() => expect(props.scoreExplanation).toHaveBeenCalled())
+  })
+})
+
+describe("PolyCheckpoint (voice mode)", () => {
+  it("speaks the question, then opens the mic", async () => {
+    const speakText = vi.fn().mockResolvedValue(undefined)
+    const fake = makeFakeTranscriber()
+    render(
+      <PolyCheckpoint {...deps({ voice: true, speakText, createTranscriber: fake.create })} />,
+    )
+    await waitFor(() =>
+      expect(speakText).toHaveBeenCalledWith("In your own words, explain stacks."),
+    )
+    await waitFor(() => expect(fake.transcriber.start).toHaveBeenCalled())
   })
 
-  it("shows a fallback note and keeps typing when the mic is denied", async () => {
-    const rec = {
-      start: vi.fn().mockRejectedValue(new Error("denied")),
+  it("renders the live transcript and scores it on Done", async () => {
+    const fake = makeFakeTranscriber()
+    const props = deps({
+      voice: true,
+      speakText: vi.fn().mockResolvedValue(undefined),
+      createTranscriber: fake.create,
+    })
+    render(<PolyCheckpoint {...props} />)
+    await waitFor(() => expect(fake.transcriber.start).toHaveBeenCalled())
+    await act(async () => {
+      fake.emit("last in first out", "only the top")
+    })
+    expect(screen.getByText(/last in first out/)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole("button", { name: /^done$/i }))
+    await waitFor(() =>
+      expect(props.scoreExplanation).toHaveBeenCalledWith({
+        conceptId: "stacks",
+        explanation: "last in first out only the top",
+      }),
+    )
+  })
+
+  it("falls back to the keyboard sheet when the connection fails", async () => {
+    const create = () => ({
+      start: vi.fn().mockRejectedValue(new Error("no mic")),
       stop: vi.fn(),
-      cancel: vi.fn(),
-    }
-    const props = deps({
-      voice: true,
-      speakText: vi.fn().mockResolvedValue(undefined),
-      createRecorder: () => rec,
     })
-    render(<PolyCheckpoint {...props} />)
-    await userEvent.click(screen.getByRole("button", { name: /record|speak your answer|mic/i }))
-    await waitFor(() => expect(screen.getByText(/type instead/i)).toBeInTheDocument())
-    expect(screen.getByRole("textbox", { name: /your explanation/i })).toBeEnabled()
+    render(
+      <PolyCheckpoint
+        {...deps({
+          voice: true,
+          speakText: vi.fn().mockResolvedValue(undefined),
+          createTranscriber: create,
+        })}
+      />,
+    )
+    await waitFor(() =>
+      expect(screen.getByRole("textbox", { name: /your explanation/i })).toBeInTheDocument(),
+    )
   })
 
-  it("shows the fallback note when transcription returns nothing", async () => {
-    const rec = {
-      start: vi.fn().mockResolvedValue(undefined),
-      stop: vi.fn().mockResolvedValue(""),
-      cancel: vi.fn(),
-    }
+  it("switches to the keyboard via the grabber and submits typed text", async () => {
+    const fake = makeFakeTranscriber()
     const props = deps({
       voice: true,
       speakText: vi.fn().mockResolvedValue(undefined),
-      createRecorder: () => rec,
+      createTranscriber: fake.create,
     })
     render(<PolyCheckpoint {...props} />)
-    await userEvent.click(screen.getByRole("button", { name: /speak your answer|record|mic/i }))
-    await userEvent.click(screen.getByRole("button", { name: /stop/i }))
-    await waitFor(() => expect(screen.getByText(/type instead/i)).toBeInTheDocument())
+    await waitFor(() => expect(fake.transcriber.start).toHaveBeenCalled())
+    await userEvent.click(screen.getByRole("button", { name: /type instead/i }))
+    expect(fake.transcriber.stop).toHaveBeenCalled()
+    const box = await screen.findByRole("textbox", { name: /your explanation/i })
+    await userEvent.type(box, "typed answer")
+    await userEvent.click(screen.getByRole("button", { name: /^submit$/i }))
+    await waitFor(() =>
+      expect(props.scoreExplanation).toHaveBeenCalledWith({
+        conceptId: "stacks",
+        explanation: "typed answer",
+      }),
+    )
   })
 })
