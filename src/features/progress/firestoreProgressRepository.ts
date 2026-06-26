@@ -15,6 +15,7 @@ import {
 } from "firebase/firestore"
 
 import { dayKeyToUTCDate } from "@/features/progress/activityDate"
+import type { ConceptReview } from "@/features/progress/conceptReview"
 import type {
   ActivityDay,
   LessonProgress,
@@ -43,6 +44,10 @@ export function createFirestoreProgressRepository(
   const activityCol = (uid: string) => collection(db, "users", uid, "activity")
   const activityRef = (uid: string, dayKey: string) =>
     doc(db, "users", uid, "activity", dayKey)
+  const conceptReviewsCol = (uid: string) =>
+    collection(db, "users", uid, "conceptReviews")
+  const conceptReviewRef = (uid: string, conceptId: string) =>
+    doc(db, "users", uid, "conceptReviews", conceptId)
 
   return {
     async ensureUser(uid, profile: UserProfile) {
@@ -148,6 +153,40 @@ export function createFirestoreProgressRepository(
           correct: Number(data.correct) || 0,
         }
       })
+    },
+
+    async getConceptReviews(uid): Promise<ConceptReview[]> {
+      const snap = await getDocs(conceptReviewsCol(uid))
+      return snap.docs.map((d) => {
+        const x = d.data()
+        return {
+          conceptId: d.id,
+          level: Number(x.level) || 0,
+          correctStreak: Number(x.correctStreak) || 0,
+          lapses: Number(x.lapses) || 0,
+          seen: Number(x.seen) || 0,
+          lastSeenAt: Number(x.lastSeenAt) || 0,
+          dueAt: Number(x.dueAt) || 0,
+          graduated: x.graduated === true,
+        }
+      })
+    },
+
+    async saveConceptReview(uid, review: ConceptReview) {
+      await setDoc(
+        conceptReviewRef(uid, review.conceptId),
+        {
+          level: review.level,
+          correctStreak: review.correctStreak,
+          lapses: review.lapses,
+          seen: review.seen,
+          lastSeenAt: review.lastSeenAt,
+          dueAt: review.dueAt,
+          graduated: review.graduated,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      )
     },
   }
 }
