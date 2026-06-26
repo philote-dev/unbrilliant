@@ -45,3 +45,27 @@ describe("requestHint client", () => {
     expect(vi.mocked(httpsCallable)).toHaveBeenCalledWith(expect.anything(), "polyHint")
   })
 })
+
+describe("checkpoint client helpers", () => {
+  beforeEach(() => mockCallable.mockReset())
+
+  it("scoreExplanation calls polyScore and returns its data", async () => {
+    const { scoreExplanation } = await import("./polyClient")
+    const { httpsCallable } = await import("firebase/functions")
+    mockCallable.mockResolvedValue({
+      data: { scores: [{ id: "P1", verdict: "covered" }], weakest: null },
+    })
+    const res = await scoreExplanation({ conceptId: "stacks", explanation: "x" })
+    expect(res.weakest).toBeNull()
+    expect(vi.mocked(httpsCallable)).toHaveBeenCalledWith(expect.anything(), "polyScore")
+  })
+
+  it("requestProbe calls polyProbe and returns its data", async () => {
+    const { requestProbe } = await import("./polyClient")
+    const { httpsCallable } = await import("firebase/functions")
+    mockCallable.mockResolvedValue({ data: { question: "a probe?" } })
+    const res = await requestProbe({ conceptId: "stacks", propositionId: "P1", explanation: "x" })
+    expect(res.question).toBe("a probe?")
+    expect(vi.mocked(httpsCallable)).toHaveBeenCalledWith(expect.anything(), "polyProbe")
+  })
+})
