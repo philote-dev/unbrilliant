@@ -54,7 +54,8 @@ export function LessonHost({ lessonId }: { lessonId: string }) {
     return (
       <RetrievalDrill
         items={drill.items}
-        lessonName={lessonName(lessonOfConcept(drill.conceptId))}
+        fromLessonName={lessonName(lessonOfConcept(drill.conceptId))}
+        toLessonName={lessonName(lessonId)}
         onDone={() => {
           shownThisSession.add(drill.conceptId)
           finished.current = true

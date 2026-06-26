@@ -129,7 +129,7 @@ async function answerWarmup(page: Page): Promise<void> {
   const nudge = page.getByText("Not quite. Take another look and try again.")
   const verdict = page.getByText(/Correct\.|Answer:/).first()
   const proceed = page.getByRole("button", {
-    name: /^(?:Continue to Stacks & Queues|Next)$/,
+    name: /^(?:Continue to Arrays|Next)$/,
   })
 
   await stack.click()

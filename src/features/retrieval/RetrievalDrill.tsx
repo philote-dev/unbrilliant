@@ -15,11 +15,13 @@ import type { RetrievalItem } from "@/features/retrieval/itemProvider"
  */
 export function RetrievalDrill({
   items,
-  lessonName,
+  fromLessonName,
+  toLessonName,
   onDone,
 }: {
   items: RetrievalItem[]
-  lessonName: string
+  fromLessonName: string
+  toLessonName: string
   onDone: () => void
 }) {
   const { recordReview } = useConceptReviews()
@@ -46,7 +48,7 @@ export function RetrievalDrill({
   return (
     <div className="mx-auto flex min-h-svh max-w-md flex-col justify-center gap-6 p-6">
       <p className="text-sm font-medium text-muted-foreground">
-        Quick warm-up from {lessonName}
+        Quick warm-up from {fromLessonName}
       </p>
       <p className="text-lg">{item.prompt}</p>
       <div className="flex flex-col gap-2">
@@ -84,7 +86,7 @@ export function RetrievalDrill({
             {item.why}
           </p>
           <Button onClick={() => dispatch({ type: "next" })}>
-            {last ? `Continue to ${lessonName}` : "Next"}
+            {last ? `Continue to ${toLessonName}` : "Next"}
           </Button>
         </div>
       )}
