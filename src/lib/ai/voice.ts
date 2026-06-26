@@ -45,6 +45,10 @@ export async function speakText(text: string, speak: SpeakFn = defaultSpeak): Pr
     await new Promise<void>((resolve) => {
       audio.onended = () => resolve()
       audio.onerror = () => resolve()
+      // Safety net: never hang the turn if "ended" never fires (some embedded
+      // browsers). Cap at the clip duration when known, else a fixed ceiling.
+      const capSeconds = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 12
+      setTimeout(resolve, capSeconds * 1000 + 500)
     })
   } catch {
     // swallow: autoplay policy / network / decode errors fall back to text

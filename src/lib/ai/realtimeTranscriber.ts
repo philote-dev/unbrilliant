@@ -111,7 +111,12 @@ export function createRealtimeTranscriber(
       const session = await getToken()
       if (!session.token) throw new Error("no realtime token")
 
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      // Echo cancellation + noise suppression keep Poly's own spoken question
+      // (playing through the speakers) out of the transcript when the learner is
+      // not on headphones.
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      })
       const connection = new RTCPeerConnection()
       pc = connection
 
