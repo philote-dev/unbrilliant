@@ -16,12 +16,10 @@ import {
   CELL,
   RULER_GAP,
   RULER_H,
-  SCAN_REACH_RISE,
-  cellCenter,
   jumpMarker,
   jumpPath,
   scanAnchor,
-  scanPath,
+  scanReach,
   stripExtent,
 } from "./arrayStripLayout"
 
@@ -56,10 +54,7 @@ const TONE_RING: Record<Tone, string> = {
 
 const EMPTY_SET: Set<number> = new Set()
 
-export type Overlay =
-  | { kind: "jump"; k: number }
-  | { kind: "scan"; to: number }
-  | null
+export type Overlay = { kind: "jump"; k: number } | null
 
 export function ArrayStrip(props: {
   mode: "read" | "scan" | "ripple" | "place"
@@ -241,7 +236,8 @@ function ReadStrip({
         </div>
       )}
 
-      {/* the access overlay (decorative): the fixed-halo jump, or a step scan */}
+      {/* the access overlay (decorative): the fixed-halo jump (the O(1) picture).
+          The value search has its own mode="scan" walk, not an overlay here. */}
       {overlay && (
         <AccessOverlay
           overlay={overlay}
@@ -277,21 +273,7 @@ function AccessOverlay({
       height={height}
       aria-hidden
     >
-      {overlay.kind === "jump" ? (
-        <JumpOverlay marker={jumpMarker(overlay.k, count)} stroke={stroke} reduced={reduced} />
-      ) : (
-        <motion.path
-          d={scanPath(overlay.to).d}
-          fill="none"
-          stroke={stroke}
-          strokeWidth={3}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          initial={reduced ? false : { pathLength: 0, opacity: 0.2 }}
-          animate={{ pathLength: 1, opacity: 1 }}
-          transition={reduced ? { duration: 0 } : { duration: 0.12 * (overlay.to + 1), ease: "easeInOut" }}
-        />
-      )}
+      <JumpOverlay marker={jumpMarker(overlay.k, count)} stroke={stroke} reduced={reduced} />
     </svg>
   )
 }
@@ -506,9 +488,7 @@ function ScanOverlay({
 }) {
   const stroke = "var(--color-lilac-strong, #8B7FD6)"
   const anchor = scanAnchor(anchorIndex)
-  const minX = cellCenter(min).x
-  const maxX = cellCenter(max).x
-  const reachY = -SCAN_REACH_RISE
+  const reach = scanReach(min, max)
   const spring = { type: "spring", stiffness: 360, damping: 30 } as const
 
   return (
@@ -521,10 +501,10 @@ function ScanOverlay({
     >
       {/* the reach grows from the anchor outward to span the revealed run */}
       <motion.line
-        y1={reachY}
-        y2={reachY}
+        y1={reach.from.y}
+        y2={reach.to.y}
         initial={reduced ? false : { x1: anchor.dot.x, x2: anchor.dot.x }}
-        animate={{ x1: minX, x2: maxX }}
+        animate={{ x1: reach.from.x, x2: reach.to.x }}
         transition={reduced ? { duration: 0 } : spring}
         stroke={stroke}
         strokeWidth={2}

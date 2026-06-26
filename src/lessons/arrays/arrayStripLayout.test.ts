@@ -11,7 +11,6 @@ import {
   jumpPath,
   rulerTickX,
   scanAnchor,
-  scanPath,
   scanReach,
   stripExtent,
 } from "./arrayStripLayout"
@@ -40,7 +39,7 @@ describe("arrayStripLayout — contiguous cells over an address ruler", () => {
   })
 })
 
-describe("arrayStripLayout — access overlays (jump vs scan)", () => {
+describe("arrayStripLayout: access overlay (the fixed-halo jump)", () => {
   it("a jump marker lands on cell k, from a halo fixed-centered above the array", () => {
     const n = 6
     const m = jumpMarker(3, n)
@@ -82,14 +81,6 @@ describe("arrayStripLayout — access overlays (jump vs scan)", () => {
     expect((r.d.match(/Q/g) ?? []).length).toBe(2)
     expect(r.d.startsWith("M 120 -76")).toBe(true)
     expect(r.d.trimEnd().endsWith(" 0")).toBe(true)
-  })
-
-  it("a scan walks every cell center from 0 up to k, in order", () => {
-    const scan = scanPath(4)
-    expect(scan.points).toHaveLength(5) // cells 0,1,2,3,4
-    expect(scan.points.map((p) => p.x)).toEqual([0, 1, 2, 3, 4].map((i) => cellCenter(i).x))
-    expect(scan.d.startsWith("M")).toBe(true)
-    expect((scan.d.match(/L/g) ?? []).length).toBe(4) // 4 line segments after the move
   })
 })
 

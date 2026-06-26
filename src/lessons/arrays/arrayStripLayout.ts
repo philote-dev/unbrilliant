@@ -5,12 +5,14 @@
  * unit-tested in node (jsdom zeroes getBoundingClientRect). The figure is a thin
  * shell that scales this intrinsic layout to fit its container.
  *
- * Two access overlays make the O(1)-vs-O(n) asymmetry visible:
- *  - `jumpMarker(k, n)`: a halo circle FIXED centered above the whole array, with
- *    a straight line reaching from it down to cell k's top (the one direct
- *    lookup). The halo never moves; only the line's far end follows the cell, so
- *    the end cells get the longest, most-angled lines.
- *  - `scanPath(k)`: a step-by-step polyline through cell centers 0..k (a walk).
+ * The read-mode access overlay is the O(1) jump: `jumpMarker(k, n)` is a halo
+ * circle FIXED centered above the whole array, with a straight line reaching down
+ * to cell k's top (the one direct lookup). The halo never moves; only the line's
+ * far end follows the cell, so the end cells get the longest, most-angled lines.
+ *
+ * The O(n) value search is a hands-on walk (ArrayStrip `mode="scan"`), not an
+ * overlay: `scanAnchor(i)` pins a marker above the cell where it began and
+ * `scanReach(min, max)` grows a connector along the tops of the revealed run.
  * Plus the dynamic-array `capacitySlots` / `doubledLayout` for the grow figure.
  */
 
@@ -119,19 +121,6 @@ export function jumpPath(
   d += ` Q ${r2(toX)} ${r2(midY)} ${r2(toX)} ${r2(midY + r)}`
   d += ` L ${r2(toX)} ${r2(toY)}`
   return { d, points }
-}
-
-/**
- * A step-by-step "scan": a polyline through the centers of cells 0..k, the
- * O(n) search picture (you walk every cell until the value matches).
- */
-export function scanPath(toIndex: number): { points: Pt[]; d: string } {
-  const points: Pt[] = []
-  for (let i = 0; i <= toIndex; i++) points.push(cellCenter(i))
-  const d = points
-    .map((p, i) => `${i === 0 ? "M" : "L"} ${r2(p.x)} ${r2(p.y)}`)
-    .join(" ")
-  return { points, d }
 }
 
 /* ------------------------------- scan walk ------------------------------- */
