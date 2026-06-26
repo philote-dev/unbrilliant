@@ -17,7 +17,7 @@
 - **Server-only invariant:** everything in this chunk lives in `functions/src/` and must NEVER be imported from `src/` (the client bundle). The rubric is the answer key; it stays server-side. Chunks 3 and 4 (server-side callables) consume it; the client only ever receives derived output.
 - **No deployed function is added here.** Do not modify `functions/src/index.ts`, `firebase.json`, or anything under `src/`.
 - Follow chunk 1's established patterns: small focused modules, co-located `*.test.ts`, Vitest with injected/pure inputs.
-- House rule: never use an em-dash (`—`); never add narration-style comments.
+- House rule: never use an em-dash (U+2014); never add narration-style comments.
 - Commands run from the worktree root unless they `cd functions`.
 
 ### Reference: skill ids and concepts (from `src/features/lesson/stacksQueuesEngine.ts`)
