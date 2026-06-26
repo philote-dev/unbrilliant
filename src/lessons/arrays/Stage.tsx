@@ -1,5 +1,6 @@
-import { useState, type Dispatch } from "react"
+import { useState, type Dispatch, type ReactNode } from "react"
 
+import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { AnswerCard, type AnswerState } from "@/components/willow/AnswerCard"
 import { CostReadout } from "@/components/willow/CostReadout"
@@ -56,13 +57,25 @@ export function ArraysStage({
 
 /* ----------------------------- shared bits ----------------------------- */
 
+/** The intro-pages eyebrow: a small, wide-tracked lilac kicker. */
+function Eyebrow({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <p
+      className={cn(
+        "text-center text-xs font-semibold uppercase tracking-[0.18em] text-lilac-strong",
+        className,
+      )}
+    >
+      {children}
+    </p>
+  )
+}
+
 function Header({ kicker, prompt }: { kicker: string; prompt: string }) {
   return (
     <div className="mt-7">
-      <p className="text-center text-xs font-medium uppercase tracking-wide text-lilac-strong">
-        {kicker}
-      </p>
-      <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground lg:text-2xl">
+      <Eyebrow>{kicker}</Eyebrow>
+      <h2 className="mx-auto mt-2 max-w-sm text-balance text-center text-xl font-bold text-foreground lg:text-2xl">
         {prompt}
       </h2>
     </div>
@@ -112,15 +125,15 @@ function PlayAccessPart({ dispatch }: { dispatch: Dispatch<LessonAction> }) {
   const [touched, setTouched] = useState(-1)
 
   return (
-    <StageCenter>
-      <div className="mt-7 text-center">
-        <h2 className="text-xl font-bold text-foreground lg:text-2xl">Arrays: one contiguous block</h2>
-        <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground lg:max-w-sm lg:text-base">
-          Tap any cell. The number beneath is its address, and arr[k] jumps straight there.
-        </p>
+    <StageCenter maxWidthClass="max-w-xl">
+      <div className="mt-8 text-center animate-fade-in">
+        <Eyebrow>Arrays</Eyebrow>
+        <h2 className="mt-3 text-balance text-3xl font-bold tracking-tight text-foreground lg:text-5xl">
+          One unbroken row
+        </h2>
       </div>
 
-      <div className="flex flex-1 flex-col items-center justify-center gap-5 py-6">
+      <div className="flex flex-1 flex-col items-center justify-center gap-7 py-6">
         <ArrayStrip
           mode="read"
           cells={PLAY_CELLS}
@@ -129,18 +142,34 @@ function PlayAccessPart({ dispatch }: { dispatch: Dispatch<LessonAction> }) {
           overlay={touched >= 0 ? ({ kind: "jump", k: touched } as Overlay) : null}
           onTap={setTouched}
         />
-        <p className="mx-auto max-w-xs text-center text-sm text-muted-foreground">
-          {touched >= 0
-            ? `arr[${touched}] = ${PLAY_CELLS[touched]}. One hop from the ruler, no walking.`
-            : "The cells touch with no gaps, so every address is one jump away."}
+        <p
+          key={touched}
+          className="mx-auto max-w-md text-pretty text-center text-xl leading-relaxed text-foreground/90 lg:text-2xl"
+        >
+          {touched >= 0 ? (
+            <>
+              Position <span className="concept">{touched}</span> holds{" "}
+              <span className="concept">{PLAY_CELLS[touched]}</span>. You jump straight there, no searching.
+            </>
+          ) : (
+            <>
+              Tap any cell. The number under it is its{" "}
+              <span className="concept" style={{ animationDelay: "200ms" }}>
+                index
+              </span>
+              , and you{" "}
+              <span className="concept" style={{ animationDelay: "650ms" }}>
+                jump
+              </span>{" "}
+              straight to any position.
+            </>
+          )}
         </p>
       </div>
 
-      <div className="mt-auto">
-        <Button variant="tactile" size="lg" className="w-full" onClick={() => dispatch({ type: "continue" })}>
-          Continue
-        </Button>
-      </div>
+      <Button variant="tactile" size="lg" className="w-full" onClick={() => dispatch({ type: "continue" })}>
+        Continue
+      </Button>
     </StageCenter>
   )
 }
@@ -186,10 +215,16 @@ function AccessPart({
           onTap={terminal ? undefined : (i) => dispatch({ type: "select", letter: String(i) })}
         />
         {reveal && <CostReadout word={q.cost.word} count={q.cost.count} unit={q.cost.unit} />}
-        <p className="max-w-xs text-center text-xs text-muted-foreground">
-          {isScan
-            ? "No index in hand: scan from the front until the value matches."
-            : "Read the ruler, then tap the cell at that address."}
+        <p className="max-w-xs text-center text-sm text-muted-foreground">
+          {isScan ? (
+            <>
+              No index in hand: <span className="concept">scan</span> from the front until the value matches.
+            </>
+          ) : (
+            <>
+              Find the <span className="concept">index</span>, then tap that cell.
+            </>
+          )}
         </p>
       </div>
 
@@ -224,12 +259,12 @@ function PlayMutatePart({ dispatch }: { dispatch: Dispatch<LessonAction> }) {
   const remove = (i: number) => setCells((prev) => prev.filter((_, j) => j !== i))
 
   return (
-    <StageCenter>
-      <div className="mt-7 text-center">
-        <h2 className="text-xl font-bold text-foreground lg:text-2xl">Inserting and deleting</h2>
-        <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground lg:max-w-sm lg:text-base">
-          Insert at a position, or tap a cell to delete it, and watch the rest slide over to stay contiguous.
-        </p>
+    <StageCenter maxWidthClass="max-w-xl">
+      <div className="mt-8 text-center animate-fade-in">
+        <Eyebrow>Insert & delete</Eyebrow>
+        <h2 className="mt-3 text-balance text-3xl font-bold tracking-tight text-foreground lg:text-5xl">
+          Make room, close gaps
+        </h2>
       </div>
 
       <div className="flex flex-1 flex-col items-center justify-center gap-6 py-6">
@@ -261,16 +296,18 @@ function PlayMutatePart({ dispatch }: { dispatch: Dispatch<LessonAction> }) {
             Insert
           </Button>
         </div>
-        <p className="mx-auto max-w-xs text-center text-xs text-muted-foreground">
-          A middle change shifts every cell after it. The end shifts nothing.
+        <p className="mx-auto max-w-md text-pretty text-center text-xl leading-relaxed text-foreground/90 lg:text-2xl">
+          A middle change makes every cell after it{" "}
+          <span className="concept" style={{ animationDelay: "200ms" }}>
+            slide over
+          </span>
+          . The <span className="concept" style={{ animationDelay: "650ms" }}>end</span> shifts nothing.
         </p>
       </div>
 
-      <div className="mt-auto">
-        <Button variant="tactile" size="lg" className="w-full" onClick={() => dispatch({ type: "continue" })}>
-          Continue
-        </Button>
-      </div>
+      <Button variant="tactile" size="lg" className="w-full" onClick={() => dispatch({ type: "continue" })}>
+        Continue
+      </Button>
     </StageCenter>
   )
 }

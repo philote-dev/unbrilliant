@@ -209,7 +209,7 @@ function makeIntro(part: ArraysPart): ArraysQuestion {
     return {
       ...base,
       kind: "play-access",
-      prompt: "Tap any cell to read it, or jump to an index. The ruler is the address.",
+      prompt: "Tap any cell to read it, or jump to any position. The number under each cell is its index.",
     }
   }
   return {
@@ -249,7 +249,7 @@ function makeJump(seed: number): { question: ArraysQuestion; next: number } {
       ? `The last index is ${n - 1}, not ${n}: ${n} cells run 0…${n - 1}.`
       : ask === "first"
         ? "The first element sits at index 0. Counting starts at zero."
-        : `arr[${answerIndex}] is a direct address (base + ${answerIndex} steps): one jump, no walking.`
+        : `Index ${answerIndex} is a direct hop: you jump straight to that cell instead of searching for it.`
 
   return {
     question: {
@@ -379,7 +379,7 @@ function makePlaceCheapest(seed: number): { question: ArraysQuestion; next: numb
       hint: "",
       nudge: "A middle drop shoves everything after it. The end shoves nothing.",
       correct: "Right: the end is free - nothing comes after it, so nothing moves.",
-      why: `Dropping at the front shifts all ${n} cells; the middle shifts ${n - 2}; the end shifts 0. Append to the end and nothing ripples.`,
+      why: `Dropping at the front shifts all ${n} cells; the middle shifts ${n - 2}; the end shifts 0. Add at the end and nothing has to move.`,
     },
     next: a,
   }
@@ -429,7 +429,7 @@ function makeRealworld(seed: number): { question: ArraysQuestion; next: number }
       hint: "",
       nudge: "Only the rows past the spot move. Count exactly those.",
       correct: `Right: ${moved} row${plural(moved)} shift.`,
-      why: `Rows are stored contiguously, so the change at position ${index} slides every row past it: ${moved} move.`,
+      why: `The rows sit in one unbroken block, so the change at position ${index} slides every row after it: ${moved} move.`,
     },
     next: a,
   }
