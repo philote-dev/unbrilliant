@@ -1,3 +1,4 @@
+import { SQ_SKILLS } from "@/features/lesson/stacksQueuesEngine"
 import type { ConceptId } from "@/features/progress/conceptReview"
 
 export type { ConceptId }
@@ -16,16 +17,7 @@ export interface Concept {
  * when its counters change.
  */
 const LESSON_SUBSKILLS: Record<string, string[]> = {
-  "stacks-and-queues": [
-    "stackPredict",
-    "stackRealworld",
-    "stackConstruct",
-    "queuePredict",
-    "queueRealworld",
-    "queueConstruct",
-    "classify",
-    "contrast",
-  ],
+  "stacks-and-queues": [...SQ_SKILLS],
   arrays: ["a1", "a3", "a2", "a2Skin", "a4", "a5", "a6Grow", "a6Cheap"],
   "linked-lists": [
     "traverse",
