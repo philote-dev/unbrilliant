@@ -317,3 +317,31 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Mastery willow sparkles (see src/components/willow/MasteryWillow.tsx). Defined
+   once here, shared via the .wt-spark class, so the twinkle rule is not
+   re-injected per rendered willow. */
+@keyframes wt-twinkle {
+  0%,
+  100% {
+    opacity: 0.2;
+    transform: translate(-50%, -50%) scale(0.65);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+.wt-spark {
+  transform: translate(-50%, -50%);
+  transform-origin: center;
+  animation: wt-twinkle 3.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wt-spark {
+    animation: none;
+    opacity: 0.8;
+  }
+}

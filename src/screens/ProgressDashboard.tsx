@@ -3,6 +3,7 @@ import { useState } from "react"
 import { cn } from "@/lib/utils"
 import { useIsDesktop } from "@/hooks/useMediaQuery"
 import type { ProgressMetrics } from "@/features/progress/progressMetrics"
+import { MasteryWillow } from "@/components/willow/MasteryWillow"
 import { StreakTile } from "@/components/willow/progress/StreakTile"
 import { WeeklyConsistencyTile } from "@/components/willow/progress/WeeklyConsistencyTile"
 import { LessonsMasteredTile } from "@/components/willow/progress/LessonsMasteredTile"
@@ -36,6 +37,14 @@ export function ProgressDashboard({ metrics }: { metrics: ProgressMetrics }) {
       <p className="mt-1 text-sm text-muted-foreground">
         Your streaks, consistency, and growth over time.
       </p>
+
+      <MasteryWillow
+        lessonsDone={metrics.lessonsMastered.completed}
+        totalLessons={metrics.lessonsMastered.total}
+        retention={metrics.overallRetention}
+        width={isDesktop ? 380 : 280}
+        className="mx-auto mt-6 lg:mt-10"
+      />
 
       {isDesktop ? (
         <div className="mt-8 grid gap-4 lg:grid-cols-2 xl:grid-cols-3">

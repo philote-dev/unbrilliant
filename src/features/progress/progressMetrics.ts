@@ -2,6 +2,8 @@ import { useMemo } from "react"
 
 import { DATA_STRUCTURES_LESSONS, type ProgressByLesson } from "@/lessons/catalog"
 import { useCourseProgress } from "@/features/progress/CourseProgressProvider"
+import { useConceptReviews } from "@/features/progress/ConceptReviewProvider"
+import { overallRetention as computeOverallRetention } from "@/features/progress/overallRetention"
 import {
   dayKeyToUTCDate,
   lastNDayKeys,
@@ -25,6 +27,8 @@ import type {
  */
 export interface ProgressMetrics {
   lessonsMastered: LessonsMasteredVM
+  /** 0..1 weakest-link memory across completed lessons; drives the willow decay. */
+  overallRetention: number
   streak: StreakVM
   weeklyConsistency: WeeklyConsistencyVM
   contributions: ContributionsVM
@@ -39,9 +43,11 @@ export function computeProgressMetrics(input: {
   progressByLesson: ProgressByLesson
   streak: { current: number; longest: number }
   activity: ActivityDay[]
+  overallRetention?: number
   now?: number
 }): ProgressMetrics {
   const now = input.now ?? Date.now()
+  const retention = input.overallRetention ?? 1
   const { progressByLesson, streak, activity } = input
 
   const attemptedByKey = new Map<string, number>()
@@ -84,6 +90,7 @@ export function computeProgressMetrics(input: {
 
   return {
     lessonsMastered: { completed, total: DATA_STRUCTURES_LESSONS.length },
+    overallRetention: retention,
     streak: { current: streak.current, longest: streak.longest },
     weeklyConsistency: { daysActive },
     contributions,
@@ -92,11 +99,22 @@ export function computeProgressMetrics(input: {
   }
 }
 
-/** Hook form: derive the six tile view-models from the live progress context. */
+/** Hook form: derive the tile view-models + willow signals from live context. */
 export function useProgressMetrics(): ProgressMetrics {
   const { progressByLesson, streak, activity } = useCourseProgress()
-  return useMemo(
-    () => computeProgressMetrics({ progressByLesson, streak, activity }),
-    [progressByLesson, streak, activity],
-  )
+  const { reviews } = useConceptReviews()
+  return useMemo(() => {
+    const now = Date.now()
+    const completedLessonIds = DATA_STRUCTURES_LESSONS.filter(
+      (l) => progressByLesson[l.id]?.completed,
+    ).map((l) => l.id)
+    const retention = computeOverallRetention(completedLessonIds, reviews, now)
+    return computeProgressMetrics({
+      progressByLesson,
+      streak,
+      activity,
+      overallRetention: retention,
+      now,
+    })
+  }, [progressByLesson, streak, activity, reviews])
 }
