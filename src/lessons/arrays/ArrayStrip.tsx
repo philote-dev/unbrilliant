@@ -204,9 +204,15 @@ function ReadStrip({
         </div>
       )}
 
-      {/* the access overlay (decorative): one jump arc, or a step-by-step scan */}
+      {/* the access overlay (decorative): the fixed-halo jump, or a step scan */}
       {overlay && (
-        <AccessOverlay overlay={overlay} width={ext.width} height={ext.height} reduced={reduced} />
+        <AccessOverlay
+          overlay={overlay}
+          count={n}
+          width={ext.width}
+          height={ext.height}
+          reduced={reduced}
+        />
       )}
     </div>
   )
@@ -214,11 +220,13 @@ function ReadStrip({
 
 function AccessOverlay({
   overlay,
+  count,
   width,
   height,
   reduced,
 }: {
   overlay: NonNullable<Overlay>
+  count: number
   width: number
   height: number
   reduced: boolean
@@ -232,77 +240,93 @@ function AccessOverlay({
       height={height}
       aria-hidden
     >
-      {overlay.kind === "jump"
-        ? (() => {
-            const m = jumpMarker(overlay.k)
-            const lineT = reduced
-              ? { duration: 0 }
-              : { duration: 0.32, ease: "easeIn" as const, delay: 0.18 }
-            const haloT = reduced
-              ? { duration: 0 }
-              : { type: "spring" as const, stiffness: 480, damping: 22 }
-            return (
-              <>
-                {/* soft outer halo */}
-                <motion.circle
-                  cx={m.circle.x}
-                  cy={m.circle.y}
-                  r={m.circle.r + 6}
-                  fill={stroke}
-                  initial={reduced ? false : { opacity: 0, scale: 0.4 }}
-                  animate={{ opacity: 0.18, scale: 1 }}
-                  transition={haloT}
-                  style={{ transformOrigin: `${m.circle.x}px ${m.circle.y}px` }}
-                />
-                {/* the solid lookup dot, floating above the array */}
-                <motion.circle
-                  cx={m.circle.x}
-                  cy={m.circle.y}
-                  r={m.circle.r}
-                  fill={stroke}
-                  initial={reduced ? false : { opacity: 0, scale: 0.4 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={haloT}
-                  style={{ transformOrigin: `${m.circle.x}px ${m.circle.y}px` }}
-                />
-                {/* the straight drop from the halo's bottom onto the cell top */}
-                <motion.path
-                  d={m.d}
-                  fill="none"
-                  stroke={stroke}
-                  strokeWidth={3}
-                  strokeLinecap="round"
-                  initial={reduced ? false : { pathLength: 0, opacity: 0.3 }}
-                  animate={{ pathLength: 1, opacity: 1 }}
-                  transition={lineT}
-                />
-                {/* a small landing tick where the line meets the cell */}
-                <motion.circle
-                  cx={m.cell.x}
-                  cy={m.cell.y}
-                  r={3.5}
-                  fill={stroke}
-                  initial={reduced ? false : { opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={reduced ? { duration: 0 } : { delay: 0.46, duration: 0.2 }}
-                />
-              </>
-            )
-          })()
-        : (
-          <motion.path
-            d={scanPath(overlay.to).d}
-            fill="none"
-            stroke={stroke}
-            strokeWidth={3}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            initial={reduced ? false : { pathLength: 0, opacity: 0.2 }}
-            animate={{ pathLength: 1, opacity: 1 }}
-            transition={reduced ? { duration: 0 } : { duration: 0.12 * (overlay.to + 1), ease: "easeInOut" }}
-          />
-        )}
+      {overlay.kind === "jump" ? (
+        <JumpOverlay marker={jumpMarker(overlay.k, count)} stroke={stroke} reduced={reduced} />
+      ) : (
+        <motion.path
+          d={scanPath(overlay.to).d}
+          fill="none"
+          stroke={stroke}
+          strokeWidth={3}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          initial={reduced ? false : { pathLength: 0, opacity: 0.2 }}
+          animate={{ pathLength: 1, opacity: 1 }}
+          transition={reduced ? { duration: 0 } : { duration: 0.12 * (overlay.to + 1), ease: "easeInOut" }}
+        />
+      )}
     </svg>
+  )
+}
+
+/**
+ * The fixed-halo jump: a stationary halo centered above the array and a line that
+ * reaches from it to the selected cell. The line and the landing dot animate
+ * their endpoints, so re-selecting a cell glides smoothly between targets; the
+ * halo itself only fades in once. Reduced motion snaps to the final geometry.
+ */
+function JumpOverlay({
+  marker,
+  stroke,
+  reduced,
+}: {
+  marker: ReturnType<typeof jumpMarker>
+  stroke: string
+  reduced: boolean
+}) {
+  const { cell, circle } = marker
+  const glide = reduced
+    ? { duration: 0 }
+    : { type: "spring" as const, stiffness: 260, damping: 26 }
+  const haloIn = reduced
+    ? { duration: 0 }
+    : { type: "spring" as const, stiffness: 480, damping: 22 }
+
+  return (
+    <>
+      {/* the reaching line: start fixed at the halo center, far end follows the
+          cell. Drawn first so the halo dot caps its origin. */}
+      <motion.line
+        x1={circle.x}
+        y1={circle.y}
+        stroke={stroke}
+        strokeWidth={3}
+        strokeLinecap="round"
+        initial={reduced ? false : { x2: circle.x, y2: circle.y, opacity: 0 }}
+        animate={{ x2: cell.x, y2: cell.y, opacity: 1 }}
+        transition={glide}
+      />
+      {/* soft outer halo (fixed) */}
+      <motion.circle
+        cx={circle.x}
+        cy={circle.y}
+        r={circle.r + 7}
+        fill={stroke}
+        initial={reduced ? false : { opacity: 0, scale: 0.4 }}
+        animate={{ opacity: 0.16, scale: 1 }}
+        transition={haloIn}
+        style={{ transformOrigin: `${circle.x}px ${circle.y}px` }}
+      />
+      {/* the solid lookup dot (fixed) */}
+      <motion.circle
+        cx={circle.x}
+        cy={circle.y}
+        r={circle.r}
+        fill={stroke}
+        initial={reduced ? false : { opacity: 0, scale: 0.4 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={haloIn}
+        style={{ transformOrigin: `${circle.x}px ${circle.y}px` }}
+      />
+      {/* the landing dot rides the line's far end onto the cell */}
+      <motion.circle
+        r={4}
+        fill={stroke}
+        initial={reduced ? false : { cx: circle.x, cy: circle.y, opacity: 0 }}
+        animate={{ cx: cell.x, cy: cell.y, opacity: 1 }}
+        transition={glide}
+      />
+    </>
   )
 }
 

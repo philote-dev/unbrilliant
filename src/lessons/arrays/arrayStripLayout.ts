@@ -6,8 +6,10 @@
  * shell that scales this intrinsic layout to fit its container.
  *
  * Two access overlays make the O(1)-vs-O(n) asymmetry visible:
- *  - `jumpMarker(k)`: a halo circle hovering above cell k, with a straight line
- *    dropping from its bottom onto the cell's top (the one direct lookup).
+ *  - `jumpMarker(k, n)`: a halo circle FIXED centered above the whole array, with
+ *    a straight line reaching from it down to cell k's top (the one direct
+ *    lookup). The halo never moves; only the line's far end follows the cell, so
+ *    the end cells get the longest, most-angled lines.
  *  - `scanPath(k)`: a step-by-step polyline through cell centers 0..k (a walk).
  * Plus the dynamic-array `capacitySlots` / `doubledLayout` for the grow figure.
  */
@@ -61,29 +63,31 @@ export function stripExtent(n: number): { width: number; height: number } {
 
 const r2 = (n: number): number => Math.round(n * 100) / 100
 
-/** The "jump" marker geometry: how high the halo floats over the cell, its size. */
-export const JUMP_RADIUS = 7
-export const JUMP_RISE = 26 // length of the straight drop from halo bottom to cell top
+/** The "jump" marker geometry: halo size and how far it floats above the array. */
+export const JUMP_RADIUS = 8
+export const JUMP_RISE = 52 // how far above the array top the fixed halo sits
 
 /**
- * A single "jump" marker: a halo circle hovering directly above cell k, with a
- * straight vertical line dropping from the halo's bottom onto the cell's top. One
- * direct lookup, no walking: the O(1) random-access picture. (Coordinates are in
- * the strip's space, where y = 0 is the top edge of the cell row, so the halo
- * sits at a negative y above the array.)
+ * A single "jump" marker: a halo circle FIXED centered above the whole strip,
+ * with a straight line reaching from the halo's center down to cell k's top. The
+ * halo position depends only on the strip size (n), never on the selection, so
+ * the line is the only thing that moves: short and near-vertical for the middle,
+ * long and angled for the end cells. One direct lookup, no walking (the O(1)
+ * picture). Coordinates are in the strip's space, where y = 0 is the top edge of
+ * the cell row, so the halo sits at a negative y above the array.
  */
-export function jumpMarker(k: number): {
+export function jumpMarker(
+  k: number,
+  n: number,
+): {
   cell: Pt // top-center of cell k (where the lookup lands)
-  circle: Pt & { r: number } // the halo, floating above the array
-  haloBottom: Pt // the point the connector line leaves from
-  d: string // the straight connector: halo bottom -> cell top
+  circle: Pt & { r: number } // the fixed halo, centered above the array
+  d: string // the straight connector: halo center -> cell top
 } {
-  const x = cellCenter(k).x
-  const cell: Pt = { x, y: 0 }
-  const haloBottom: Pt = { x, y: -JUMP_RISE }
-  const circle = { x, y: haloBottom.y - JUMP_RADIUS, r: JUMP_RADIUS }
-  const d = `M ${r2(haloBottom.x)} ${r2(haloBottom.y)} L ${r2(cell.x)} ${r2(cell.y)}`
-  return { cell, circle, haloBottom, d }
+  const cell: Pt = { x: cellCenter(k).x, y: 0 }
+  const circle = { x: stripExtent(n).width / 2, y: -JUMP_RISE, r: JUMP_RADIUS }
+  const d = `M ${r2(circle.x)} ${r2(circle.y)} L ${r2(cell.x)} ${r2(cell.y)}`
+  return { cell, circle, d }
 }
 
 /**

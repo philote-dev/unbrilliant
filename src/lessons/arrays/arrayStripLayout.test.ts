@@ -37,20 +37,37 @@ describe("arrayStripLayout — contiguous cells over an address ruler", () => {
 })
 
 describe("arrayStripLayout — access overlays (jump vs scan)", () => {
-  it("a jump marker is a halo above the cell with a straight drop to its top", () => {
-    const m = jumpMarker(3)
+  it("a jump marker lands on cell k, from a halo fixed-centered above the array", () => {
+    const n = 6
+    const m = jumpMarker(3, n)
     // the lookup lands on the top-center of cell 3
     expect(m.cell.x).toBe(cellCenter(3).x)
     expect(m.cell.y).toBe(0)
-    // the halo circle sits directly above that cell, off the top of the array
-    expect(m.circle.x).toBe(cellCenter(3).x)
+    // the halo is centered over the whole strip, off the top, and big enough to see
+    expect(m.circle.x).toBe(stripExtent(n).width / 2)
     expect(m.circle.y).toBeLessThan(0)
     expect(m.circle.r).toBeGreaterThan(0)
-    // the connector is a single straight vertical segment (no arc), ending on the cell
+    // the connector is a single straight segment (no arc), ending on the cell top
     expect(m.d.startsWith("M")).toBe(true)
     expect(m.d).toContain("L")
     expect(m.d).not.toContain("Q")
-    expect(m.d.trimEnd().endsWith("0")).toBe(true) // lands at y = 0 (cell top)
+    expect(m.d.trimEnd().endsWith("0")).toBe(true)
+  })
+
+  it("the halo stays fixed while the line reaches further for the end cells", () => {
+    const n = 6
+    const first = jumpMarker(0, n)
+    const mid = jumpMarker(3, n)
+    const last = jumpMarker(n - 1, n)
+    // halo position never moves with the selection
+    expect(first.circle.x).toBe(last.circle.x)
+    expect(first.circle.x).toBe(mid.circle.x)
+    expect(first.circle.y).toBe(last.circle.y)
+    // the end cells are the furthest horizontally from the centered halo
+    const dx = (m: { cell: { x: number }; circle: { x: number } }) =>
+      Math.abs(m.cell.x - m.circle.x)
+    expect(dx(first)).toBeGreaterThan(dx(mid))
+    expect(dx(last)).toBeGreaterThan(dx(mid))
   })
 
   it("a scan walks every cell center from 0 up to k, in order", () => {
