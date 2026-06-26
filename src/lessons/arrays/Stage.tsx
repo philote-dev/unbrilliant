@@ -243,7 +243,9 @@ function AccessPart({
       <Header kicker={isScan ? "Search by value" : "Jump by index"} prompt={q.prompt} />
       <Quota state={state} />
 
-      <div className="flex flex-1 flex-col items-center justify-center gap-4 py-5">
+      {/* extra top room so the jump halo (which floats well above the row) never
+          rides up into the prompt */}
+      <div className="flex flex-1 flex-col items-center justify-center gap-4 pb-5 pt-24">
         <ArrayStrip
           mode="read"
           cells={q.cells}

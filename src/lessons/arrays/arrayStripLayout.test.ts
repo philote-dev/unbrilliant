@@ -7,6 +7,7 @@ import {
   cellCenter,
   doubledLayout,
   jumpMarker,
+  jumpPath,
   rulerTickX,
   scanPath,
   stripExtent,
@@ -47,11 +48,6 @@ describe("arrayStripLayout — access overlays (jump vs scan)", () => {
     expect(m.circle.x).toBe(stripExtent(n).width / 2)
     expect(m.circle.y).toBeLessThan(0)
     expect(m.circle.r).toBeGreaterThan(0)
-    // the connector is a single straight segment (no arc), ending on the cell top
-    expect(m.d.startsWith("M")).toBe(true)
-    expect(m.d).toContain("L")
-    expect(m.d).not.toContain("Q")
-    expect(m.d.trimEnd().endsWith("0")).toBe(true)
   })
 
   it("the halo stays fixed while the line reaches further for the end cells", () => {
@@ -68,6 +64,21 @@ describe("arrayStripLayout — access overlays (jump vs scan)", () => {
       Math.abs(m.cell.x - m.circle.x)
     expect(dx(first)).toBeGreaterThan(dx(mid))
     expect(dx(last)).toBeGreaterThan(dx(mid))
+  })
+
+  it("jumpPath is an orthogonal route (down, across, down) with rounded corners", () => {
+    const r = jumpPath(120, -76, 23, 0)
+    // ordered waypoints are axis-aligned: down, then across, then down
+    expect(r.points).toHaveLength(4)
+    expect(r.points[0]).toEqual({ x: 120, y: -76 })
+    expect(r.points[1].x).toBe(120) // P0 -> P1 is vertical (down a little)
+    expect(r.points[2].y).toBe(r.points[1].y) // P1 -> P2 is horizontal (across)
+    expect(r.points[2].x).toBe(23)
+    expect(r.points[3]).toEqual({ x: 23, y: 0 }) // P2 -> P3 is vertical (into the cell)
+    // two rounded right-angle turns, no diagonal
+    expect((r.d.match(/Q/g) ?? []).length).toBe(2)
+    expect(r.d.startsWith("M 120 -76")).toBe(true)
+    expect(r.d.trimEnd().endsWith(" 0")).toBe(true)
   })
 
   it("a scan walks every cell center from 0 up to k, in order", () => {

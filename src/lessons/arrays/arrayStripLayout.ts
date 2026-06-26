@@ -65,16 +65,16 @@ const r2 = (n: number): number => Math.round(n * 100) / 100
 
 /** The "jump" marker geometry: halo size and how far it floats above the array. */
 export const JUMP_RADIUS = 8
-export const JUMP_RISE = 52 // how far above the array top the fixed halo sits
+export const JUMP_RISE = 84 // how far above the array top the fixed halo sits
+export const JUMP_DROP = 22 // the short vertical drop out of the halo before turning
+export const JUMP_CORNER = 9 // rounded-corner radius at the right-angle turns
 
 /**
- * A single "jump" marker: a halo circle FIXED centered above the whole strip,
- * with a straight line reaching from the halo's center down to cell k's top. The
+ * A single "jump" marker: a halo circle FIXED centered above the whole strip. The
  * halo position depends only on the strip size (n), never on the selection, so
- * the line is the only thing that moves: short and near-vertical for the middle,
- * long and angled for the end cells. One direct lookup, no walking (the O(1)
- * picture). Coordinates are in the strip's space, where y = 0 is the top edge of
- * the cell row, so the halo sits at a negative y above the array.
+ * only the connector route changes per cell. One direct lookup, no walking (the
+ * O(1) picture). Coordinates are in the strip's space, where y = 0 is the top
+ * edge of the cell row, so the halo sits at a negative y above the array.
  */
 export function jumpMarker(
   k: number,
@@ -82,12 +82,43 @@ export function jumpMarker(
 ): {
   cell: Pt // top-center of cell k (where the lookup lands)
   circle: Pt & { r: number } // the fixed halo, centered above the array
-  d: string // the straight connector: halo center -> cell top
 } {
   const cell: Pt = { x: cellCenter(k).x, y: 0 }
   const circle = { x: stripExtent(n).width / 2, y: -JUMP_RISE, r: JUMP_RADIUS }
-  const d = `M ${r2(circle.x)} ${r2(circle.y)} L ${r2(cell.x)} ${r2(cell.y)}`
-  return { cell, circle, d }
+  return { cell, circle }
+}
+
+/**
+ * The connector route from the fixed halo to a target cell top: a right-angle
+ * (Manhattan) path that drops a little out of the halo, runs horizontally to the
+ * cell's column, then drops into the cell. The two turns are rounded (quadratics),
+ * so it reads like a tidy circuit trace. Returns the SVG `d` and the ordered
+ * axis-aligned waypoints (pre-rounding) for testing/derivation. PURE.
+ */
+export function jumpPath(
+  fromX: number,
+  fromY: number,
+  toX: number,
+  toY: number,
+): { d: string; points: Pt[] } {
+  const midY = fromY + JUMP_DROP
+  const points: Pt[] = [
+    { x: fromX, y: fromY },
+    { x: fromX, y: midY },
+    { x: toX, y: midY },
+    { x: toX, y: toY },
+  ]
+  const s = Math.sign(toX - fromX)
+  // Shrink the corner radius for very short horizontal runs so the rounded
+  // turns never overshoot each other (keeps the path clean near the center).
+  const r = Math.min(JUMP_CORNER, Math.abs(toX - fromX) / 2 || JUMP_CORNER)
+  let d = `M ${r2(fromX)} ${r2(fromY)}`
+  d += ` L ${r2(fromX)} ${r2(midY - r)}`
+  d += ` Q ${r2(fromX)} ${r2(midY)} ${r2(fromX + s * r)} ${r2(midY)}`
+  d += ` L ${r2(toX - s * r)} ${r2(midY)}`
+  d += ` Q ${r2(toX)} ${r2(midY)} ${r2(toX)} ${r2(midY + r)}`
+  d += ` L ${r2(toX)} ${r2(toY)}`
+  return { d, points }
 }
 
 /**

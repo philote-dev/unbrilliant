@@ -1,5 +1,12 @@
-import type { ReactElement } from "react"
-import { AnimatePresence, motion, useReducedMotion } from "motion/react"
+import { useEffect, type ReactElement } from "react"
+import {
+  AnimatePresence,
+  animate,
+  motion,
+  useMotionValue,
+  useReducedMotion,
+  useTransform,
+} from "motion/react"
 
 import { cn } from "@/lib/utils"
 import { RewireSource } from "@/components/rewire/RewireSource"
@@ -10,6 +17,7 @@ import {
   RULER_GAP,
   RULER_H,
   jumpMarker,
+  jumpPath,
   scanPath,
   stripExtent,
 } from "./arrayStripLayout"
@@ -260,10 +268,11 @@ function AccessOverlay({
 }
 
 /**
- * The fixed-halo jump: a stationary halo centered above the array and a line that
- * reaches from it to the selected cell. The line and the landing dot animate
- * their endpoints, so re-selecting a cell glides smoothly between targets; the
- * halo itself only fades in once. Reduced motion snaps to the final geometry.
+ * The fixed-halo jump: a stationary halo centered above the array and a right-angle
+ * connector (down, across, down, rounded corners) that reaches to the selected
+ * cell. Only the connector's horizontal target springs between cells, so the halo
+ * never moves and re-selecting a cell glides the route smoothly. Reduced motion
+ * snaps to the final geometry.
  */
 function JumpOverlay({
   marker,
@@ -275,26 +284,31 @@ function JumpOverlay({
   reduced: boolean
 }) {
   const { cell, circle } = marker
-  const glide = reduced
-    ? { duration: 0 }
-    : { type: "spring" as const, stiffness: 260, damping: 26 }
+  // The connector's far-end x springs toward the selected cell; the route `d` and
+  // the landing dot derive from it, so the whole path glides between cells.
+  const x = useMotionValue(circle.x)
+  useEffect(() => {
+    const controls = animate(x, cell.x, reduced ? { duration: 0 } : { type: "spring", stiffness: 240, damping: 28 })
+    return () => controls.stop()
+  }, [cell.x, reduced, x])
+  const d = useTransform(x, (vx) => jumpPath(circle.x, circle.y, vx, cell.y).d)
   const haloIn = reduced
     ? { duration: 0 }
     : { type: "spring" as const, stiffness: 480, damping: 22 }
 
   return (
     <>
-      {/* the reaching line: start fixed at the halo center, far end follows the
-          cell. Drawn first so the halo dot caps its origin. */}
-      <motion.line
-        x1={circle.x}
-        y1={circle.y}
+      {/* the orthogonal connector: fixed at the halo, far end glides to the cell */}
+      <motion.path
+        d={d}
+        fill="none"
         stroke={stroke}
         strokeWidth={3}
         strokeLinecap="round"
-        initial={reduced ? false : { x2: circle.x, y2: circle.y, opacity: 0 }}
-        animate={{ x2: cell.x, y2: cell.y, opacity: 1 }}
-        transition={glide}
+        strokeLinejoin="round"
+        initial={reduced ? false : { opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={reduced ? { duration: 0 } : { duration: 0.22 }}
       />
       {/* soft outer halo (fixed) */}
       <motion.circle
@@ -318,13 +332,15 @@ function JumpOverlay({
         transition={haloIn}
         style={{ transformOrigin: `${circle.x}px ${circle.y}px` }}
       />
-      {/* the landing dot rides the line's far end onto the cell */}
+      {/* the landing dot rides the connector's far end onto the cell */}
       <motion.circle
+        cx={x}
+        cy={cell.y}
         r={4}
         fill={stroke}
-        initial={reduced ? false : { cx: circle.x, cy: circle.y, opacity: 0 }}
-        animate={{ cx: cell.x, cy: cell.y, opacity: 1 }}
-        transition={glide}
+        initial={reduced ? false : { opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={reduced ? { duration: 0 } : { duration: 0.2, delay: 0.05 }}
       />
     </>
   )
