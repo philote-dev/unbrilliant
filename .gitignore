@@ -49,9 +49,8 @@ docs/*
 !docs/architecture.md
 !docs/plans/
 
-# Dev-only design gallery (excluded for now; include at your discretion)
-gallery.html
-src/dev/
+# Dev-only design gallery (gallery.html + src/dev/) is tracked. It is served by
+# `npm run gallery` and is NOT a production build input (only index.html is built).
 
 # Cloud Functions build output
 functions/lib
