@@ -44,7 +44,7 @@ const shiftScene = (reveal: boolean): ParkingScene => ({
 const bayOf = (label: string) =>
   document.querySelector(`[data-car="${label}"]`)?.getAttribute("data-bay")
 
-describe("ParkingLot — reduced motion snaps to the end-state", () => {
+describe("ParkingLot: reduced motion snaps to the end-state", () => {
   it("renders the post-insert arrangement directly (no intermediate wave)", () => {
     render(<ParkingLot scene={shiftScene(true)} />)
 
@@ -63,7 +63,7 @@ describe("ParkingLot — reduced motion snaps to the end-state", () => {
   })
 })
 
-describe("ParkingLot — bays are tappable 44px targets with names", () => {
+describe("ParkingLot: bays are tappable 44px targets with names", () => {
   it("gives every bay an accessible name and a >= 44px footprint", () => {
     render(
       <ParkingLot
@@ -86,7 +86,7 @@ describe("ParkingLot — bays are tappable 44px targets with names", () => {
   })
 })
 
-describe("ParkingLot — the wave never leaks before the verdict", () => {
+describe("ParkingLot: the wave never leaks before the verdict", () => {
   it("shows no arrival car and announces nothing until reveal flips true", () => {
     const { rerender } = render(<ParkingLot scene={shiftScene(false)} />)
 
@@ -102,7 +102,7 @@ describe("ParkingLot — the wave never leaks before the verdict", () => {
   })
 })
 
-describe("ParkingLot — carFor is a pure, deterministic skin", () => {
+describe("ParkingLot: carFor is a pure, deterministic skin", () => {
   it("paints the arrival car for X and is stable for the same input", () => {
     expect(carFor(ARRIVAL_LABEL, ["A", "B"]).arrival).toBe(true)
     expect(carFor("A", ["A", "B"]).arrival).toBe(false)

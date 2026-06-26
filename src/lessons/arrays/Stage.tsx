@@ -488,12 +488,14 @@ function PlayMutatePart({ dispatch }: { dispatch: Dispatch<LessonAction> }) {
 }
 
 /**
- * The free-play row, drawn by ABSOLUTE SLOT so the shift is directional and
- * left-anchored: every cell is a tap-to-delete button placed at x = slot * CELL,
+ * The free-play row, drawn by ABSOLUTE SLOT inside a fixed-width frame centered in
+ * the stage: the frame is always as wide as the longest possible row, so short
+ * rows read centered instead of drifting left of center. Every cell is a
+ * tap-to-delete button placed at x = slot * CELL from the frame's left edge,
  * springing to its new slot. Cells before the change keep their x (no motion);
  * only the tail slides, then the inserted cell fades into the opened gap. The
- * address ruler stays fixed beneath, so a shifted cell visibly lands on a new
- * index. Reduced motion snaps to the final arrangement with no slide.
+ * ruler stays fixed beneath, so a shifted cell visibly lands on a new index.
+ * Reduced motion snaps to the final arrangement with no slide.
  */
 function MutateSlotRow({
   cells,
@@ -511,11 +513,14 @@ function MutateSlotRow({
   reduced: boolean
 }) {
   const n = cells.length
+  // The frame holds the widest the row can grow (the full label pool) and stays
+  // centered; cells fill from its left edge, so the left of the content is stable.
+  const frameCells = MUTATE_POOL.length
 
   return (
     <div
-      className="relative self-start"
-      style={{ width: n * CELL, height: CELL + RULER_GAP + RULER_H }}
+      className="relative self-center"
+      style={{ width: frameCells * CELL, height: CELL + RULER_GAP + RULER_H }}
     >
       {/* the fixed address ruler: indices hold still while cells slide between
           them, so a shifted cell is seen to take a new index. */}

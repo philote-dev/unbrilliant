@@ -15,7 +15,7 @@ import {
   stripExtent,
 } from "./arrayStripLayout"
 
-describe("arrayStripLayout — contiguous cells over an address ruler", () => {
+describe("arrayStripLayout: contiguous cells over an address ruler", () => {
   it("cells touch (no gap): each cell's right edge is the next cell's left edge", () => {
     for (let i = 0; i < 5; i++) {
       const a = cellBox(i)
@@ -116,7 +116,7 @@ describe("arrayStripLayout: scan walk (reveal cell by cell)", () => {
   })
 })
 
-describe("arrayStripLayout — capacity frame (dynamic arrays)", () => {
+describe("arrayStripLayout: capacity frame (dynamic arrays)", () => {
   it("capacitySlots renders exactly `capacity` contiguous slots", () => {
     expect(capacitySlots(4)).toHaveLength(4)
     expect(capacitySlots(8)).toHaveLength(8)
