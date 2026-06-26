@@ -1,10 +1,14 @@
 import { logger } from "firebase-functions"
 import { onCall, HttpsError } from "firebase-functions/https"
-import { defineSecret, defineString } from "firebase-functions/params"
+import { defineSecret } from "firebase-functions/params"
 import { Completer, createClient, openAICompleter } from "./openai"
 
 export const OPENAI_API_KEY = defineSecret("OPENAI_API_KEY")
-export const OPENAI_MODEL = defineString("OPENAI_MODEL", { default: "gpt-4o-mini" })
+
+// Overridable per environment via process.env (functions/.env, .env.local, or
+// deploy env vars) without forcing the interactive param prompt the emulator
+// shows for defineString.
+const DEFAULT_MODEL = "gpt-4o-mini"
 
 const HEALTH_SYSTEM = "You are a health check. Reply with exactly the single word: pong"
 const HEALTH_USER = "ping"
@@ -34,7 +38,8 @@ export const polyHealthCheck = onCall(
   async (request): Promise<HealthResult> => {
     try {
       const completer = openAICompleter(createClient(OPENAI_API_KEY.value()))
-      return await runHealthCheck(completer, OPENAI_MODEL.value(), request.auth?.uid ?? null)
+      const model = process.env.OPENAI_MODEL ?? DEFAULT_MODEL
+      return await runHealthCheck(completer, model, request.auth?.uid ?? null)
     } catch (err) {
       logger.error("polyHealthCheck failed", err)
       throw new HttpsError("internal", "OpenAI health check failed")
