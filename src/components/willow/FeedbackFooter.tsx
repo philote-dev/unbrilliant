@@ -22,6 +22,7 @@ export function FeedbackFooter({
   dispatch,
   canCheck,
   hideFailHint,
+  aiHint,
 }: {
   feedback: Feedback
   selected: string | null
@@ -34,7 +35,17 @@ export function FeedbackFooter({
   /** Drop the visible fail hint line, leaving the buttons + a screen-reader-only
    * status to carry the meaning (S&Q opts in; other lessons keep the line). */
   hideFailHint?: boolean
+  /** Optional AI hint slot. When provided, it replaces the static nudge / fail
+   * hint line: a thinking indicator while loading, the AI text when present, or
+   * the static line when it resolved to null (the fallback). */
+  aiHint?: { loading: boolean; text: string | null }
 }) {
+  const THINKING = "Poly is thinking..."
+  function hintLine(fallback: string): string {
+    if (!aiHint) return fallback
+    if (aiHint.loading) return THINKING
+    return aiHint.text ?? fallback
+  }
   return (
     <div className="mt-auto min-h-[132px]">
       {feedback === "correct" && (
@@ -53,25 +64,27 @@ export function FeedbackFooter({
 
       {feedback === "nudge" && (
         <div className="animate-fade-in">
-          <FeedbackChip chip="hint" text={copy.nudge} />
+          <FeedbackChip chip="hint" text={hintLine(copy.nudge)} />
           <CheckButton selected={selected} dispatch={dispatch} canCheck={canCheck} />
         </div>
       )}
 
       {feedback === "fail" && (
         <div className="animate-fade-in">
-          {hideFailHint && !showWhy ? (
+          {hideFailHint && !showWhy && !aiHint?.loading && !aiHint?.text ? (
             <div className="mb-4 flex flex-col items-center gap-2 text-center">
               <StatusChip status="fail" />
               <p role="status" className="sr-only">
-                Try again — tap Why for the answer, or reattempt.
+                Try again. Tap Why for the answer, or reattempt.
               </p>
             </div>
           ) : (
             <FeedbackChip
               chip="fail"
               text={
-                showWhy ? copy.why : "Not quite — tap Why for the answer, or reattempt."
+                showWhy
+                  ? copy.why
+                  : hintLine("Not quite. Tap Why for the answer, or reattempt.")
               }
             />
           )}

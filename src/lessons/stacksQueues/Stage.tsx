@@ -3,6 +3,7 @@ import { ArrowRight } from "lucide-react"
 import { motion, useReducedMotion, type PanInfo } from "motion/react"
 
 import { cn } from "@/lib/utils"
+import { usePolyHint } from "@/lib/ai/usePolyHint"
 import { Button } from "@/components/ui/button"
 import { AnswerCard, type AnswerState } from "@/components/willow/AnswerCard"
 import { FeedbackFooter } from "@/components/willow/FeedbackFooter"
@@ -630,6 +631,28 @@ function ConstructPart({
   const ready = constructReady(state)
   const labels = Object.fromEntries(q.target.map((c) => [c.id, c.label]))
 
+  // Capture the learner's submitted push order (as labels) on the ready-to-check
+  // render, BEFORE a wrong check resets the bin. This keeps the pure engine
+  // untouched while still letting Poly reference what they actually did.
+  const submittedRef = useRef<string[]>([])
+  useEffect(() => {
+    if (ready && state.feedback === "idle") {
+      submittedRef.current = work.pushed.map((id) => labels[id])
+    }
+  }, [ready, state.feedback, work.pushed, labels])
+
+  const wrongAttempt =
+    state.feedback === "nudge" || state.feedback === "fail"
+      ? { id: state.attempts, learnerOrder: submittedRef.current }
+      : null
+
+  const aiHint = usePolyHint({
+    stageId: "stacks-and-queues",
+    skill: q.skill,
+    discipline: q.discipline,
+    wrongAttempt,
+  })
+
   // Pushed cells in container order (stack: newest on top → reverse the push order).
   const pushedCells: Cell[] = (q.discipline === "stack" ? [...work.pushed].reverse() : work.pushed).map(
     (id) => ({ id, label: labels[id] }),
@@ -775,6 +798,7 @@ function ConstructPart({
           dispatch={dispatch}
           canCheck={ready}
           hideFailHint
+          aiHint={aiHint}
         />
       </StageCenter>
 
