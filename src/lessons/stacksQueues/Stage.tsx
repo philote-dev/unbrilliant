@@ -4,6 +4,7 @@ import { motion, useReducedMotion, type PanInfo } from "motion/react"
 
 import { cn } from "@/lib/utils"
 import { usePolyHint } from "@/lib/ai/usePolyHint"
+import { useAuth } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { AnswerCard, type AnswerState } from "@/components/willow/AnswerCard"
 import { FeedbackFooter } from "@/components/willow/FeedbackFooter"
@@ -32,6 +33,7 @@ import { ContrastReplay } from "./ContrastReplay"
 import { ClassifyReplay } from "./ClassifyReplay"
 import { BrowserShowpiece } from "./BrowserShowpiece"
 import { PrinterShowpiece } from "./PrinterShowpiece"
+import { PolyCheckpoint } from "./PolyCheckpoint"
 
 /**
  * How long the resolved "correct" state (green + check) is held before the
@@ -40,6 +42,14 @@ import { PrinterShowpiece } from "./PrinterShowpiece"
  */
 const LEAVE_BEAT_MS = 700
 
+// Renderer-layer checkpoints at the concept boundaries. `afterIndex` is the last
+// beat of a section; the checkpoint is due once partIndex has moved past it. This
+// is non-gating and keeps the pure engine unaware of checkpoints.
+const CHECKPOINTS: { id: string; afterIndex: number; conceptId: string; conceptName: string }[] = [
+  { id: "cp-stacks", afterIndex: 4, conceptId: "stacks", conceptName: "stacks" },
+  { id: "cp-queues", afterIndex: 9, conceptId: "queues", conceptName: "queues" },
+]
+
 export function StacksQueuesStage({
   state,
   dispatch,
@@ -47,6 +57,23 @@ export function StacksQueuesStage({
   state: SQState
   dispatch: Dispatch<LessonAction>
 }) {
+  const { user } = useAuth()
+  const [doneCheckpoints, setDoneCheckpoints] = useState<string[]>([])
+
+  const due = CHECKPOINTS.find(
+    (c) => state.partIndex > c.afterIndex && !doneCheckpoints.includes(c.id),
+  )
+  if (due) {
+    return (
+      <PolyCheckpoint
+        conceptId={due.conceptId}
+        conceptName={due.conceptName}
+        uid={user?.uid ?? null}
+        onDone={() => setDoneCheckpoints((prev) => [...prev, due.id])}
+      />
+    )
+  }
+
   const part = currentPart(state)
   if (part === "stack-demo") return <DemoPart discipline="stack" dispatch={dispatch} />
   if (part === "queue-demo") return <DemoPart discipline="queue" dispatch={dispatch} />
