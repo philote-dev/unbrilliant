@@ -82,6 +82,34 @@ export const TRANSIT_DIAGRAM_LAYOUT: Record<NodeId, Pt> = {
   G: { x: 265, y: 100 },
 }
 
+/* --------------------------- draw-transit problem --------------------------- */
+
+/**
+ * The validated draw-transit problem (the "route the missing track" question),
+ * tuned in the gallery prototype: a loop A-B-C-D-E-A with a Red branch to F (off
+ * B) and a Green branch to G (off D), three crossing lines, and the C-D segment
+ * missing. The asymmetric layout keeps every edge to one clean 45-degree bend
+ * (no squiggle). The adjacency (TRANSIT_DRAW_ADJ) lives in graphsEngine; these
+ * are its coordinates + routes (decoration only).
+ */
+export const TRANSIT_DRAW_LAYOUT: Record<NodeId, Pt> = {
+  F: { x: 48, y: 45 },
+  B: { x: 120, y: 110 },
+  A: { x: 55, y: 200 },
+  E: { x: 180, y: 240 },
+  C: { x: 225, y: 65 },
+  D: { x: 265, y: 170 },
+  G: { x: 285, y: 260 },
+}
+
+/** Three crossing routes over the draw network (Red, Blue, Green). Decoration;
+ *  the metro skin tints them to neon at night. */
+export const TRANSIT_DRAW_LINES: TransitLine[] = [
+  { id: "red", name: "Red", color: "#ef5350", path: ["F", "B", "A", "E"] },
+  { id: "blue", name: "Blue", color: "#1aa7e0", path: ["B", "C", "D"] },
+  { id: "green", name: "Green", color: "#16b08a", path: ["E", "D", "G"] },
+]
+
 /* ------------------------------ fuller network ------------------------------ */
 
 /**

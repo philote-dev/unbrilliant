@@ -230,17 +230,18 @@ describe("subway map (reduced motion + draw DEV hooks)", () => {
   it("the subway draw beat keeps the DEV hooks and commits the missing segment", () => {
     render(<Harness initial={stateAt("draw-transit", { read: 4, draw: 1 })} />)
 
-    // The station markers carry the SAME hooks as GraphCanvas's DrawNode.
+    // The station markers carry the SAME hooks as GraphCanvas's DrawNode. The
+    // draw-transit problem's missing segment is C-D (the route-list "plan" pair).
     if (import.meta.env.DEV) {
       const marker = document.querySelector("[data-graph-correct-target]")
       expect(marker).not.toBeNull()
-      expect(marker).toHaveAttribute("data-rewire-source", "A")
-      expect(marker?.getAttribute("data-graph-correct-target")).toBe("E")
+      expect(marker).toHaveAttribute("data-rewire-source", "C")
+      expect(marker?.getAttribute("data-graph-correct-target")).toBe("D")
     }
 
-    // Commit A to E by tap (arm A, drop on E); the beat clears.
-    fireEvent.click(sourceEl("A"))
-    fireEvent.click(targetEl("E"))
+    // Commit C to D by tap (arm C, drop on D); the beat clears.
+    fireEvent.click(sourceEl("C"))
+    fireEvent.click(targetEl("D"))
     fireEvent.click(checkBtn())
     expect(screen.getByRole("button", { name: "Continue" })).toBeInTheDocument()
   })

@@ -11,6 +11,7 @@ import {
   SAME_QUOTA,
   T6,
   TRANSIT,
+  TRANSIT_DRAW_ADJ,
   TRANSIT_NODES,
   addEdge,
   canCheckGraphs,
@@ -338,11 +339,11 @@ describe("draw bin: undirected edge-draw (rewire normalized to a set)", () => {
     expect(sameGraph(replaced.workingAdj, G6)).toBe(true)
   })
 
-  it("draw-transit: drawing the missing loop link grades identically", () => {
+  it("draw-transit: drawing the missing track grades identically", () => {
     const s = advanceTo("draw-transit")
     expect(s.question!.transit).toBe(true)
-    expect(s.question!.missingEdge).toEqual(["A", "E"])
-    const ok = draw(s, "E", "A")
+    expect(s.question!.missingEdge).toEqual(["C", "D"])
+    const ok = draw(s, "D", "C")
     expect(ok.feedback).toBe("correct")
     expect(ok.drawCorrect).toBe(2)
   })
@@ -359,11 +360,11 @@ describe("transit skin: decoration only, verdicts read adjacency", () => {
     expect(degree(TRANSIT, "C")).toBe(4) // Central: where the loop meets the branch
   })
 
-  it("draw-transit closes the loop at A-E, either drag direction", () => {
+  it("draw-transit routes the missing C-D track, either drag direction", () => {
     const s = advanceTo("draw-transit")
-    expect(s.question!.missingEdge).toEqual(["A", "E"])
-    expect(draw(s, "A", "E").feedback).toBe("correct")
-    expect(draw(s, "E", "A").feedback).toBe("correct") // undirected
+    expect(s.question!.missingEdge).toEqual(["C", "D"])
+    expect(draw(s, "C", "D").feedback).toBe("correct")
+    expect(draw(s, "D", "C").feedback).toBe("correct") // undirected
   })
 
   it("scrambling either transit layout never changes a verdict (position-free)", () => {
@@ -377,7 +378,7 @@ describe("transit skin: decoration only, verdicts read adjacency", () => {
     // and the draw verdict is computed from adjacency, never from positions.
     expect(sameGraph(TRANSIT, TRANSIT)).toBe(true)
     const s = advanceTo("draw-transit")
-    expect(sameGraph(draw(s, "A", "E").workingAdj, TRANSIT)).toBe(true)
+    expect(sameGraph(draw(s, "C", "D").workingAdj, TRANSIT_DRAW_ADJ)).toBe(true)
   })
 
   it("same-graph (transit): 'same' is geo-vs-diagram identical, 'different' drops D-E", () => {

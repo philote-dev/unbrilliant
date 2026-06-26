@@ -27,7 +27,7 @@ import { AdjacencyPanel } from "./AdjacencyPanel"
 import { GraphCanvas } from "./GraphCanvas"
 import { SameGraphView } from "./SameGraphView"
 import { SubwayMap, type SubwayVariant } from "./SubwayMap"
-import { TRANSIT_FULL_LINES, TRANSIT_LINES, type TransitLine } from "./transitData"
+import { TRANSIT_DRAW_LINES, TRANSIT_FULL_LINES, TRANSIT_LINES, type TransitLine } from "./transitData"
 import { tintLines, useMetroSkin, type MetroSkin } from "./metroSkin"
 
 /**
@@ -472,8 +472,11 @@ function DrawPart({ state, dispatch }: PartProps) {
     return (
       <StageCenter>
         <MetroScene
-          eyebrow={metroEyebrow(state)}
+          eyebrow="Network planning"
           prompt={q.prompt}
+          lines={TRANSIT_DRAW_LINES}
+          ribbon
+          status={{ label: terminal ? "In service" : "1 gap", ok: terminal }}
           footer={<MetroFeedbackFooter state={state} dispatch={dispatch} canCheck={canCheckGraphs(state)} />}
         >
           <RewireSurface
@@ -489,7 +492,7 @@ function DrawPart({ state, dispatch }: PartProps) {
               adj={state.workingAdj}
               layout={q.layout}
               variant="diagrammatic"
-              lines={tintLines(skin, TRANSIT_LINES)}
+              lines={tintLines(skin, TRANSIT_DRAW_LINES)}
               marker="node"
               labels="none"
               paper={skin.paper}
@@ -503,6 +506,7 @@ function DrawPart({ state, dispatch }: PartProps) {
             nodes={q.nodes}
             adj={q.adj}
             transit
+            title={"Route list \u00b7 the plan"}
             highlightNodes={correct && q.missingEdge ? [q.missingEdge[0], q.missingEdge[1]] : undefined}
           />
         </MetroScene>
@@ -706,21 +710,31 @@ function metroEyebrow(state: GraphsState): string {
  * padding to go edge-to-edge (the Linked Lists technique), then lays out a metro
  * header, the map, the line legend, and a themed footer. Honors reduced motion.
  */
+/** The masthead status badge: a neutral zone tag, or a live "gap / in service". */
+type MetroStatus = { label: string; ok?: boolean }
+
 function MetroScene({
   eyebrow,
   prompt,
   lines = TRANSIT_LINES,
+  ribbon,
+  status,
   children,
   footer,
 }: {
   eyebrow: string
   prompt?: string
   lines?: TransitLine[]
+  /** Show the three-color line ribbon under the masthead. */
+  ribbon?: boolean
+  /** The masthead badge (defaults to "Zone 1"). */
+  status?: MetroStatus
   children: React.ReactNode
   footer: React.ReactNode
 }) {
   const skin = useMetroSkin()
   const reduced = useReducedMotion() ?? false
+  const tinted = tintLines(skin, lines)
   return (
     <motion.div
       initial={reduced ? false : { opacity: 0, y: 16 }}
@@ -729,9 +743,15 @@ function MetroScene({
       className="-mx-5 -mb-6 flex flex-1 flex-col px-5 pb-6 pt-6"
       style={{ background: skin.sceneBg }}
     >
-      <MetroHeader skin={skin} eyebrow={eyebrow} prompt={prompt} />
+      <MetroHeader
+        skin={skin}
+        eyebrow={eyebrow}
+        prompt={prompt}
+        status={status}
+        ribbon={ribbon ? tinted : undefined}
+      />
       <div className="flex flex-1 flex-col items-center justify-center gap-3 py-2">{children}</div>
-      <MetroLegend skin={skin} lines={tintLines(skin, lines)} />
+      <MetroLegend skin={skin} lines={tinted} />
       {footer}
     </motion.div>
   )
@@ -741,11 +761,19 @@ function MetroHeader({
   skin,
   eyebrow,
   prompt,
+  status,
+  ribbon,
 }: {
   skin: MetroSkin
   eyebrow: string
   prompt?: string
+  status?: MetroStatus
+  ribbon?: TransitLine[]
 }) {
+  const badge = status ?? { label: "Zone 1" }
+  const badgeStyle: CSSProperties = badge.ok
+    ? { background: "#1f9d57", color: "#ffffff" }
+    : { background: skin.badgeBg, color: skin.badgeInk }
   return (
     <div>
       <div className="flex items-center justify-between">
@@ -753,25 +781,34 @@ function MetroHeader({
           <MetroRoundel skin={skin} />
           <div className="leading-tight">
             <p className="text-[15px] font-extrabold tracking-tight" style={{ color: skin.ink }}>
-              City Metro
+              {skin.title}
             </p>
             <p className="text-[11px] font-medium" style={{ color: skin.sub }}>
               {eyebrow}
             </p>
           </div>
         </div>
-        <span
-          className="rounded-full px-3 py-1 text-[11px] font-bold"
-          style={{ background: skin.badgeBg, color: skin.badgeInk }}
-        >
-          Zone 1
+        <span className="rounded-full px-3 py-1 text-[11px] font-bold" style={badgeStyle}>
+          {badge.label}
         </span>
       </div>
+      {ribbon && <LineRibbon lines={ribbon} />}
       {prompt && (
         <p className="mt-3 text-[15px] font-semibold leading-snug" style={{ color: skin.ink }}>
           {prompt}
         </p>
       )}
+    </div>
+  )
+}
+
+/** A three-color line ribbon from the network's own routes: one masthead rule. */
+function LineRibbon({ lines }: { lines: TransitLine[] }) {
+  return (
+    <div className="mt-2.5 flex h-1.5 w-full overflow-hidden rounded-full">
+      {lines.map((l, i) => (
+        <span key={l.id} style={{ flex: i === 0 ? 3 : 2, background: l.color }} />
+      ))}
     </div>
   )
 }

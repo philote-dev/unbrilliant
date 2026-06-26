@@ -15,6 +15,8 @@ import { type TransitLine } from "./transitData"
 export interface MetroSkin {
   id: "day" | "night"
   theme: "light" | "dark"
+  /** Masthead wordmark (the network's name for this time of day). */
+  title: string
   /** Full-bleed scene background (the poster mat). */
   sceneBg: string
   /** Map base + line casing, panels, and the roundel fill. */
@@ -133,6 +135,7 @@ const NIGHT_LINE: Record<string, string> = {
 const DAY: MetroSkin = {
   id: "day",
   theme: "light",
+  title: "City Metro",
   sceneBg: "linear-gradient(180deg,#eef1f5,#e2e8f0)",
   paper: "#f7f2ea",
   cardEdge: "#dbe1ea",
@@ -152,6 +155,7 @@ const DAY: MetroSkin = {
 const NIGHT: MetroSkin = {
   id: "night",
   theme: "dark",
+  title: "Night Network",
   sceneBg: "linear-gradient(180deg,#0c1222,#080d18)",
   paper: "#0c1222",
   cardEdge: "#1c2742",

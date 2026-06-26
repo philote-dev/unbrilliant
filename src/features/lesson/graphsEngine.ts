@@ -6,6 +6,7 @@ import {
 } from "@/features/lesson/engine"
 import {
   TRANSIT_DIAGRAM_LAYOUT,
+  TRANSIT_DRAW_LAYOUT,
   TRANSIT_FULL_DIAGRAM_LAYOUT,
   TRANSIT_FULL_GEO_LAYOUT,
   TRANSIT_GEO_LAYOUT,
@@ -325,6 +326,24 @@ export const TRANSIT: Adjacency = {
   G: ["C"],
 }
 
+export const TRANSIT_DRAW_NODES: NodeId[] = ["A", "B", "C", "D", "E", "F", "G"]
+/**
+ * The draw-transit problem network (the validated "route the missing track"
+ * question, tuned in the gallery): a loop A-B-C-D-E-A with a Red branch to F off
+ * B and a Green branch to G off D, three crossing lines, with the C-D segment
+ * missing. 7 stations, one cycle, so it stays a general graph (not a tree). The
+ * draw beat restores C-D. Its coordinates + routes live in transitData.
+ */
+export const TRANSIT_DRAW_ADJ: Adjacency = {
+  A: ["B", "E"],
+  B: ["A", "C", "F"],
+  C: ["B", "D"],
+  D: ["C", "E", "G"],
+  E: ["A", "D"],
+  F: ["B"],
+  G: ["D"],
+}
+
 export const TRANSIT_FULL_NODES: NodeId[] = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"]
 /**
  * The fuller showcase network for the redraw demo (the "live example"): the same
@@ -573,21 +592,22 @@ function makeDrawEdge(): GraphsQuestion {
 }
 
 function makeDrawTransit(): GraphsQuestion {
-  const shown = removeEdge(TRANSIT, "A", "E")
+  const shown = removeEdge(TRANSIT_DRAW_ADJ, "C", "D")
   return baseQuestion("draw-transit", {
     bin: "draw",
     mode: "draw",
     transit: true,
-    prompt: "This subway loop is missing one link. Add the connection the route list shows.",
-    nodes: TRANSIT_NODES,
-    adj: TRANSIT,
+    prompt:
+      "The route list is the plan. One stop pair is in the list but not laid on the map yet, drag between those stops to route it.",
+    nodes: TRANSIT_DRAW_NODES,
+    adj: TRANSIT_DRAW_ADJ,
     shownAdj: shown,
-    missingEdge: normalizeEdge("A", "E"),
-    layout: TRANSIT_DIAGRAM_LAYOUT,
-    hint: "",
-    nudge: "One station pair is connected in the list but not on the map. Draw that line.",
-    correct: "A to E connected: the Harbor loop is complete.",
-    why: "The route list joins A and E, closing the loop; the map just had not drawn it yet.",
+    missingEdge: normalizeEdge("C", "D"),
+    layout: TRANSIT_DRAW_LAYOUT,
+    hint: "Compare the plan to the map, then drag between the two stops.",
+    nudge: "That pair is not in the plan. Re-check the route list.",
+    correct: "Routed. C and D are now in service.",
+    why: "The route list connects C and D, but the map had not laid that track yet; drawing C-D adds each to the other's row.",
   })
 }
 
