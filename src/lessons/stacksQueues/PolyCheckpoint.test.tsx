@@ -122,4 +122,21 @@ describe("PolyCheckpoint", () => {
     await waitFor(() => expect(screen.getByText(/type instead/i)).toBeInTheDocument())
     expect(screen.getByRole("textbox", { name: /your explanation/i })).toBeEnabled()
   })
+
+  it("shows the fallback note when transcription returns nothing", async () => {
+    const rec = {
+      start: vi.fn().mockResolvedValue(undefined),
+      stop: vi.fn().mockResolvedValue(""),
+      cancel: vi.fn(),
+    }
+    const props = deps({
+      voice: true,
+      speakText: vi.fn().mockResolvedValue(undefined),
+      createRecorder: () => rec,
+    })
+    render(<PolyCheckpoint {...props} />)
+    await userEvent.click(screen.getByRole("button", { name: /speak your answer|record|mic/i }))
+    await userEvent.click(screen.getByRole("button", { name: /stop/i }))
+    await waitFor(() => expect(screen.getByText(/type instead/i)).toBeInTheDocument())
+  })
 })

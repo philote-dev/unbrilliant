@@ -69,15 +69,26 @@ export function PolyCheckpoint({
   const [recording, setRecording] = useState(false)
   const [voiceError, setVoiceError] = useState(false)
   const recorderRef = useRef<VoiceRecorder | null>(null)
+  const spokenRef = useRef<string | null>(null)
+
+  // Release the mic if the component unmounts mid-recording.
+  useEffect(() => () => recorderRef.current?.cancel(), [])
 
   useEffect(() => {
     if (!voice || phase !== "asking") return
+    // Speak each question once. The ref guard (not just the deps) prevents a
+    // double utterance under React StrictMode's dev double-invoke and avoids
+    // double-billing the TTS endpoint. It re-speaks when the question text
+    // changes (a new probe), which relies on submit() updating question and
+    // phase in the same render batch.
+    if (spokenRef.current === question) return
+    spokenRef.current = question
     void speakText(question)
-    // Re-speak only when the question text changes (new probe / first ask).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [question, voice])
 
   async function startRecording() {
+    if (recorderRef.current) return
     setVoiceError(false)
     const rec = createRecorder()
     recorderRef.current = rec
@@ -209,7 +220,7 @@ export function PolyCheckpoint({
                   variant="ghost"
                   size="default"
                   aria-label="Replay question"
-                  disabled={phase === "thinking"}
+                  disabled={phase === "thinking" || recording}
                   onClick={() => void speakText(question)}
                 >
                   <Volume2 className="size-4" />
@@ -217,7 +228,7 @@ export function PolyCheckpoint({
               </div>
             )}
             {voice && voiceError && (
-              <p className="mb-3 text-center text-xs text-muted-foreground">
+              <p role="status" className="mb-3 text-center text-xs text-muted-foreground">
                 Voice unavailable, type instead.
               </p>
             )}
