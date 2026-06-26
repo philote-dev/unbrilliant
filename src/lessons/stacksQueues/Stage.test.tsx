@@ -1,5 +1,5 @@
 import { useReducer } from "react"
-import { describe, it, expect, beforeAll } from "vitest"
+import { describe, it, expect, beforeAll, vi } from "vitest"
 import { fireEvent, render, screen } from "@testing-library/react"
 
 import {
@@ -9,6 +9,30 @@ import {
   type SQState,
 } from "@/features/lesson/stacksQueuesEngine"
 import { StacksQueuesStage } from "./Stage"
+
+// StacksQueuesStage now reads the signed-in user for the checkpoint overlay and
+// renders that overlay at the concept boundaries. These beat tests seed
+// mid-lesson states directly (so a boundary checkpoint would otherwise intercept
+// them); stub auth and auto-dismiss the checkpoint, which has its own tests, to
+// keep these focused on the beats.
+vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: null }) }))
+vi.mock("./PolyCheckpoint", async () => {
+  const { useLayoutEffect } = await import("react")
+  return {
+    PolyCheckpoint: ({
+      onDone,
+      conceptId,
+    }: {
+      onDone: () => void
+      conceptId: string
+    }) => {
+      useLayoutEffect(() => {
+        onDone()
+      }, [conceptId, onDone])
+      return null
+    },
+  }
+})
 
 /**
  * DOM tests for the Stacks & Queues stage. Reduced motion is forced (matchMedia
