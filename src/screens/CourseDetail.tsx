@@ -10,6 +10,7 @@ import { pathLayoutFor } from "@/components/willow/coursePath/registry"
 import { PinnedAction } from "@/components/willow/AppShell"
 import { useIsDesktop } from "@/hooks/useMediaQuery"
 import { useCourseProgress } from "@/features/progress/CourseProgressProvider"
+import { useLessonRetention } from "@/features/progress/useRetention"
 import {
   currentLessonId,
   derivePathNodes,
@@ -22,6 +23,7 @@ export function CourseDetail({ courseId }: { courseId: string }) {
   const { navigate, back } = useNavigation()
   const isDesktop = useIsDesktop()
   const { progressByLesson, courseProgress, enterCourse } = useCourseProgress()
+  const lessonRetention = useLessonRetention()
   const course = getCourse(courseId)
   const art = course ? courseArt(course.icon) : null
 
@@ -31,7 +33,7 @@ export function CourseDetail({ courseId }: { courseId: string }) {
     enterCourse(courseId)
   }, [courseId, enterCourse])
 
-  const nodes = derivePathNodes(progressByLesson)
+  const nodes = derivePathNodes(progressByLesson, (id) => lessonRetention(id))
   const pct = courseProgress(courseId)
   const startId = currentLessonId(progressByLesson)
   const started = Object.values(progressByLesson).some((p) => p != null)

@@ -167,6 +167,12 @@ export function CoursePath({ nodes, onSelect, className }: PathLayoutProps) {
                 )}
                 {node.state === "locked" && <Lock className="size-3.5 text-faint" />}
               </button>
+              {node.needsReview && (
+                <span
+                  aria-label="Needs review"
+                  className="pointer-events-none absolute -right-0.5 -top-0.5 size-3 rounded-full border-2 border-background bg-amber-500"
+                />
+              )}
             </div>
 
             <span

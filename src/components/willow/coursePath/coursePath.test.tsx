@@ -84,3 +84,18 @@ describe.each(LAYOUTS)("%s node accessibility", (_name, Layout) => {
     expect(onSelect).toHaveBeenCalledTimes(1)
   })
 })
+
+const REVIEW_NODES: PathNode[] = [
+  { id: "a", name: "Alpha", state: "completed", needsReview: true },
+  { id: "b", name: "Bravo", state: "current" },
+]
+
+describe.each(LAYOUTS)("%s needs-review marker", (_name, Layout) => {
+  it("renders a marker only for a node that needs review", () => {
+    const { rerender } = render(<Layout nodes={REVIEW_NODES} />)
+    expect(screen.getAllByLabelText("Needs review").length).toBeGreaterThan(0)
+
+    rerender(<Layout nodes={NODES} />)
+    expect(screen.queryByLabelText("Needs review")).toBeNull()
+  })
+})
