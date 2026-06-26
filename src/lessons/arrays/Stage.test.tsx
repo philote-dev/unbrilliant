@@ -1,10 +1,11 @@
 import { useReducer } from "react"
 import { describe, it, expect, beforeAll } from "vitest"
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 
 import {
   arraysReducer,
   resumeArrays,
+  shiftFrames,
   type ArraysState,
 } from "@/features/lesson/arraysEngine"
 import { ArraysStage } from "./Stage"
@@ -173,5 +174,50 @@ describe("Arrays stage — minimal fail UX (SR-only, no fail sentence)", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Why?" }))
     expect(screen.getByText(init.question!.why)).toBeInTheDocument()
+  })
+})
+
+describe("Arrays stage — the graded shift wave plays to the end-state on reveal", () => {
+  // Reduced motion is forced (matchMedia matches), so the wave snaps straight to
+  // its final frame with no timers: the reveal is deterministic to assert.
+  it("insert: the ripple lands on the shifted arrangement and announces the wave", () => {
+    const init = at("insert")
+    const q = init.question!
+    render(<Harness initial={init} />)
+
+    // before the verdict the figure is the static read strip, not the ripple
+    expect(screen.queryByTestId("ripple-strip")).toBeNull()
+
+    // answer correctly via the dev-only marker on the winning card
+    fireEvent.click(document.querySelector('[data-answer="1"]') as HTMLElement)
+    fireEvent.click(screen.getByRole("button", { name: "Check" }))
+
+    // the inserted cell has dropped into the opened gap (it is absent from the
+    // pre-reveal strip), proving the wave played to the end-state, not nothing
+    const ripple = screen.getByTestId("ripple-strip")
+    expect(within(ripple).getByText(q.op!.inserted!, { exact: true })).toBeInTheDocument()
+
+    // the wave is announced: the final frame's caption reaches a live region
+    const frames = shiftFrames(q.cells, q.op!)
+    expect(screen.getByText(frames[frames.length - 1].caption)).toBeInTheDocument()
+  })
+
+  it("delete: the ripple closes the gap and announces the wave", () => {
+    const init = at("delete")
+    const q = init.question!
+    const removed = q.cells[q.op!.index]
+    render(<Harness initial={init} />)
+
+    expect(screen.queryByTestId("ripple-strip")).toBeNull()
+
+    fireEvent.click(document.querySelector('[data-answer="1"]') as HTMLElement)
+    fireEvent.click(screen.getByRole("button", { name: "Check" }))
+
+    // the deleted value is gone from the row: the gap has closed (end-state)
+    const ripple = screen.getByTestId("ripple-strip")
+    expect(within(ripple).queryByText(removed, { exact: true })).toBeNull()
+
+    const frames = shiftFrames(q.cells, q.op!)
+    expect(screen.getByText(frames[frames.length - 1].caption)).toBeInTheDocument()
   })
 })

@@ -585,6 +585,9 @@ function MutateSlotRow({
 
 /* --------------------------- insert / delete / realworld (predict the count) --------------------------- */
 
+// One slot-move per frame; tuned so the staggered springs read as a single wave.
+const WAVE_FRAME_MS = 130
+
 function CountPart({
   state,
   dispatch,
@@ -592,16 +595,50 @@ function CountPart({
   state: ArraysState
   dispatch: Dispatch<LessonAction>
 }) {
+  const prefersReduced = useReducedMotion()
+  const reduced = prefersReduced ?? false
   const q = state.question
-  if (!q || !q.options) return null
   const { feedback, selected, showWhy } = state
-  const terminal = isTerminalA(state)
   const reveal = feedback === "correct" || (feedback === "fail" && showWhy)
   const part = currentPartArrays(state)
   const isRealworld = part === "realworld"
+  // The realworld skin animates via SpreadsheetInsert; only insert/delete play the
+  // ArrayStrip ripple, so only they need the wave timer.
+  const usesRipple = part === "insert" || part === "delete"
 
-  const frames = q.op ? shiftFrames(q.cells, q.op) : []
-  const lastFrame = frames[frames.length - 1]
+  // shiftFrames is a staggered sequence: each frame moves exactly one cell and the
+  // final frame is the end-state. On reveal we PLAY the frames over time, so the
+  // cells visibly slide slot by slot (RippleStrip springs each one-slot move into
+  // the new slot). Reduced motion shows the final frame straight away, no timer.
+  const frames = usesRipple && q?.op ? shiftFrames(q.cells, q.op) : []
+  const frameCount = frames.length
+  const last = Math.max(0, frameCount - 1)
+  const [frameIndex, setFrameIndex] = useState(0)
+
+  useEffect(() => {
+    // Reduced motion derives the final frame directly (below), so it never mounts
+    // the intermediate calm frame; only the live wave steps the index over time.
+    if (reduced || !reveal || last <= 0) {
+      setFrameIndex(0)
+      return
+    }
+    setFrameIndex(0)
+    let i = 0
+    const id = window.setInterval(() => {
+      i += 1
+      setFrameIndex(i)
+      if (i >= last) window.clearInterval(id)
+    }, WAVE_FRAME_MS)
+    return () => window.clearInterval(id)
+  }, [reveal, last, reduced])
+
+  if (!q || !q.options) return null
+  const terminal = isTerminalA(state)
+
+  // Reduced motion jumps to the end-state on the first paint (no exit animation to
+  // strand); the live wave walks the played index. Guard the index either way.
+  const shownIndex = reduced ? last : Math.min(frameIndex, last)
+  const currentFrame = frameCount > 0 ? frames[shownIndex] : undefined
   const kicker = isRealworld ? "Real-world · row shift" : part === "insert" ? "Insert" : "Delete"
 
   return (
@@ -616,8 +653,8 @@ function CountPart({
         <div className="flex flex-col items-center gap-3 py-4">
           {isRealworld && q.op ? (
             <SpreadsheetInsert cells={q.cells} op={q.op} reveal={reveal} />
-          ) : reveal && lastFrame ? (
-            <ArrayStrip mode="ripple" frame={lastFrame} opIndex={q.op?.index ?? -1} />
+          ) : reveal && currentFrame ? (
+            <ArrayStrip mode="ripple" frame={currentFrame} opIndex={q.op?.index ?? -1} />
           ) : (
             <ArrayStrip mode="read" cells={q.cells} highlight={q.op?.index ?? -1} tone="active" />
           )}

@@ -600,7 +600,7 @@ function RippleStrip({
           >
             <div
               className={cn(
-                "box-border flex items-center justify-center rounded-xl border-2 text-lg font-bold text-foreground",
+                "box-border flex items-center justify-center rounded-xl border-2 text-lg font-bold text-foreground transition-colors",
                 c.moving ? "border-lilac-strong bg-lilac-soft" : "border-border bg-card",
               )}
               style={{ width: CELL, height: CELL }}
@@ -610,6 +610,12 @@ function RippleStrip({
           </motion.div>
         ))}
       </AnimatePresence>
+
+      {/* the wave is narrated step by step as it plays (and the end-state caption
+          on reduced motion), so a screen reader hears the shift it cannot see */}
+      <p role="status" aria-live="polite" className="sr-only">
+        {frame.caption}
+      </p>
     </div>
   )
 }
