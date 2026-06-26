@@ -27,7 +27,7 @@ export default defineConfig({
     {
       name: "mobile",
       use: { ...devices["Desktop Chrome"], viewport: { width: 500, height: 900 } },
-      testMatch: /(?:tracer|splash)\.spec\.ts/,
+      testMatch: /(?:tracer|splash|retrieval)\.spec\.ts/,
     },
     // The desktop layout (sidebar shell, split/centered lessons, palette) is
     // covered by its own smoke at a wide viewport.

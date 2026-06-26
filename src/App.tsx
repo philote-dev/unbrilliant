@@ -10,6 +10,7 @@ import { Completion } from "@/screens/Completion"
 import { Progress } from "@/screens/Progress"
 import { Profile } from "@/screens/Profile"
 import { Settings } from "@/screens/Settings"
+import { PolyLab } from "@/screens/PolyLab"
 
 const NAV_SCREENS = new Set<Screen["name"]>([
   "home",
@@ -31,7 +32,7 @@ function renderScreen(screen: Screen) {
     case "signin":
       return <SignIn reason={screen.reason} intent={screen.intent} />
     case "lesson":
-      return <LessonHost lessonId={screen.lessonId} />
+      return <LessonHost key={screen.lessonId} lessonId={screen.lessonId} />
     case "complete":
       return <Completion lessonId={screen.lessonId} />
     case "progress":
@@ -40,17 +41,28 @@ function renderScreen(screen: Screen) {
       return <Profile />
     case "settings":
       return <Settings />
+    case "poly-lab":
+      return <PolyLab />
   }
 }
 
 function App() {
-  const { screen } = useNavigation()
+  const { screen, navigate } = useNavigation()
   return (
     <>
       <AppShell bottomNav={NAV_SCREENS.has(screen.name)}>
         {renderScreen(screen)}
       </AppShell>
       <CommandPalette />
+      {import.meta.env.DEV && screen.name !== "poly-lab" && (
+        <button
+          type="button"
+          onClick={() => navigate({ name: "poly-lab" })}
+          className="fixed right-3 top-3 z-[70] rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-pop"
+        >
+          Poly Lab
+        </button>
+      )}
     </>
   )
 }

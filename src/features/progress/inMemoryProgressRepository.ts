@@ -1,4 +1,5 @@
 import { dayKeyToUTCDate } from "@/features/progress/activityDate"
+import type { ConceptReview } from "@/features/progress/conceptReview"
 import type {
   LessonProgress,
   ProgressRepository,
@@ -13,6 +14,7 @@ export function createInMemoryProgressRepository(): ProgressRepository {
   const progress = new Map<string, LessonProgress>()
   const users = new Map<string, UserDoc>()
   const activity = new Map<string, Map<string, { attempted: number; correct: number }>>()
+  const conceptReviews = new Map<string, Map<string, ConceptReview>>()
   const key = (uid: string, lessonId: string) => `${uid}::${lessonId}`
 
   return {
@@ -68,6 +70,18 @@ export function createInMemoryProgressRepository(): ProgressRepository {
           attempted: v.attempted,
           correct: v.correct,
         }))
+    },
+    async getConceptReviews(uid) {
+      const rows = conceptReviews.get(uid)
+      return rows ? [...rows.values()].map((r) => ({ ...r })) : []
+    },
+    async saveConceptReview(uid, review) {
+      let rows = conceptReviews.get(uid)
+      if (!rows) {
+        rows = new Map()
+        conceptReviews.set(uid, rows)
+      }
+      rows.set(review.conceptId, { ...review })
     },
   }
 }

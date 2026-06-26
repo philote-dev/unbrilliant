@@ -18,6 +18,7 @@ export type Screen =
   | { name: "progress" }
   | { name: "profile" }
   | { name: "settings" }
+  | { name: "poly-lab" }
 
 export type Tab = "home" | "learn" | "progress" | "profile"
 
