@@ -42,13 +42,14 @@ export const ARRAYS_PARTS = [
   "delete", // 6 predict the delete shift count (graded)
   "place-cheapest", // 7 drop one cell where it costs least (meaningful gap drag) (graded)
   "realworld", // 8 spreadsheet row insert/delete: the same shift, concrete (graded)
-  "teach-grow", // 9 dynamic-array setup: arrays have a fixed size; what happens when full? (intro)
-  "grow", // 10 capacity full -> append: double + copy, then "was it cheap?" (graded x2)
+  "teach-grow", // 9 dynamic-array setup: a full block rejects a new cell (intro)
+  "grow", // 10 capacity full: pick the cleanest fix (double + copy) (graded)
+  "grow-summary", // 11 average-cost summary: doubling vs grow-by-one (intro)
 ] as const
 export type ArraysPart = (typeof ARRAYS_PARTS)[number]
 export const ARRAYS_TOTAL_PARTS = ARRAYS_PARTS.length
 
-/** The 8 graded sub-skills; mastery = all 8 cleared. */
+/** The 7 graded sub-skills; mastery = all 7 cleared. */
 export const ARRAYS_SKILLS = [
   "accessIndex",
   "accessScan",
@@ -57,10 +58,9 @@ export const ARRAYS_SKILLS = [
   "placeCheapest",
   "realworld",
   "grow",
-  "growVerdict",
 ] as const
 export type ArraysSkill = (typeof ARRAYS_SKILLS)[number]
-export const ARRAYS_GATE = ARRAYS_SKILLS.length // 8
+export const ARRAYS_GATE = ARRAYS_SKILLS.length // 7
 
 const LETTERS = ["A", "B", "C", "D", "E", "F", "G", "H"]
 
@@ -127,7 +127,7 @@ export interface ArraysState {
   attempts: number
   combo: number
   completed: boolean
-  // the 8 graded counters (each 0 | 1)
+  // the 7 graded counters (each 0 | 1)
   accessIndex: number
   accessScan: number
   insertCount: number
@@ -135,10 +135,8 @@ export interface ArraysState {
   placeCheapest: number
   realworld: number
   grow: number
-  growVerdict: number
   question: ArraysQuestion | null
   selected: string | null // MCQ id, stringified tapped index, or chosen gap id
-  step: number // sub-step for the grow two-asker: 0 | 1
   wrongCount: number
   feedback: Feedback
   revealed: boolean
@@ -223,6 +221,13 @@ function makeIntro(part: ArraysPart): ArraysQuestion {
       ...base,
       kind: "teach-grow",
       prompt: "Real arrays have a fixed size. What happens when you append past the end?",
+    }
+  }
+  if (part === "grow-summary") {
+    return {
+      ...base,
+      kind: "grow-summary",
+      prompt: "Across many appends, what does growing actually cost on average?",
     }
   }
   return {
@@ -455,7 +460,7 @@ function makeRealworld(seed: number): { question: ArraysQuestion; next: number }
   }
 }
 
-/** `grow` step 0 (beat 9): grow-predict over a full block (always doubles+copies). */
+/** `grow` (beat 10): pick the cleanest fix for a full block (always double + copy). */
 function makeGrow(seed: number): { question: ArraysQuestion; next: number } {
   let a = seed
   // Capacity 4 (doubling to 8) keeps the backing block legible on a phone.
@@ -463,9 +468,9 @@ function makeGrow(seed: number): { question: ArraysQuestion; next: number } {
   const size = capacity // seeded full so the synthesis always plays
   const sh = shuffle(
     [
-      { id: "grow", label: `Grow to a block twice as big and copy all ${capacity} over` },
-      { id: "inplace", label: "Drop it in the next slot, no copy" },
-      { id: "growone", label: "Grow by one slot and copy one item" },
+      { id: "grow", label: "Make a block twice as big and copy everything over" },
+      { id: "inplace", label: "Drop it in the next slot" },
+      { id: "growone", label: "Make a block one bigger and copy everything over" },
     ],
     a,
   )
@@ -473,7 +478,7 @@ function makeGrow(seed: number): { question: ArraysQuestion; next: number } {
   return {
     question: {
       kind: "grow",
-      prompt: `The block is full (${size} of ${capacity}). Append one more. What happens?`,
+      prompt: "The block is full. What's the cleanest way to make room for one more?",
       cells: LETTERS.slice(0, size),
       options: sh.result,
       answer: "grow",
@@ -482,39 +487,7 @@ function makeGrow(seed: number): { question: ArraysQuestion; next: number } {
       hint: "",
       nudge: "There's no next slot. The block has to move somewhere bigger first.",
       correct: `Right: it doubles to ${capacity * 2} and copies all ${capacity} across.`,
-      why: `A full block has no room, so it allocates one twice the size and copies every item over. Usually free, with the occasional big reshuffle.`,
-    },
-    next: a,
-  }
-}
-
-/** `grow` step 1 (beat 9): the amortized verdict over the same full block. */
-function makeGrowVerdict(
-  resize: ArrayResize,
-  seed: number,
-): { question: ArraysQuestion; next: number } {
-  let a = seed
-  const sh = shuffle(
-    [
-      { id: "expensive", label: "Expensive - it copied everything" },
-      { id: "cheap", label: "Cheap - just one step" },
-    ],
-    a,
-  )
-  a = sh.next
-  return {
-    question: {
-      kind: "grow",
-      prompt: "Was that particular append cheap?",
-      cells: LETTERS.slice(0, resize.size),
-      options: sh.result,
-      answer: "expensive",
-      resize,
-      cost: { word: "usually free", count: resize.size, unit: "items copied" },
-      hint: "",
-      nudge: "This append triggered the doubling, so it copied the whole block.",
-      correct: "Right: this one was expensive - it copied the whole block.",
-      why: `This append hit a full block, so it copied all ${resize.size}. Most appends are free; only the ones that trigger a grow are expensive. Usually free, with the occasional big reshuffle.`,
+      why: "A full block has no room, so it makes a bigger one and copies every item over. Make it twice as big and those copies stay rare. Usually free, with the occasional big reshuffle.",
     },
     next: a,
   }
@@ -530,7 +503,12 @@ const FRESH = {
   showWhy: false,
 }
 
-const INTRO_PARTS = new Set<ArraysPart>(["play-access", "play-mutate", "teach-grow"])
+const INTRO_PARTS = new Set<ArraysPart>([
+  "play-access",
+  "play-mutate",
+  "teach-grow",
+  "grow-summary",
+])
 
 export function isGradedPartArrays(part: ArraysPart): boolean {
   return !INTRO_PARTS.has(part)
@@ -541,7 +519,6 @@ function enterPart(state: ArraysState, index: number): ArraysState {
   const base: ArraysState = {
     ...state,
     partIndex: index,
-    step: 0,
     question: null,
     ...FRESH,
   }
@@ -572,11 +549,12 @@ function enterPart(state: ArraysState, index: number): ArraysState {
       const { question, next } = makeRealworld(state.rngState)
       return { ...base, question, rngState: next }
     }
-    default: {
-      // grow
+    case "grow": {
       const { question, next } = makeGrow(state.rngState)
       return { ...base, question, rngState: next }
     }
+    default:
+      return base
   }
 }
 
@@ -595,10 +573,8 @@ export function createArrays(seed: number = Date.now()): ArraysState {
     placeCheapest: 0,
     realworld: 0,
     grow: 0,
-    growVerdict: 0,
     question: null,
     selected: null,
-    step: 0,
     wrongCount: 0,
     feedback: "idle",
     revealed: false,
@@ -626,7 +602,7 @@ function beatSkill(state: ArraysState): ArraysSkill | null {
     case "realworld":
       return "realworld"
     case "grow":
-      return state.step === 0 ? "grow" : "growVerdict"
+      return "grow"
     default:
       return null
   }
@@ -638,7 +614,9 @@ export function arraysReducer(state: ArraysState, action: LessonAction): ArraysS
   switch (action.type) {
     case "continue": {
       if (isGradedPartArrays(part)) return state // graded beats advance via `next`
-      if (state.partIndex >= ARRAYS_TOTAL_PARTS - 1) return state
+      if (state.partIndex >= ARRAYS_TOTAL_PARTS - 1) {
+        return { ...state, ...FRESH, completed: true } // finishing grow-summary completes
+      }
       return enterPart(state, state.partIndex + 1)
     }
 
@@ -714,10 +692,6 @@ export function arraysReducer(state: ArraysState, action: LessonAction): ArraysS
           return { ...state, ...FRESH, question, rngState: next }
         }
         case "grow": {
-          if (state.step === 1 && state.question?.resize) {
-            const { question, next } = makeGrowVerdict(state.question.resize, state.rngState)
-            return { ...state, ...FRESH, question, rngState: next }
-          }
           const { question, next } = makeGrow(state.rngState)
           return { ...state, ...FRESH, question, rngState: next }
         }
@@ -728,14 +702,6 @@ export function arraysReducer(state: ArraysState, action: LessonAction): ArraysS
 
     case "next": {
       if (state.feedback !== "correct") return state
-
-      if (part === "grow" && state.step === 0 && state.question?.resize) {
-        const { question, next } = makeGrowVerdict(state.question.resize, state.rngState)
-        return { ...state, ...FRESH, step: 1, question, rngState: next }
-      }
-      if (part === "grow" && state.step === 1) {
-        return { ...state, ...FRESH, completed: true }
-      }
       if (state.partIndex >= ARRAYS_TOTAL_PARTS - 1) {
         return { ...state, ...FRESH, completed: true }
       }
@@ -983,7 +949,6 @@ export function toProgressArrays(s: ArraysState): LessonProgress {
       placeCheapest: s.placeCheapest,
       realworld: s.realworld,
       grow: s.grow,
-      growVerdict: s.growVerdict,
       attempts: s.attempts,
     },
     currentPart: currentPartArrays(s),
@@ -1012,7 +977,6 @@ export function resumeArrays(
     placeCheapest: clampUnit(c.placeCheapest ?? c.a4),
     realworld: clampUnit(c.realworld ?? c.a2Skin),
     grow: clampUnit(c.grow ?? c.a6Grow),
-    growVerdict: clampUnit(c.growVerdict ?? c.a6Cheap),
     attempts: Math.max(0, Math.trunc(c.attempts ?? 0)),
   }
   const index = Math.max(0, ARRAYS_PARTS.indexOf(progress.currentPart as ArraysPart))

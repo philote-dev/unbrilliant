@@ -59,20 +59,18 @@ function happyPath(seed = SEED): ArraysState {
   s = apply(solve(s), { type: "next" }) // delete -> place-cheapest
   s = apply(solve(s), { type: "next" }) // place-cheapest -> realworld
   s = apply(solve(s), { type: "next" }) // realworld -> teach-grow (intro)
-  s = apply(s, { type: "continue" }) // teach-grow -> grow step 0
-  s = apply(solve(s), { type: "next" }) // grow step 0 -> grow step 1
-  s = apply(solve(s), { type: "next" }) // grow step 1 -> completed
+  s = apply(s, { type: "continue" }) // teach-grow -> grow
+  s = apply(solve(s), { type: "next" }) // grow -> grow-summary (intro)
+  s = apply(s, { type: "continue" }) // grow-summary -> completed
   return s
 }
 
-const growStep1 = (): ArraysState => apply(solve(at("grow")), { type: "next" })
-
-describe("Arrays — flow (10 beats, intro vs graded)", () => {
+describe("Arrays: flow (11 beats, intro vs graded)", () => {
   it("starts on the access playground and steps to the first graded beat", () => {
     const s = createArrays(SEED)
     expect(currentPartArrays(s)).toBe("play-access")
-    expect(ARRAYS_TOTAL_PARTS).toBe(10)
-    expect(ARRAYS_GATE).toBe(8)
+    expect(ARRAYS_TOTAL_PARTS).toBe(11)
+    expect(ARRAYS_GATE).toBe(7)
     expect(currentPartArrays(apply(s, { type: "continue" }))).toBe("jump")
   })
 
@@ -82,14 +80,22 @@ describe("Arrays — flow (10 beats, intro vs graded)", () => {
     expect(currentPartArrays(apply(teach, { type: "continue" }))).toBe("grow")
   })
 
+  it("grow advances to the non-graded average-cost summary, which completes the lesson", () => {
+    const grown = apply(solve(at("grow")), { type: "next" })
+    expect(currentPartArrays(grown)).toBe("grow-summary")
+    expect(partQuotaArrays(grown)).toBeNull() // intro
+    const done = apply(grown, { type: "continue" })
+    expect(done.completed).toBe(true)
+  })
+
   it("a graded beat ignores continue (advances via next, not continue)", () => {
     const s = at("jump")
     expect(apply(s, { type: "continue" })).toBe(s)
   })
 
-  it("shows n/8 only on graded beats", () => {
+  it("shows n/7 only on graded beats", () => {
     expect(partQuotaArrays(createArrays(SEED))).toBeNull() // play-access
-    expect(partQuotaArrays(at("jump"))).toEqual({ done: 0, total: 8 })
+    expect(partQuotaArrays(at("jump"))).toEqual({ done: 0, total: 7 })
     expect(partQuotaArrays(at("play-mutate"))).toBeNull()
   })
 })
@@ -199,20 +205,14 @@ describe("Arrays — realworld (spreadsheet shift count)", () => {
   })
 })
 
-describe("Arrays — grow synthesis (two graded checks)", () => {
-  it("step 0 grows+copies a full block; clears grow", () => {
+describe("Arrays: grow (pick the cleanest fix, single ask)", () => {
+  it("is a single graded ask whose answer is to double + copy; clears grow", () => {
     const s = at("grow")
     expect(s.question!.answer).toBe("grow")
+    expect(s.question!.options!.map((o) => o.id).sort()).toEqual(["grow", "growone", "inplace"])
     expect(s.question!.resize).toMatchObject({ resizes: true })
     expect(s.question!.resize!.size).toBe(s.question!.resize!.capacity) // full
     expect(solve(s).grow).toBe(1)
-  })
-
-  it("step 1 verdict is 'expensive' (it copied everything); clears growVerdict", () => {
-    const s = growStep1()
-    expect(s.step).toBe(1)
-    expect(s.question!.answer).toBe("expensive")
-    expect(solve(s).growVerdict).toBe(1)
   })
 
   it("the grow chip uses the locked house word, gloss in why only", () => {
@@ -221,15 +221,20 @@ describe("Arrays — grow synthesis (two graded checks)", () => {
     expect(q.cost.word).not.toBe("scales")
     expect(q.why).toMatch(/usually free, with the occasional big reshuffle/i)
   })
+
+  it("does not split into a second verdict step (next leaves grow)", () => {
+    const after = apply(solve(at("grow")), { type: "next" })
+    expect(currentPartArrays(after)).toBe("grow-summary")
+  })
 })
 
 describe("Arrays — gate, flame, completion", () => {
-  it("completes only after all 8 graded beats; combo spans every correct check", () => {
+  it("completes only after all 7 graded beats; combo spans every correct check", () => {
     const s = happyPath()
-    expect(gradedCleared(s)).toBe(8)
+    expect(gradedCleared(s)).toBe(7)
     expect(isCompleteArrays(s)).toBe(true)
     expect(s.completed).toBe(true)
-    expect(s.combo).toBe(8) // jump, scan, insert, delete, place, realworld, grow x2
+    expect(s.combo).toBe(7) // jump, scan, insert, delete, place, realworld, grow
   })
 
   it("a full fail breaks the combo; revealed/failed never count", () => {
@@ -250,8 +255,8 @@ describe("Arrays — gate, flame, completion", () => {
   })
 })
 
-describe("Arrays — resume / progress", () => {
-  it("squashes to the 8-skill counters map (plus attempts)", () => {
+describe("Arrays: resume / progress", () => {
+  it("squashes to the 7-skill counters map (plus attempts)", () => {
     const p = toProgressArrays(happyPath())
     expect(p.counters).toEqual({
       accessIndex: 1,
@@ -261,8 +266,7 @@ describe("Arrays — resume / progress", () => {
       placeCheapest: 1,
       realworld: 1,
       grow: 1,
-      growVerdict: 1,
-      attempts: 8,
+      attempts: 7,
     })
     expect(p.completed).toBe(true)
   })
@@ -279,7 +283,7 @@ describe("Arrays — resume / progress", () => {
     expect(hasProgressArrays(s)).toBe(true)
   })
 
-  it("migrates an old run: maps old counters, drops a5, unknown part restarts", () => {
+  it("migrates an old run: maps old counters, drops removed skills, unknown part restarts", () => {
     const migrated = resumeArrays(
       {
         counters: { a1: 1, a3: 1, a2: 1, a2Skin: 1, a4: 1, a5: 1, a6Grow: 1, a6Cheap: 1 },
@@ -295,9 +299,8 @@ describe("Arrays — resume / progress", () => {
     expect(migrated.realworld).toBe(1)
     expect(migrated.placeCheapest).toBe(1)
     expect(migrated.grow).toBe(1)
-    expect(migrated.growVerdict).toBe(1)
     expect(migrated.deleteCount).toBe(0) // new skill, re-earned
-    expect(gradedCleared(migrated)).toBe(7)
+    expect(gradedCleared(migrated)).toBe(6) // a6Cheap/growVerdict is no longer a skill
 
     const done = resumeArrays({ counters: {}, currentPart: "resize", completed: true }, SEED)
     expect(done.completed).toBe(true) // a finished old run stays finished
