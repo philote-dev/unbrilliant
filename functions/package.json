@@ -1,0 +1,25 @@
+{
+  "name": "functions",
+  "description": "Cloud Functions for unbrilliant (Poly AI seam)",
+  "private": true,
+  "main": "lib/index.js",
+  "engines": {
+    "node": "20"
+  },
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "serve": "npm run build && firebase emulators:start --only functions"
+  },
+  "dependencies": {
+    "firebase-functions": "^7.2.5",
+    "openai": "^6.45.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.1",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  }
+}
