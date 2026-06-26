@@ -25,3 +25,23 @@ describe("polyHealthCheck client", () => {
     expect(res).toEqual({ ok: true, model: "m", reply: "pong", uid: null })
   })
 })
+
+describe("requestHint client", () => {
+  beforeEach(() => mockCallable.mockReset())
+
+  it("calls the polyHint callable and returns its data", async () => {
+    const { requestHint } = await import("./polyClient")
+    const { httpsCallable } = await import("firebase/functions")
+    mockCallable.mockResolvedValue({ data: { hint: "a nudge" } })
+
+    const res = await requestHint({
+      stageId: "stacks-and-queues",
+      skill: "stackConstruct",
+      discipline: "stack",
+      learnerOrder: ["A", "B", "C"],
+    })
+
+    expect(res).toEqual({ hint: "a nudge" })
+    expect(vi.mocked(httpsCallable)).toHaveBeenCalledWith(expect.anything(), "polyHint")
+  })
+})
