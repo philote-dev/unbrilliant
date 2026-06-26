@@ -33,7 +33,6 @@ export function usePolyHint({
   const [state, setState] = useState<PolyHintState>({ loading: false, text: null })
   const countRef = useRef(0)
   const priorRef = useRef<string | undefined>(undefined)
-  const handledIdRef = useRef<number | null>(null)
   const skillRef = useRef(skill)
 
   // Reset the per-problem cap when the beat (skill) changes.
@@ -41,7 +40,6 @@ export function usePolyHint({
     skillRef.current = skill
     countRef.current = 0
     priorRef.current = undefined
-    handledIdRef.current = null
   }
 
   const attemptId = wrongAttempt?.id ?? null
@@ -51,8 +49,6 @@ export function usePolyHint({
       setState({ loading: false, text: null })
       return
     }
-    if (handledIdRef.current === wrongAttempt.id) return
-    handledIdRef.current = wrongAttempt.id
 
     if (countRef.current >= maxHints) {
       setState({ loading: false, text: null })
@@ -82,6 +78,8 @@ export function usePolyHint({
     return () => {
       cancelled = true
     }
+    // Fire once per new wrong attempt. stageId/skill/discipline/requestHint are
+    // read fresh inside and must NOT be deps, or a re-render would refetch.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attemptId])
 

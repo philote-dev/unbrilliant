@@ -88,4 +88,19 @@ describe("usePolyHint", () => {
     })
     await waitFor(() => expect(requestHint).toHaveBeenCalledTimes(3))
   })
+
+  it("falls back (loading false, text null) when requestHint rejects", async () => {
+    const requestHint = vi
+      .fn<(r: HintRequest) => Promise<HintResponse>>()
+      .mockRejectedValue(new Error("boom"))
+    const { result } = renderHook(() =>
+      usePolyHint({
+        ...baseProps,
+        wrongAttempt: { id: 1, learnerOrder: ["A", "B", "C"] },
+        requestHint,
+      }),
+    )
+    await waitFor(() => expect(result.current).toEqual({ loading: false, text: null }))
+    expect(requestHint).toHaveBeenCalledTimes(1)
+  })
 })

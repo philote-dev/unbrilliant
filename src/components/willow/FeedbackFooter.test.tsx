@@ -46,4 +46,22 @@ describe("FeedbackFooter aiHint slot", () => {
     renderFooter({ aiHint: { loading: false, text: null } })
     expect(screen.getByText("static nudge")).toBeInTheDocument()
   })
+
+  it("shows the thinking indicator on a fail while the aiHint is loading", () => {
+    renderFooter({
+      feedback: "fail",
+      hideFailHint: true,
+      aiHint: { loading: true, text: null },
+    })
+    expect(screen.getByText(/Poly is thinking/i)).toBeInTheDocument()
+  })
+
+  it("shows the AI hint text on a fail when present", () => {
+    renderFooter({
+      feedback: "fail",
+      hideFailHint: true,
+      aiHint: { loading: false, text: "an ai nudge" },
+    })
+    expect(screen.getByText("an ai nudge")).toBeInTheDocument()
+  })
 })
