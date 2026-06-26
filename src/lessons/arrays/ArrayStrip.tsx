@@ -284,9 +284,10 @@ function JumpOverlay({
   reduced: boolean
 }) {
   const { cell, circle } = marker
-  // The connector's far-end x springs toward the selected cell; the route `d` and
-  // the landing dot derive from it, so the whole path glides between cells.
-  const x = useMotionValue(circle.x)
+  // The far-end x starts ON the selected cell (so the route is already its final
+  // shape) and springs toward the cell on later re-selects, so the path glides
+  // smoothly between cells while the halo stays fixed.
+  const x = useMotionValue(cell.x)
   useEffect(() => {
     const controls = animate(x, cell.x, reduced ? { duration: 0 } : { type: "spring", stiffness: 240, damping: 28 })
     return () => controls.stop()
@@ -298,7 +299,8 @@ function JumpOverlay({
 
   return (
     <>
-      {/* the orthogonal connector: fixed at the halo, far end glides to the cell */}
+      {/* the orthogonal connector draws on from the halo to the cell (pathLength),
+          then glides its far end on later re-selects */}
       <motion.path
         d={d}
         fill="none"
@@ -306,9 +308,9 @@ function JumpOverlay({
         strokeWidth={3}
         strokeLinecap="round"
         strokeLinejoin="round"
-        initial={reduced ? false : { opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={reduced ? { duration: 0 } : { duration: 0.22 }}
+        initial={reduced ? false : { pathLength: 0, opacity: 1 }}
+        animate={{ pathLength: 1, opacity: 1 }}
+        transition={reduced ? { duration: 0 } : { duration: 0.5, ease: "easeInOut", delay: 0.08 }}
       />
       {/* soft outer halo (fixed) */}
       <motion.circle
@@ -332,15 +334,16 @@ function JumpOverlay({
         transition={haloIn}
         style={{ transformOrigin: `${circle.x}px ${circle.y}px` }}
       />
-      {/* the landing dot rides the connector's far end onto the cell */}
+      {/* the landing dot lands once the connector has drawn all the way in */}
       <motion.circle
         cx={x}
         cy={cell.y}
         r={4}
         fill={stroke}
-        initial={reduced ? false : { opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={reduced ? { duration: 0 } : { duration: 0.2, delay: 0.05 }}
+        initial={reduced ? false : { opacity: 0, scale: 0 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 600, damping: 18, delay: 0.56 }}
+        style={{ transformBox: "fill-box", transformOrigin: "center" }}
       />
     </>
   )
