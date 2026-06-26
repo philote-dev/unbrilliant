@@ -152,7 +152,7 @@ export function ArrayStrip(props: {
       className="mx-auto"
       style={{ width: ext.width * scale, height: ext.height * scale }}
     >
-      <div style={{ transform: `scale(${scale})`, transformOrigin: "top left", width: ext.width }}>
+      <div style={{ transform: `scale(${scale})`, transformOrigin: "top left", width: ext.width, height: ext.height }}>
         {read}
       </div>
     </div>
@@ -702,7 +702,7 @@ function PlaceStrip({
         {/* the line cursor: where the drop will land */}
         {caretIndex != null && (
           <motion.div
-            className="absolute top-0 z-10 w-[3px] rounded-full bg-lilac-strong"
+            className="pointer-events-none absolute top-0 z-10 w-[3px] rounded-full bg-lilac-strong"
             style={{ height: CELL }}
             initial={false}
             animate={{ x: caretIndex * CELL - 1.5 }}

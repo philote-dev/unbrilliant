@@ -90,10 +90,10 @@ export function BrowserShowpiece({
           <span className="truncate text-xs font-medium text-neutral-800">
             {currentPage?.title ?? "New tab"}
           </span>
-          <X className="size-3 shrink-0 text-neutral-400" strokeWidth={2.5} aria-hidden />
+          <X className="pointer-events-none size-3 shrink-0 text-neutral-400" strokeWidth={2.5} aria-hidden />
         </div>
         <span
-          className="flex size-6 items-center justify-center rounded-md text-neutral-500"
+          className="pointer-events-none flex size-6 items-center justify-center rounded-md text-neutral-500"
           aria-hidden
         >
           <Plus className="size-4" strokeWidth={2.5} />
@@ -103,7 +103,7 @@ export function BrowserShowpiece({
       {/* Toolbar: Back / Forward / Reload + address bar. Inert (the learner answers
           by picking the page that leaves, not by pressing Back). */}
       <div className="flex items-center gap-2 bg-white px-3 py-2">
-        <div className="flex items-center gap-1 text-neutral-600" aria-hidden>
+        <div className="pointer-events-none flex items-center gap-1 text-neutral-600" aria-hidden>
           <motion.span
             data-testid="browser-back-btn"
             className="flex size-7 items-center justify-center rounded-full text-[#1a73e8]"

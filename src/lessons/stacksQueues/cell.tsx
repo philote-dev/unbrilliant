@@ -89,12 +89,12 @@ export function StructCell({
     >
       {label}
       {state === "correct" && (
-        <span className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-success text-white">
+        <span className="pointer-events-none absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-success text-white">
           <Check className="size-3" strokeWidth={3} />
         </span>
       )}
       {state === "fail" && (
-        <span className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-danger text-white">
+        <span className="pointer-events-none absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-danger text-white">
           <X className="size-3" strokeWidth={3} />
         </span>
       )}

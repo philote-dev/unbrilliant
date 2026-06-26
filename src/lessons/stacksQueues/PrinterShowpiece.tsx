@@ -258,12 +258,12 @@ function DocSheet({
         <DocumentSprite label={cell.label} accent={accent} />
       </span>
       {state === "correct" && (
-        <span className="absolute -right-1.5 -top-1.5 flex size-4 items-center justify-center rounded-full bg-emerald-500 text-white">
+        <span className="pointer-events-none absolute -right-1.5 -top-1.5 flex size-4 items-center justify-center rounded-full bg-emerald-500 text-white">
           <Check className="size-2.5" strokeWidth={3} />
         </span>
       )}
       {state === "fail" && (
-        <span className="absolute -right-1.5 -top-1.5 flex size-4 items-center justify-center rounded-full bg-red-500 text-white">
+        <span className="pointer-events-none absolute -right-1.5 -top-1.5 flex size-4 items-center justify-center rounded-full bg-red-500 text-white">
           <X className="size-2.5" strokeWidth={3} />
         </span>
       )}

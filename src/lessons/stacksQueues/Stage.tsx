@@ -88,21 +88,73 @@ export function StacksQueuesStage({
   return <PredictPart state={state} dispatch={dispatch} />
 }
 
-/** Pick the container that matches the discipline (the shape teaches the rule). */
+/**
+ * Pick the container that matches the discipline (the shape teaches the rule),
+ * and on desktop enlarge it without letting it crash into the rest of the beat.
+ *
+ * A CSS `scale` keeps the deterministic px math (CELL_PX, INNER_H/INNER_W,
+ * drop-zone rects) in its original coordinate space, and drop hit-testing stays
+ * rect-based (getBoundingClientRect), so drag still lands. The catch is that
+ * `transform: scale` does NOT reserve layout space: an `origin-center` scale
+ * bled ~half its growth past every edge and painted over the neighbours (e.g.
+ * the construct "tap the top card to take it back" hint got trapped under the
+ * bin). So we anchor the scale to the top-left and reserve the scaled box on an
+ * outer wrapper, the same pattern the arrays and linked-list figures use. The
+ * zoom is a responsive custom property (1 below `lg`, 1.2 from `lg`) so the
+ * reserved box and the transform always agree.
+ */
 function Container({
   discipline,
   className,
   ...props
 }: { discipline: Discipline } & Parameters<typeof StackBin>[0]) {
-  // On desktop the boxed beats sit in a roomy stage column, so enlarge the figure
-  // with a transform. A CSS scale keeps the deterministic px math (CELL_PX,
-  // INNER_H/INNER_W, drop-zone rects) in its original coordinate space, and drop
-  // hit-testing is rect-based (getBoundingClientRect), so drag still lands.
-  const scaled = cn("origin-center lg:scale-[1.2]", className)
-  return discipline === "stack" ? (
-    <StackBin className={scaled} {...props} />
-  ) : (
-    <QueueTube className={scaled} {...props} />
+  const figureRef = useRef<HTMLDivElement>(null)
+  const [natural, setNatural] = useState<{ w: number; h: number } | null>(null)
+  useEffect(() => {
+    const el = figureRef.current
+    if (!el) return
+    const measure = () => setNatural({ w: el.offsetWidth, h: el.offsetHeight })
+    measure()
+    let ro: ResizeObserver | undefined
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(measure)
+      ro.observe(el)
+    } else {
+      window.addEventListener("resize", measure)
+    }
+    return () => {
+      ro?.disconnect()
+      window.removeEventListener("resize", measure)
+    }
+  }, [])
+
+  return (
+    <div
+      className="[--sq-zoom:1] lg:[--sq-zoom:1.2]"
+      style={
+        natural
+          ? {
+              width: `calc(${natural.w}px * var(--sq-zoom))`,
+              height: `calc(${natural.h}px * var(--sq-zoom))`,
+            }
+          : undefined
+      }
+    >
+      <div
+        ref={figureRef}
+        style={{
+          width: "fit-content",
+          transformOrigin: "top left",
+          transform: "scale(var(--sq-zoom))",
+        }}
+      >
+        {discipline === "stack" ? (
+          <StackBin className={className} {...props} />
+        ) : (
+          <QueueTube className={className} {...props} />
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -817,16 +869,18 @@ function ConstructPart({
           )}
         </div>
 
-        <FeedbackFooter
-          feedback={state.feedback}
-          selected={null}
-          showWhy={state.showWhy}
-          copy={q}
-          dispatch={dispatch}
-          canCheck={ready}
-          hideFailHint
-          aiHint={aiHint}
-        />
+        <div className={dragging ? "pointer-events-none" : undefined}>
+          <FeedbackFooter
+            feedback={state.feedback}
+            selected={null}
+            showWhy={state.showWhy}
+            copy={q}
+            dispatch={dispatch}
+            canCheck={ready}
+            hideFailHint
+            aiHint={aiHint}
+          />
+        </div>
       </StageCenter>
 
       {import.meta.env.DEV && work.loose.length > 0 && !terminal && (

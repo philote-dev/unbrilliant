@@ -175,7 +175,7 @@ function PlayAccessPart({ dispatch }: { dispatch: Dispatch<LessonAction> }) {
         </h2>
       </div>
 
-      <div className="flex flex-1 flex-col items-center justify-center gap-9 py-6">
+      <div className="flex flex-1 flex-col items-center justify-center gap-9 pb-6 pt-36">
         <ArrayStrip
           mode="read"
           cells={PLAY_CELLS}
@@ -245,7 +245,7 @@ function AccessPart({
 
       {/* extra top room so the jump halo (which floats well above the row) never
           rides up into the prompt */}
-      <div className="flex flex-1 flex-col items-center justify-center gap-4 pb-5 pt-24">
+      <div className="flex flex-1 flex-col items-center justify-center gap-4 pb-5 pt-28">
         <ArrayStrip
           mode="read"
           cells={q.cells}
@@ -544,7 +544,7 @@ function MutateSlotRow({
       {/* the caret marks the seam where the next Insert opens its gap. */}
       {caretAt != null && (
         <motion.div
-          className="absolute top-0 z-10 w-[3px] rounded-full bg-lilac-strong"
+          className="pointer-events-none absolute top-0 z-10 w-[3px] rounded-full bg-lilac-strong"
           style={{ height: CELL }}
           initial={false}
           animate={{ x: caretAt * CELL - 1.5 }}
