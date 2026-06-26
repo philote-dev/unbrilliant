@@ -1,4 +1,4 @@
-import { useEffect, type ReactElement } from "react"
+import { useEffect } from "react"
 import {
   AnimatePresence,
   animate,
@@ -11,6 +11,7 @@ import {
 import { cn } from "@/lib/utils"
 import { RewireSource } from "@/components/rewire/RewireSource"
 import { RewireTarget } from "@/components/rewire/RewireTarget"
+import { useRewireContext } from "@/components/rewire/RewireContext"
 import type { ShiftFrame } from "@/features/lesson/arraysEngine"
 import {
   CELL,
@@ -124,6 +125,7 @@ export function ArrayStrip(props: {
         selectedGap={props.selectedGap ?? null}
         correctGap={props.correctGap}
         looseLabel={props.looseLabel ?? "X"}
+        reduced={isReduced}
       />
     )
   }
@@ -635,69 +637,111 @@ function RippleStrip({
 
 /* --------------------------------- place mode ------------------------------- */
 
-/** A thin drop zone that sits in a gap of the row. Where the loose cell lands
- * decides how much ripples, so each gap is a real, distinct choice. */
-function Gap({ id, selected }: { id: string; selected: boolean }) {
-  return (
-    <RewireTarget
-      id={id}
-      label={`the gap at ${id.replace("gap-", "index ")}`}
-      className={cn(
-        "box-border size-auto min-h-0 min-w-0 self-stretch rounded-md border-0 px-0 py-0",
-        selected ? "w-7 bg-lilac-soft" : "w-2.5",
-      )}
-    >
-      <span aria-hidden className="block size-full" style={{ minHeight: CELL }} />
-    </RewireTarget>
-  )
-}
-
+/**
+ * The place figure mirrors the "make room, close gaps" playground: contiguous
+ * cells over a fixed address ruler, with a loose cell the learner drags in.
+ * Invisible gap hit-zones tile the row (one per insertion point 0..n) so the
+ * shared rewire gesture (drag-follow, keyboard, tap) and the tracer hooks keep
+ * working; a single lilac caret marks the gap the drag is hovering (or the chosen
+ * gap once dropped), the same "line cursor" the gaps playground uses. There are
+ * no visible gap boxes and no status dot, just the row, the caret, and the card.
+ */
 function PlaceStrip({
   cells,
   selectedGap,
   correctGap,
   looseLabel,
+  reduced,
 }: {
   cells: string[]
   selectedGap: string | null
   correctGap?: string
   looseLabel: string
+  reduced: boolean
 }) {
+  const { hoveredTarget } = useRewireContext()
   const n = cells.length
-  // The row, with a gap drop target before every cell and one after the last.
-  const slots: ReactElement[] = []
-  for (let i = 0; i <= n; i++) {
-    slots.push(<Gap key={`gap-${i}`} id={`gap-${i}`} selected={selectedGap === `gap-${i}`} />)
-    if (i < n) {
-      slots.push(
-        <div
-          key={`cell-${i}`}
-          className="box-border flex items-center justify-center rounded-lg border-2 border-border bg-card text-lg font-bold text-foreground"
-          style={{ width: CELL, height: CELL }}
-        >
-          {cells[i]}
-        </div>,
-      )
-    }
-  }
+  const width = n * CELL
+  // The caret sits on the gap the drag is hovering, or the chosen gap once dropped.
+  const caretGap = hoveredTarget ?? selectedGap
+  const caretIndex = caretGap?.startsWith("gap-") ? Number(caretGap.slice(4)) : null
 
   return (
-    <div className="flex flex-col items-center gap-6">
-      <div className="flex items-stretch">{slots}</div>
+    <div className="flex flex-col items-center gap-7">
+      <div className="relative" style={{ width, height: CELL + RULER_GAP + RULER_H }}>
+        {/* the contiguous cell row (no gaps, no dots) */}
+        <div className="absolute inset-x-0 top-0 flex" style={{ height: CELL }}>
+          {cells.map((c, i) => (
+            <div
+              key={i}
+              className="box-border flex items-center justify-center border-y-2 border-l-2 border-border bg-card text-lg font-bold text-foreground first:rounded-l-xl last:rounded-r-xl last:border-r-2"
+              style={{ width: CELL, height: CELL }}
+            >
+              {c}
+            </div>
+          ))}
+        </div>
 
+        {/* the fixed address ruler */}
+        <div
+          className="absolute inset-x-0 flex"
+          style={{ top: CELL + RULER_GAP, height: RULER_H }}
+          aria-hidden
+        >
+          {cells.map((_, i) => (
+            <span
+              key={i}
+              className="flex items-center justify-center text-xs tabular-nums text-faint"
+              style={{ width: CELL }}
+            >
+              {i}
+            </span>
+          ))}
+        </div>
+
+        {/* the line cursor: where the drop will land */}
+        {caretIndex != null && (
+          <motion.div
+            className="absolute top-0 z-10 w-[3px] rounded-full bg-lilac-strong"
+            style={{ height: CELL }}
+            initial={false}
+            animate={{ x: caretIndex * CELL - 1.5 }}
+            transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 420, damping: 32 }}
+            aria-hidden
+          />
+        )}
+
+        {/* invisible gap hit-zones tiling the row (drag hit-test + keyboard + tracer) */}
+        {Array.from({ length: n + 1 }).map((_, i) => (
+          <div
+            key={i}
+            className="absolute top-0"
+            style={{ left: i * CELL - CELL / 2, width: CELL, height: CELL }}
+          >
+            <RewireTarget id={`gap-${i}`} label={`index ${i}`} bare className="size-full" />
+          </div>
+        ))}
+      </div>
+
+      {/* the loose cell to drag in: a plain card, no status dot */}
       <div className="flex flex-col items-center gap-2">
         <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-          Drag into a gap
+          Drag {looseLabel} into the row
         </span>
-        <RewireSource id="X" label={`cell ${looseLabel}`} className="box-border size-auto rounded-xl px-0 py-0">
-          {/* dev-only tracer hook: a single write whose correct target is the
+        <RewireSource
+          id="X"
+          label={`cell ${looseLabel}`}
+          bare
+          className="rounded-xl border-2 border-border bg-card text-lg font-bold text-foreground hover:border-lilac-strong/60"
+        >
+          {/* dev-only tracer hook: the single write whose correct target is the
               cheapest gap, so the e2e rewireInOrder helper drives this beat. */}
           {import.meta.env.DEV && correctGap && (
             <span className="sr-only" data-write-order={0} data-rewire-correct-target={correctGap} />
           )}
           <span
             style={{ width: CELL, height: CELL }}
-            className="flex items-center justify-center text-lg font-bold"
+            className="flex items-center justify-center"
           >
             {looseLabel}
           </span>

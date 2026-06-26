@@ -11,7 +11,7 @@ import type { RewireTargetProps } from "./types"
  * registered-but-wrong target is the learner's real choice, not a miss.
  * Always renders a stable `data-rewire-target` hook for the E2E tracer.
  */
-export function RewireTarget({ id, label, children, className }: RewireTargetProps) {
+export function RewireTarget({ id, label, children, className, bare }: RewireTargetProps) {
   const { registerTarget, isLegal, armedSource, hoveredTarget, chooseTarget, setHovered } =
     useRewireContext()
   const ref = useRef<HTMLButtonElement>(null)
@@ -45,20 +45,27 @@ export function RewireTarget({ id, label, children, className }: RewireTargetPro
         if (hovered) setHovered(null)
       }}
       className={cn(
-        "relative inline-flex min-h-11 min-w-11 touch-none select-none items-center justify-center rounded-2xl border-2 px-4 py-3 text-sm font-medium text-foreground outline-none transition-colors",
-        "focus-visible:ring-2 focus-visible:ring-lilac-strong/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-        showLegal ? "border-dashed border-lilac-strong bg-lilac-soft" : "border-border bg-card",
-        hovered && "border-solid ring-4 ring-lilac-strong/25",
+        "relative touch-none select-none outline-none transition-colors",
+        bare
+          ? "" // a transparent hit zone; the consumer draws its own affordance
+          : cn(
+              "inline-flex min-h-11 min-w-11 items-center justify-center rounded-2xl border-2 px-4 py-3 text-sm font-medium text-foreground",
+              "focus-visible:ring-2 focus-visible:ring-lilac-strong/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+              showLegal ? "border-dashed border-lilac-strong bg-lilac-soft" : "border-border bg-card",
+              hovered && "border-solid ring-4 ring-lilac-strong/25",
+            ),
         className,
       )}
     >
-      {showLegal && (
+      {!bare && showLegal && (
         <span
           aria-hidden
           className="absolute right-1.5 top-1.5 size-2 rounded-full bg-lilac-strong"
         />
       )}
-      {children ?? label}
+      {/* a bare target is an invisible hit zone: its `label` is the accessible
+          name only (via aria-label), never visible text. */}
+      {bare ? children : (children ?? label)}
     </button>
   )
 }

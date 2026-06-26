@@ -715,11 +715,42 @@ function PlaceCheapestPart({
   state: ArraysState
   dispatch: Dispatch<LessonAction>
 }) {
+  const prefersReduced = useReducedMotion()
+  const reduced = prefersReduced ?? false
   const q = state.question
-  if (!q || !q.classify) return null
   const { feedback, selected, showWhy } = state
   const reveal = feedback === "correct" || (feedback === "fail" && showWhy)
+
+  // The gap the learner dropped on drives the reveal wave: inserting there shifts
+  // the cells from that gap on, so the end ripples nothing (free) and a middle
+  // drop visibly pushes everything after it (the cost of their choice).
+  const chosen = selected?.startsWith("gap-") ? Number(selected.slice(4)) : null
+  const op =
+    chosen != null ? { kind: "insert" as const, index: chosen, inserted: "X" } : null
+  const frames = reveal && op && q ? shiftFrames(q.cells, op) : []
+  const last = Math.max(0, frames.length - 1)
+  const [frameIndex, setFrameIndex] = useState(0)
+
+  useEffect(() => {
+    if (reduced || !reveal || last <= 0) {
+      setFrameIndex(0)
+      return
+    }
+    setFrameIndex(0)
+    let i = 0
+    const id = window.setInterval(() => {
+      i += 1
+      setFrameIndex(i)
+      if (i >= last) window.clearInterval(id)
+    }, WAVE_FRAME_MS)
+    return () => window.clearInterval(id)
+  }, [reveal, last, reduced])
+
+  if (!q || !q.classify) return null
   const { n, midK } = q.classify
+  const moved = chosen != null ? Math.max(0, n - chosen) : 0
+  const shownIndex = reduced ? last : Math.min(frameIndex, last)
+  const currentFrame = frames.length > 0 ? frames[shownIndex] : undefined
 
   return (
     <StageCenter>
@@ -727,14 +758,31 @@ function PlaceCheapestPart({
       <Quota state={state} />
 
       <div className="flex flex-1 flex-col justify-center py-3">
-        <RewireSurface
-          legalTargets={gapTargetsArrays(state)}
-          onRewire={(from, to) => dispatch({ type: "rewire", from, to })}
-          label="Drop the cell into the gap where it costs the least"
-          className="flex flex-col items-center"
-        >
-          <ArrayStrip mode="place" cells={q.cells} selectedGap={selected} correctGap={q.answer} looseLabel="X" />
-        </RewireSurface>
+        {reveal && currentFrame ? (
+          // the drop plays the same shift wave the insert/delete beats use
+          <div className="flex flex-col items-center gap-3">
+            <ArrayStrip
+              mode="ripple"
+              frame={currentFrame}
+              caption={frames[last]?.caption}
+              opIndex={chosen ?? -1}
+            />
+            <CostReadout
+              word={moved === 0 ? "free" : "scales"}
+              count={moved}
+              unit={moved === 1 ? "cell moved" : "cells moved"}
+            />
+          </div>
+        ) : (
+          <RewireSurface
+            legalTargets={gapTargetsArrays(state)}
+            onRewire={(from, to) => dispatch({ type: "rewire", from, to })}
+            label="Drag the cell into the row where it costs the least"
+            className="flex flex-col items-center"
+          >
+            <ArrayStrip mode="place" cells={q.cells} selectedGap={selected} correctGap={q.answer} looseLabel="X" />
+          </RewireSurface>
+        )}
 
         {reveal && (
           <div className="mt-5 flex flex-wrap items-center justify-center gap-2">

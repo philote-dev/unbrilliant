@@ -101,7 +101,7 @@ describe("Arrays stage: place-cheapest commits via tap and keyboard", () => {
 
     expect(screen.getByRole("button", { name: "Check" })).toBeDisabled()
     fireEvent.click(screen.getByLabelText("cell X")) // arm the loose cell
-    fireEvent.click(screen.getByLabelText(new RegExp(`the gap at index ${n}\\b`))) // drop on the end
+    fireEvent.click(screen.getByLabelText(new RegExp(`^index ${n}\\b`))) // drop on the end gap
     fireEvent.click(screen.getByRole("button", { name: "Check" }))
 
     expect(screen.getByRole("button", { name: "Continue" })).toBeInTheDocument()

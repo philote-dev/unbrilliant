@@ -17,7 +17,7 @@ import type { RewireSourceProps } from "./types"
  * Reduced motion opts out of the transform entirely, leaving tap/keyboard as the
  * affordance. The drop geometry and emitted intent are unchanged either way.
  */
-export function RewireSource({ id, label, children, className }: RewireSourceProps) {
+export function RewireSource({ id, label, children, className, bare }: RewireSourceProps) {
   const {
     registerSource,
     armedSource,
@@ -91,22 +91,26 @@ export function RewireSource({ id, label, children, className }: RewireSourcePro
         tapSource(id)
       }}
       className={cn(
-        "inline-flex min-h-11 touch-none select-none items-center gap-2 rounded-full border-2 px-4 py-2 text-sm font-semibold text-foreground outline-none transition-colors",
+        "inline-flex min-h-11 touch-none select-none items-center justify-center outline-none transition-colors",
         !reduce && "cursor-grab active:cursor-grabbing",
         "focus-visible:ring-2 focus-visible:ring-lilac-strong/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-        armed
-          ? "border-lilac-strong bg-lilac-soft ring-4 ring-lilac-strong/15"
-          : "border-border bg-card hover:border-lilac-strong/45",
+        bare
+          ? armed && "ring-2 ring-lilac-strong/60"
+          : cn(
+              "gap-2 rounded-full border-2 px-4 py-2 text-sm font-semibold text-foreground",
+              armed
+                ? "border-lilac-strong bg-lilac-soft ring-4 ring-lilac-strong/15"
+                : "border-border bg-card hover:border-lilac-strong/45",
+            ),
         className,
       )}
     >
-      <span
-        aria-hidden
-        className={cn(
-          "size-2.5 rounded-full",
-          armed ? "bg-lilac-strong" : "bg-faint",
-        )}
-      />
+      {!bare && (
+        <span
+          aria-hidden
+          className={cn("size-2.5 rounded-full", armed ? "bg-lilac-strong" : "bg-faint")}
+        />
+      )}
       {children ?? label}
     </motion.button>
   )

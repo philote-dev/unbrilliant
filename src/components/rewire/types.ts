@@ -28,6 +28,9 @@ export interface RewireSourceProps {
   label: string
   children?: ReactNode
   className?: string
+  /** Drop the default pill chrome + status dot so the consumer styles it fully
+   * (the gesture, focus ring, and drag-follow are kept). */
+  bare?: boolean
 }
 
 export interface RewireTargetProps {
@@ -37,4 +40,7 @@ export interface RewireTargetProps {
   label: string
   children?: ReactNode
   className?: string
+  /** Drop the default visible affordance so the consumer draws its own (e.g. a
+   * caret); stays a transparent, sized hit zone for drag/keyboard/tap + tracer. */
+  bare?: boolean
 }
