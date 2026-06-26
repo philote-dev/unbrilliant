@@ -1,4 +1,5 @@
-import { useState, type Dispatch, type ReactNode } from "react"
+import { useEffect, useRef, useState, type Dispatch, type ReactNode } from "react"
+import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -17,7 +18,8 @@ import {
 } from "@/features/lesson/arraysEngine"
 import { StageSplit, StageCenter } from "@/components/willow/lesson/StageLayout"
 import { ArrayStrip, type Overlay } from "./ArrayStrip"
-import { ArrayRow } from "./ArrayRow"
+import { CELL, RULER_GAP, RULER_H } from "./arrayStripLayout"
+import { applyDelete, applyInsert, freeLabel, type PlayCell } from "./playMutate"
 import { CapacityFrame } from "./CapacityFrame"
 import { SpreadsheetInsert } from "./SpreadsheetInsert"
 
@@ -381,21 +383,49 @@ function ScanPart({
 
 /* ------------------------------ play: mutation ----------------------------- */
 
-const MUTATE_POOL = ["A", "B", "C", "D", "E", "F", "G", "H"]
+// A pool of distinct labels (each cell also gets a stable numeric id), so a cell
+// can be deleted and a later insert reuses the freed label without key clashes.
+// Sized so the widest row (every label in use) still fits a phone at CELL width.
+const MUTATE_POOL = ["A", "B", "C", "D", "E", "F", "G"]
+const MUTATE_START = ["A", "B", "C", "D"]
+const MUTATE_SPRING = { type: "spring", stiffness: 420, damping: 32 } as const
 
 function PlayMutatePart({ dispatch }: { dispatch: Dispatch<LessonAction> }) {
-  const [cells, setCells] = useState(["A", "B", "C", "D"])
+  const prefersReduced = useReducedMotion()
+  const reduced = prefersReduced ?? false
+
+  const [cells, setCells] = useState<PlayCell[]>(() =>
+    MUTATE_START.map((label, id) => ({ id, label })),
+  )
   const [k, setK] = useState(2)
+  const [litIds, setLitIds] = useState<Set<number>>(() => new Set())
+  const nextId = useRef(MUTATE_START.length)
+
   const full = cells.length >= MUTATE_POOL.length
   const at = Math.min(k, cells.length)
 
+  // The cells that just slid glow briefly so the shift reads as directional; the
+  // glow fades on its own. Reduced motion never lights up, so it leaves no timer.
+  useEffect(() => {
+    if (litIds.size === 0) return
+    const timer = setTimeout(() => setLitIds(new Set()), 700)
+    return () => clearTimeout(timer)
+  }, [litIds])
+
   const insert = () => {
     if (full) return
-    const free = MUTATE_POOL.find((l) => !cells.includes(l))
-    if (!free) return
-    setCells((prev) => [...prev.slice(0, at), free, ...prev.slice(at)])
+    const label = freeLabel(cells, MUTATE_POOL)
+    if (!label) return
+    const cell: PlayCell = { id: nextId.current++, label }
+    const next = applyInsert(cells, at, cell)
+    setCells(next.cells)
+    if (!reduced) setLitIds(new Set([...next.movingIds, cell.id]))
   }
-  const remove = (i: number) => setCells((prev) => prev.filter((_, j) => j !== i))
+  const remove = (i: number) => {
+    const next = applyDelete(cells, i)
+    setCells(next.cells)
+    if (!reduced) setLitIds(next.movingIds)
+  }
 
   return (
     <StageCenter maxWidthClass="max-w-xl">
@@ -407,7 +437,13 @@ function PlayMutatePart({ dispatch }: { dispatch: Dispatch<LessonAction> }) {
       </div>
 
       <div className="flex flex-1 flex-col items-center justify-center gap-6 py-6">
-        <ArrayRow cells={cells} onTap={remove} />
+        <MutateSlotRow
+          cells={cells}
+          caretAt={full ? null : at}
+          litIds={litIds}
+          onDelete={remove}
+          reduced={reduced}
+        />
         <div className="flex items-center gap-2">
           <span className="text-xs font-medium text-muted-foreground">Insert at index</span>
           <div className="flex items-center gap-1">
@@ -448,6 +484,102 @@ function PlayMutatePart({ dispatch }: { dispatch: Dispatch<LessonAction> }) {
         Continue
       </Button>
     </StageCenter>
+  )
+}
+
+/**
+ * The free-play row, drawn by ABSOLUTE SLOT so the shift is directional and
+ * left-anchored: every cell is a tap-to-delete button placed at x = slot * CELL,
+ * springing to its new slot. Cells before the change keep their x (no motion);
+ * only the tail slides, then the inserted cell fades into the opened gap. The
+ * address ruler stays fixed beneath, so a shifted cell visibly lands on a new
+ * index. Reduced motion snaps to the final arrangement with no slide.
+ */
+function MutateSlotRow({
+  cells,
+  caretAt,
+  litIds,
+  onDelete,
+  reduced,
+}: {
+  cells: PlayCell[]
+  /** The index the next Insert opens its gap at, or null when the row is full. */
+  caretAt: number | null
+  /** Ids of the cells to glow as "just shifted" (plus the freshly inserted one). */
+  litIds: Set<number>
+  onDelete: (index: number) => void
+  reduced: boolean
+}) {
+  const n = cells.length
+
+  return (
+    <div
+      className="relative self-start"
+      style={{ width: n * CELL, height: CELL + RULER_GAP + RULER_H }}
+    >
+      {/* the fixed address ruler: indices hold still while cells slide between
+          them, so a shifted cell is seen to take a new index. */}
+      <div
+        className="absolute inset-x-0 flex"
+        style={{ top: CELL + RULER_GAP, height: RULER_H }}
+        aria-hidden
+      >
+        {Array.from({ length: n }).map((_, i) => (
+          <span
+            key={i}
+            className="flex items-center justify-center text-xs tabular-nums text-faint"
+            style={{ width: CELL }}
+          >
+            {i}
+          </span>
+        ))}
+      </div>
+
+      {/* the caret marks the seam where the next Insert opens its gap. */}
+      {caretAt != null && (
+        <motion.div
+          className="absolute top-0 z-10 w-[3px] rounded-full bg-lilac-strong"
+          style={{ height: CELL }}
+          initial={false}
+          animate={{ x: caretAt * CELL - 1.5 }}
+          transition={reduced ? { duration: 0 } : MUTATE_SPRING}
+          aria-hidden
+        />
+      )}
+
+      {/* the value cells: each at x = slot * CELL, springing to its new slot. */}
+      <AnimatePresence initial={false}>
+        {cells.map((c, i) => (
+          <motion.button
+            key={c.id}
+            type="button"
+            data-testid="play-cell"
+            onClick={() => onDelete(i)}
+            aria-label={`Delete value ${c.label} at index ${i}`}
+            className={cn(
+              "absolute left-0 top-0 box-border flex items-center justify-center rounded-xl border-2 text-lg font-bold text-foreground outline-none transition-colors",
+              "cursor-pointer hover:border-lilac-strong hover:bg-lilac-soft focus-visible:z-20 focus-visible:ring-2 focus-visible:ring-lilac-strong/60",
+              litIds.has(c.id) ? "border-lilac-strong bg-lilac-soft" : "border-border bg-card",
+            )}
+            style={{ width: CELL, height: CELL }}
+            initial={reduced ? false : { opacity: 0, scale: 0.6, x: i * CELL }}
+            animate={{ opacity: 1, scale: 1, x: i * CELL }}
+            exit={reduced ? { opacity: 0, transition: { duration: 0 } } : { opacity: 0, scale: 0.5 }}
+            transition={
+              reduced
+                ? { duration: 0 }
+                : {
+                    x: MUTATE_SPRING,
+                    opacity: { duration: 0.2, delay: 0.18 },
+                    scale: { ...MUTATE_SPRING, delay: 0.18 },
+                  }
+            }
+          >
+            {c.label}
+          </motion.button>
+        ))}
+      </AnimatePresence>
+    </div>
   )
 }
 

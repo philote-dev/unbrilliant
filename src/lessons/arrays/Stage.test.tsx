@@ -1,6 +1,6 @@
 import { useReducer } from "react"
 import { describe, it, expect, beforeAll } from "vitest"
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 
 import {
   arraysReducer,
@@ -118,6 +118,37 @@ describe("Arrays stage — place-cheapest commits via tap and keyboard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Check" }))
 
     expect(screen.getByRole("button", { name: "Continue" })).toBeInTheDocument()
+  })
+})
+
+describe("Arrays stage — insert & delete playground (directional, left-anchored)", () => {
+  // The row renders by absolute slot, so DOM order matches index order: the
+  // logical outcome (new value at index k, prior cells in their original order)
+  // is read straight off the rendered cell order.
+  const playCells = () => screen.getAllByTestId("play-cell").map((el) => el.textContent)
+
+  it("inserts the new value at the chosen index, keeping the prior cells in order", () => {
+    render(<Harness initial={at("play-mutate")} />)
+    expect(playCells()).toEqual(["A", "B", "C", "D"])
+
+    // the default insert index is 2: the new value lands at index 2 while the
+    // cells before it (A, B) stay put and the tail (C, D) keeps its order.
+    fireEvent.click(screen.getByRole("button", { name: "Insert" }))
+    expect(playCells()).toEqual(["A", "B", "E", "C", "D"])
+  })
+
+  it("inserts at the front when the index is lowered to 0", () => {
+    render(<Harness initial={at("play-mutate")} />)
+    fireEvent.click(screen.getByRole("button", { name: "Lower the insert index" }))
+    fireEvent.click(screen.getByRole("button", { name: "Lower the insert index" }))
+    fireEvent.click(screen.getByRole("button", { name: "Insert" }))
+    expect(playCells()).toEqual(["E", "A", "B", "C", "D"])
+  })
+
+  it("deletes the tapped cell and closes the gap, keeping the rest in order", async () => {
+    render(<Harness initial={at("play-mutate")} />)
+    fireEvent.click(screen.getByRole("button", { name: "Delete value B at index 1" }))
+    await waitFor(() => expect(playCells()).toEqual(["A", "C", "D"]))
   })
 })
 
