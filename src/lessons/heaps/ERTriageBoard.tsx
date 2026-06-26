@@ -141,8 +141,11 @@ export function ERTriageBoard({
                 data-lit={on ? "1" : undefined}
                 data-lifted={lifted(node.i) ? "1" : undefined}
                 aria-hidden
-                animate={{ y: lifted(node.i) && !reduced ? -7 : 0 }}
-                transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 360, damping: 24 }}
+                animate={{
+                  y: lifted(node.i) && !reduced ? -11 : 0,
+                  scale: lifted(node.i) && !reduced ? 1.05 : 1,
+                }}
+                transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 360, damping: 22 }}
                 className={cn(
                   "absolute flex items-stretch overflow-hidden rounded-lg border bg-white/[0.04] shadow-[0_2px_10px_-4px_rgba(0,0,0,0.6)] backdrop-blur-sm",
                   on ? "border-sky-300 ring-2 ring-sky-300/30" : "border-white/10",
@@ -223,8 +226,11 @@ export function ERTriageBoard({
                   data-lit={on ? "1" : undefined}
                   data-lifted={lifted(i) ? "1" : undefined}
                   aria-hidden
-                  animate={{ y: lifted(i) && !reduced ? -7 : 0 }}
-                  transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 360, damping: 24 }}
+                  animate={{
+                    y: lifted(i) && !reduced ? -11 : 0,
+                    scale: lifted(i) && !reduced ? 1.07 : 1,
+                  }}
+                  transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 360, damping: 22 }}
                   className={cn(
                     "relative flex flex-col items-center justify-center rounded-lg border font-bold text-white transition-colors",
                     on ? "border-sky-300 bg-sky-400/10" : "border-white/10 bg-white/[0.04]",

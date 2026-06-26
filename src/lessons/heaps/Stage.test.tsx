@@ -58,15 +58,15 @@ const triageCellAt = (slot: number) =>
 describe("teach-extract intro frame (compact-array invariant, ER skin)", () => {
   it("prepends the 'top leaves, last fills it' frame on the triage board, then steps into the sift", () => {
     render(<HeapsStage state={stateAt("teach-extract")} dispatch={vi.fn()} />)
-    // intro: the original 5-patient board [9,7,6,3,2] with the why-caption.
+    // intro: the original 5-patient board [90,80,70,40,30] with the why-caption.
     expect(triageCells()).toHaveLength(5)
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Take the top out (9). To keep the array packed with no gaps, the last item (2) moves up to fill the root, then it sinks.",
+      "Take the top out (90). To keep the array packed with no gaps, the last item (30) moves up to fill the root, then it sinks.",
     )
-    // Next: the last patient (2) has filled the top spot, the board packs to 4 slots.
+    // Next: the last patient (30) has filled the top spot, the board packs to 4 slots.
     fireEvent.click(screen.getByRole("button", { name: "Next" }))
     expect(triageCells()).toHaveLength(4)
-    expect(triageCellAt(0)).toHaveAttribute("data-value", "2")
+    expect(triageCellAt(0)).toHaveAttribute("data-value", "30")
   })
 
   it("highlights both the leaving root (0) and the filler (last) slot in the intro", () => {

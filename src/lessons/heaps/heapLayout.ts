@@ -42,15 +42,33 @@ export interface NodeGeom {
 
 /** Number of tree rows needed for `n` slots. */
 export const treeRows = (n: number): number => (n > 0 ? depthOf(n - 1) + 1 : 1)
+
+/**
+ * Optional overrides for a tighter ("compact") tree: a smaller row pitch, top pad,
+ * and node radius, used by the reference figure on predict beats so the answer
+ * cards sit higher. Omitting them reproduces the standard layout exactly, so
+ * existing callers (and the ER triage board) are untouched.
+ */
+export interface TreeLayoutOpts {
+  rowH?: number
+  padTop?: number
+  nodeR?: number
+}
+
 /** SVG height needed to draw the tree for `n` slots. */
-export const treeHeight = (n: number): number => PAD_TOP + treeRows(n) * ROW_H + 6
+export const treeHeight = (n: number, opts: TreeLayoutOpts = {}): number => {
+  const { rowH = ROW_H, padTop = PAD_TOP } = opts
+  return padTop + treeRows(n) * rowH + 6
+}
 /** Center positions for every node of an `n`-slot complete tree. */
-export const nodePositions = (n: number): NodeGeom[] =>
-  Array.from({ length: n }, (_, i) => ({
+export const nodePositions = (n: number, opts: TreeLayoutOpts = {}): NodeGeom[] => {
+  const { rowH = ROW_H, padTop = PAD_TOP, nodeR = NODE_R } = opts
+  return Array.from({ length: n }, (_, i) => ({
     i,
     cx: xFracOf(i) * W,
-    cy: PAD_TOP + depthOf(i) * ROW_H + NODE_R,
+    cy: padTop + depthOf(i) * rowH + nodeR,
   }))
+}
 
 /** Natural pixel width of the `n`-cell array strip (before any fit guard). */
 export const arrayRowWidth = (n: number): number => n * CELL + Math.max(0, n - 1) * GAP

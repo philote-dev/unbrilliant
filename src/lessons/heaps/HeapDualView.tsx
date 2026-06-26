@@ -11,7 +11,6 @@ import {
   NODE_R,
   W,
   arrayRowWidth,
-  cellCenter,
   nodePositions,
   treeHeight,
 } from "./heapLayout"
@@ -112,6 +111,8 @@ export function HeapDualView({
   revealSlot = null,
   /** The correct slot: exposes a DEV-only test hook on its cell (slot beats). */
   correctSlot = null,
+  /** A tighter layout (shorter tree) for predict beats, so the cards sit higher. */
+  compact = false,
   onTapSlot,
   reducedMotion,
   srLabel,
@@ -122,14 +123,26 @@ export function HeapDualView({
   selectedTone?: SlotTone
   revealSlot?: number | null
   correctSlot?: number | null
+  compact?: boolean
   onTapSlot?: (index: number) => void
 }) {
   const prefersReduced = useReducedMotion()
   const reduced = reducedMotion ?? prefersReduced ?? false
 
   const n = heap.length
-  const svgH = treeHeight(n)
-  const nodes = nodePositions(n)
+  const layout = compact ? { rowH: 50, padTop: 14, nodeR: 15 } : undefined
+  const nodeR = compact ? 15 : NODE_R
+  const svgH = treeHeight(n, layout)
+  const nodes = nodePositions(n, layout)
+
+  // The array strip scales to fit its wrapper rather than scrolling once the heap
+  // is wide (a 7-cell strip overruns the phone): small heaps stay at the full 44px
+  // tap size, and only an oversized row shrinks, so every cell stays on screen.
+  const MAX_ROW = 340
+  const fit = Math.min(1, MAX_ROW / arrayRowWidth(n))
+  const cell = Math.floor(CELL * fit)
+  const gap = Math.floor(GAP * fit)
+  const cellMid = (i: number): number => i * (cell + gap) + cell / 2
 
   const lifted = (i: number): boolean => liftPair != null && (liftPair.a === i || liftPair.b === i)
 
@@ -144,7 +157,7 @@ export function HeapDualView({
     return null
   }
 
-  const rowWidth = arrayRowWidth(n)
+  const rowWidth = n * cell + Math.max(0, n - 1) * gap
 
   // The connectors drawn in the ARRAY panel for the subject slot (children + parent).
   const arcTargets: number[] = []
@@ -218,10 +231,10 @@ export function HeapDualView({
               data-slot={node.i}
               data-lit={treeLit ? "1" : undefined}
               data-lifted={lifted(node.i) ? "1" : undefined}
-              animate={{ y: lifted(node.i) && !reduced ? -7 : 0 }}
-              transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 360, damping: 24 }}
+              animate={{ y: lifted(node.i) && !reduced ? -11 : 0 }}
+              transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 360, damping: 22 }}
             >
-              <circle cx={node.cx} cy={node.cy} r={NODE_R} fill={fill} stroke={stroke} strokeWidth={2.5} />
+              <circle cx={node.cx} cy={node.cy} r={nodeR} fill={fill} stroke={stroke} strokeWidth={2.5} />
               <text
                 x={node.cx}
                 y={node.cy + 5}
@@ -234,7 +247,7 @@ export function HeapDualView({
               </text>
               <text
                 x={node.cx}
-                y={node.cy + NODE_R + 11}
+                y={node.cy + nodeR + 11}
                 textAnchor="middle"
                 fontSize="9"
                 fill="var(--faint)"
@@ -244,7 +257,7 @@ export function HeapDualView({
               {node.i === 0 && (
                 <text
                   x={node.cx}
-                  y={node.cy - NODE_R - 6}
+                  y={node.cy - nodeR - 6}
                   textAnchor="middle"
                   fontSize="9"
                   fontWeight="700"
@@ -263,8 +276,9 @@ export function HeapDualView({
       </p>
 
       {/* ----------------------------- array panel ---------------------------- */}
-      {/* `overflow-x-auto` + `mx-auto`: centers when it fits, scrolls a wide (7-cell)
-          strip instead of clipping it past the 360px wrapper (LAYOUT guard). */}
+      {/* `mx-auto` centers the strip; the cell size already scales to fit the
+          wrapper (see `fit` above), so a wide 7-cell heap shrinks to stay fully
+          on screen rather than clipping or needing a horizontal scroll. */}
       <div className="w-full overflow-x-auto">
         <div className="relative mx-auto" style={{ width: rowWidth }}>
           {/* drawn index connectors (children + parent) above the strip */}
@@ -275,8 +289,8 @@ export function HeapDualView({
             aria-hidden
           >
             {arcTargets.map((t) => {
-              const x1 = cellCenter(connectorSlot as number)
-              const x2 = cellCenter(t)
+              const x1 = cellMid(connectorSlot as number)
+              const x2 = cellMid(t)
               const mid = (x1 + x2) / 2
               const apex = Math.max(2, BAND_H - 6 - Math.abs(x2 - x1) * 0.12)
               return (
@@ -293,7 +307,7 @@ export function HeapDualView({
             })}
           </svg>
 
-          <div className="flex" style={{ gap: GAP }}>
+          <div className="flex" style={{ gap }}>
             {heap.map((v, i) => {
               const tone = slotTone(i)
               const badgeTone: SlotTone | null =
@@ -319,15 +333,18 @@ export function HeapDualView({
                   disabled={!onTapSlot}
                   onClick={() => onTapSlot?.(i)}
                   aria-label={`slot ${i}, value ${v}`}
-                  animate={{ y: lifted(i) && !reduced ? -7 : 0 }}
-                  transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 360, damping: 24 }}
+                  animate={{
+                    y: lifted(i) && !reduced ? -11 : 0,
+                    scale: lifted(i) && !reduced ? 1.07 : 1,
+                  }}
+                  transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 360, damping: 22 }}
                   className={cn(
                     "relative flex flex-col items-center justify-center rounded-lg border-2 font-bold text-foreground outline-none transition-colors",
                     "focus-visible:ring-2 focus-visible:ring-lilac-strong/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                     onTapSlot ? "cursor-pointer" : "cursor-default",
                     toneClass,
                   )}
-                  style={{ width: CELL, height: CELL }}
+                  style={{ width: cell, height: cell }}
                 >
                   <span className="text-[15px] leading-none">{v}</span>
                   <span className="mt-0.5 text-[9px] font-medium leading-none text-faint">{i}</span>

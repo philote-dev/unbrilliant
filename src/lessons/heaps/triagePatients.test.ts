@@ -41,6 +41,7 @@ describe("triagePatients (deterministic ER data)", () => {
       [9, 7, 6, 3, 2],
       [10, 9, 5, 8, 7, 4, 3],
       [95, 80, 90, 60, 50],
+      [90, 80, 70, 40, 30], // teach-extract ER board
     ]
     for (const heap of heaps) {
       const names = heap.map((v) => patientFor(v, heap).name)

@@ -330,7 +330,9 @@ const CURATED = {
   "teach-rule": { heap: [9, 7, 6, 3, 2] },
   "siftup-1": { heap: [7, 5, 6, 3, 2], key: 8 },
   "siftup-skin": { heap: [95, 80, 90, 60, 50], key: 100 },
-  "teach-extract": { heap: [9, 7, 6, 3, 2] },
+  // Realistic severities so the ER monitor never shows a "severity 9" patient;
+  // extracting 90 sinks the filler (30) two levels for an illustrative demo.
+  "teach-extract": { heap: [90, 80, 70, 40, 30] },
   "siftdown-1": { heap: [9, 7, 6, 3, 2] },
   "siftdown-2": { heap: [10, 9, 5, 8, 7, 4, 3] },
   "map-child": { heap: [9, 7, 6, 3, 2], slot: 0, dir: "largerChild" as const },
@@ -401,8 +403,8 @@ function makeIntro(part: "demo" | "teach-array" | "teach-rule" | "teach-extract"
     part === "demo"
       ? "Insert a key and watch it sift up. The tree and the array move together."
       : part === "teach-array"
-        ? "It secretly lives in an array: a slot's children are 2·i+1 and 2·i+2; its parent is (i−1)/2."
-        : "The heap rule: each parent beats BOTH its children, and that's the only promise. It is NOT sorted, NOT a BST."
+        ? "The tree is just a picture. The real heap is one flat row."
+        : "It looks sorted, but it barely orders anything."
   return {
     ...BLANK,
     kind: part,

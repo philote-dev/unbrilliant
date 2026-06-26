@@ -1,4 +1,4 @@
-import { useState, type Dispatch, type ReactNode } from "react"
+import { useEffect, useState, type Dispatch, type ReactNode } from "react"
 import { ArrowLeft, ArrowRight, Check, Info, RotateCcw, X } from "lucide-react"
 import { motion, useReducedMotion } from "motion/react"
 
@@ -43,6 +43,8 @@ const BIN_LABEL: Record<HeapBin, string> = {
 /** The two synced figures the replay/idle views can render through `renderFigure`. */
 const defaultFigure: HeapFigureRenderer = (props) => <HeapDualView {...props} />
 const triageFigure: HeapFigureRenderer = (props) => <ERTriageBoard {...props} />
+/** A tighter dual view for predict beats, so the answer cards sit higher. */
+const compactFigure: HeapFigureRenderer = (props) => <HeapDualView {...props} compact />
 
 /** Clinical dark monitor surface for the ER triage skin. Always dark (like the
  * Spotify queue), so the page transforms into a hospital triage wall display. The
@@ -212,6 +214,17 @@ function StepReplay({
   const introCount = intro ? 1 : 0
   const lastIdx = introCount + swaps
   const [idx, setIdx] = useState(reduced ? lastIdx : 0)
+  const [auto, setAuto] = useState(!reduced && lastIdx > 0)
+
+  // Auto-play the sift as a paced sequence (the "watch it happen" animation): it
+  // holds a beat on the drop-in / move-to-root frame, then each swap advances on
+  // its own and it settles at the end. Any manual control hands the learner the
+  // scrubber (auto stops); Replay restarts it. Reduced motion snaps, no timers.
+  useEffect(() => {
+    if (!auto || reduced || idx >= lastIdx) return
+    const t = setTimeout(() => setIdx((i) => Math.min(lastIdx, i + 1)), idx === 0 ? 1000 : 820)
+    return () => clearTimeout(t)
+  }, [auto, idx, lastIdx, reduced])
 
   // `intro && idx === 0` (rather than a hoisted boolean) so TS narrows `intro`.
   const inIntro = intro != null && idx === 0
@@ -232,7 +245,12 @@ function StepReplay({
         : `Swap slots ${pair!.a} and ${pair!.b}.`
 
   return (
-    <div className="flex flex-col items-center gap-3">
+    <motion.div
+      className="flex flex-col items-center gap-3"
+      initial={reduced ? false : { opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={reduced ? { duration: 0 } : { duration: 0.3 }}
+    >
       {renderFigure({
         heap,
         highlightSlots: highlight,
@@ -255,7 +273,10 @@ function StepReplay({
             size="default"
             className={stepBtn}
             disabled={idx === 0}
-            onClick={() => setIdx((i) => Math.max(0, i - 1))}
+            onClick={() => {
+              setAuto(false)
+              setIdx((i) => Math.max(0, i - 1))
+            }}
           >
             <ArrowLeft className="size-4" /> Back
           </Button>
@@ -272,16 +293,27 @@ function StepReplay({
             size="default"
             className={stepBtn}
             disabled={idx === lastIdx}
-            onClick={() => setIdx((i) => Math.min(lastIdx, i + 1))}
+            onClick={() => {
+              setAuto(false)
+              setIdx((i) => Math.min(lastIdx, i + 1))
+            }}
           >
             Next <ArrowRight className="size-4" />
           </Button>
-          <Button variant="soft" size="default" className={replayBtn} onClick={() => setIdx(0)}>
+          <Button
+            variant="soft"
+            size="default"
+            className={replayBtn}
+            onClick={() => {
+              setIdx(0)
+              setAuto(!reduced)
+            }}
+          >
             <RotateCcw className="size-4" /> Replay
           </Button>
         </div>
       )}
-    </div>
+    </motion.div>
   )
 }
 
@@ -473,12 +505,22 @@ function ArrangementBody({
       header={<BinHeader state={state} />}
       figure={
         <>
-          <div className="flex flex-col items-center gap-3 py-4">
+          <div className="flex flex-col items-center gap-2 py-3">
             {reveal ? (
-              <StepReplay spec={replay.spec} intro={replay.intro} reduced={reduced} />
+              <StepReplay
+                spec={replay.spec}
+                intro={replay.intro}
+                reduced={reduced}
+                renderFigure={compactFigure}
+              />
             ) : (
               <>
-                <HeapDualView heap={q.heap} reducedMotion={reduced} srLabel={givenSentence(q)} />
+                <HeapDualView
+                  heap={q.heap}
+                  compact
+                  reducedMotion={reduced}
+                  srLabel={givenSentence(q)}
+                />
                 <DeCue q={q} />
               </>
             )}
@@ -964,13 +1006,22 @@ function DemoPart({
         )}
       </div>
 
+      {/* Insert leads (tactile) so the learner plays before moving on; once both
+          keys are in, Continue takes the lead. */}
       <div className="mt-auto flex flex-col gap-3">
         {nextKey != null && (
-          <Button variant="soft" size="lg" className="w-full" onClick={insert}>
+          <Button variant="tactile" size="lg" className="w-full" onClick={insert}>
             Insert {nextKey}
           </Button>
         )}
-        <ContinueButton dispatch={dispatch} />
+        <Button
+          variant={nextKey != null ? "soft" : "tactile"}
+          size="lg"
+          className="w-full"
+          onClick={() => dispatch({ type: "continue" })}
+        >
+          Continue
+        </Button>
       </div>
     </StageCenter>
   )
