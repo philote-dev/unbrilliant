@@ -116,29 +116,38 @@ async function openNextLesson(page: Page): Promise<void> {
  * non-terminal nudge; a second, different option + Check is always terminal
  * (the shared 2-wrong feedback machine).
  *
- * A single-item warm-up has no concept left due once a terminal verdict records
- * the review, so LessonHost re-selects to nothing and drops the learner straight
- * into the lesson (the verdict's "Continue to ..." button is transient). The
- * helper therefore drives to a terminal verdict and confirms the lesson chrome,
- * which only renders once the drill has yielded.
+ * LessonHost now LATCHES the drill, so reaching a terminal verdict no longer
+ * unmounts it when answering reschedules the concept (and mutates `reviews`):
+ * the verdict explanation and its "Continue" button stay put. The helper drives
+ * to that stable verdict, asserts it, and clicks through; only then does the
+ * lesson take over.
  */
 async function answerWarmup(page: Page): Promise<void> {
   const stack = page.getByRole("button", { name: "Stack (last in, first out)" })
   const queue = page.getByRole("button", { name: "Queue (first in, first out)" })
   const check = page.getByRole("button", { name: "Check" })
   const nudge = page.getByText("Not quite. Take another look and try again.")
-  const inLesson = page.getByRole("button", { name: "Close lesson" })
+  const verdict = page.getByText(/Correct\.|Answer:/).first()
+  const proceed = page.getByRole("button", {
+    name: /^(?:Continue to Stacks & Queues|Next)$/,
+  })
 
   await stack.click()
   await check.click()
-  // Settle the verdict: a wrong first pick nudges a retry; otherwise the answer
-  // is recorded and the warm-up advances into the lesson.
-  await expect(nudge.or(inLesson)).toBeVisible()
+  // Settle the verdict: a wrong first pick nudges a retry; a different option +
+  // Check is then always terminal.
+  await expect(nudge.or(verdict)).toBeVisible()
   if (await nudge.isVisible()) {
     await queue.click()
     await check.click()
   }
-  await expect(inLesson).toBeVisible()
+
+  // The terminal verdict is stable (the latch keeps the drill mounted even
+  // though answering rescheduled the concept): the explanation and its button
+  // stay put instead of detaching straight into the lesson.
+  await expect(verdict).toBeVisible()
+  await expect(proceed).toBeVisible()
+  await proceed.click()
 }
 
 test("a due concept warms up before the next lesson, once per session", async ({
@@ -155,8 +164,8 @@ test("a due concept warms up before the next lesson, once per session", async ({
   await openNextLesson(page)
   await expect(page.getByText(WARMUP)).toBeVisible()
 
-  // Answer it; the warm-up yields and the lesson itself (with its close control)
-  // is showing, the warm-up gone.
+  // Answer through its now-stable verdict and click Continue; only then does the
+  // lesson itself (with its close control) take over, the warm-up gone.
   await answerWarmup(page)
   await expect(page.getByRole("button", { name: "Close lesson" })).toBeVisible()
   await expect(page.getByText(WARMUP)).toHaveCount(0)

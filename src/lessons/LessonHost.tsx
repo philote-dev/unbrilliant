@@ -1,4 +1,4 @@
-import { Suspense, useMemo, useState } from "react"
+import { Suspense, useReducer, useRef } from "react"
 
 import { LIVE_LESSON_ID, isLessonPlayable, lessonName } from "@/lessons/catalog"
 import { FUTURE_LESSONS } from "@/lessons/registry"
@@ -12,6 +12,7 @@ import {
   lessonOfConcept,
   seedFromUid,
   selectDueDrill,
+  type DueDrill,
 } from "@/features/retrieval/selectDrill"
 
 /**
@@ -28,24 +29,27 @@ export function LessonHost({ lessonId }: { lessonId: string }) {
   const { user } = useAuth()
   const { reviews } = useConceptReviews()
   const { progressByLesson } = useCourseProgress()
-  const [drillDone, setDrillDone] = useState(false)
+  // Latch the chosen drill so answering it (which reschedules the concept and
+  // mutates `reviews`) can't unmount it mid-flow; cleared only when it finishes.
+  const latched = useRef<DueDrill | null>(null)
+  const finished = useRef(false)
+  const [, bump] = useReducer((n: number) => n + 1, 0)
 
-  const drill = useMemo(() => {
-    if (!user || drillDone) return null
+  if (!finished.current && !latched.current && user) {
     const completedLessonIds = new Set(
       Object.entries(progressByLesson)
         .filter(([, p]) => p?.completed)
         .map(([id]) => id),
     )
-    const d = selectDueDrill([...reviews.values()], {
+    const due = selectDueDrill([...reviews.values()], {
       completedLessonIds,
       now: Date.now(),
       userSeed: seedFromUid(user.uid),
     })
-    if (!d || shownThisSession.has(d.conceptId)) return null
-    return d
-  }, [user, drillDone, reviews, progressByLesson])
+    if (due && !shownThisSession.has(due.conceptId)) latched.current = due
+  }
 
+  const drill = finished.current ? null : latched.current
   if (drill) {
     return (
       <RetrievalDrill
@@ -53,7 +57,9 @@ export function LessonHost({ lessonId }: { lessonId: string }) {
         lessonName={lessonName(lessonOfConcept(drill.conceptId))}
         onDone={() => {
           shownThisSession.add(drill.conceptId)
-          setDrillDone(true)
+          finished.current = true
+          latched.current = null
+          bump()
         }}
       />
     )
