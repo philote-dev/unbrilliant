@@ -114,7 +114,6 @@ export function PolyCheckpoint({
   const [voiceError, setVoiceError] = useState(false)
 
   const transcriberRef = useRef<RealtimeTranscriber | null>(null)
-  const turnRef = useRef<string | null>(null)
 
   const voiceText = [finalText, interimText].filter(Boolean).join(" ").trim()
 
@@ -143,12 +142,12 @@ export function PolyCheckpoint({
     })
   }
 
-  // One voice turn: Poly speaks the question, then the mic opens. Guarded by
-  // turnRef so a re-render or StrictMode's double-invoke does not restart it.
+  // One voice turn: Poly speaks the question, then the mic opens. Re-runs when
+  // the question, mode, or phase changes; the cleanup cancels an in-flight turn
+  // and releases the mic, which keeps StrictMode's double-invoke safe (the first
+  // pass is cancelled and the second pass starts listening cleanly).
   useEffect(() => {
     if (mode !== "voice" || phase !== "answering") return
-    if (turnRef.current === question) return
-    turnRef.current = question
     let cancelled = false
     setVoiceError(false)
     setVoicePhase("speaking")
@@ -162,6 +161,7 @@ export function PolyCheckpoint({
     })()
     return () => {
       cancelled = true
+      stopListening()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [question, mode, phase])
@@ -173,8 +173,9 @@ export function PolyCheckpoint({
 
   function switchToVoice() {
     setVoiceError(false)
+    setFinalText("")
+    setInterimText("")
     setMode("voice")
-    startListening()
   }
 
   async function submit(text: string) {
