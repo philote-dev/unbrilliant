@@ -31,7 +31,7 @@ function renderScreen(screen: Screen) {
     case "signin":
       return <SignIn reason={screen.reason} intent={screen.intent} />
     case "lesson":
-      return <LessonHost lessonId={screen.lessonId} />
+      return <LessonHost key={screen.lessonId} lessonId={screen.lessonId} />
     case "complete":
       return <Completion lessonId={screen.lessonId} />
     case "progress":

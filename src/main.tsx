@@ -6,6 +6,7 @@ import App from "@/App"
 import { ThemeProvider } from "@/lib/theme"
 import { NavigationProvider } from "@/lib/navigation"
 import { AuthProvider } from "@/lib/auth"
+import { ConceptReviewProvider } from "@/features/progress/ConceptReviewProvider"
 import { LessonRunProvider } from "@/features/lesson/useLessonRun"
 import { CourseProgressProvider } from "@/features/progress/CourseProgressProvider"
 
@@ -14,11 +15,13 @@ createRoot(document.getElementById("root")!).render(
     <ThemeProvider>
       <AuthProvider>
         <NavigationProvider initial={{ name: "home" }}>
-          <LessonRunProvider>
-            <CourseProgressProvider>
-              <App />
-            </CourseProgressProvider>
-          </LessonRunProvider>
+          <ConceptReviewProvider>
+            <LessonRunProvider>
+              <CourseProgressProvider>
+                <App />
+              </CourseProgressProvider>
+            </LessonRunProvider>
+          </ConceptReviewProvider>
         </NavigationProvider>
       </AuthProvider>
     </ThemeProvider>

@@ -1,4 +1,5 @@
 import type { LessonProgress } from "@/features/lesson/engine"
+import type { ConceptReview } from "@/features/progress/conceptReview"
 
 /**
  * The persistence boundary. The app reads/writes learner progress through this
@@ -68,4 +69,8 @@ export interface ProgressRepository {
   ): Promise<void>
   /** Days with activity on/after `sinceDayKey` (yyyymmdd), ascending by date. */
   getActivity(uid: string, sinceDayKey: string): Promise<ActivityDay[]>
+  /** All per-concept review rows for a user (signed-in only). */
+  getConceptReviews(uid: string): Promise<ConceptReview[]>
+  /** Upsert one review row by conceptId (optimistic, fire-and-forget). */
+  saveConceptReview(uid: string, review: ConceptReview): Promise<void>
 }
