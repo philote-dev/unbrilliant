@@ -17,7 +17,6 @@ import {
   polyHealthCheck,
   requestHint,
   type HealthResult,
-  type HintResponse,
   type ScoreResponse,
   type ProbeResponse,
 } from "@/lib/ai/polyClient"
@@ -34,12 +33,55 @@ async function mockHealth(): Promise<HealthResult> {
   return { ok: true, model: "gpt-4o-mini (mock)", reply: "pong", uid: null }
 }
 
-async function mockHint(): Promise<HintResponse> {
-  await wait(650)
-  return {
-    hint: "Look at which card you can actually reach first, then compare that to the order the goal needs.",
-  }
+interface HintScenario {
+  id: string
+  label: string
+  discipline: Discipline
+  goalExit: string[]
+  pushed: string[]
+  mockHints: string[]
+  staticFallback: string
 }
+
+// Each scenario is a wrong build a learner might actually submit, with the
+// canned hints Poly would give (first pass, then a different angle on retry).
+const HINT_SCENARIOS: HintScenario[] = [
+  {
+    id: "stack-like-queue",
+    label: "Stack built like a line",
+    discipline: "stack",
+    goalExit: ["A", "B", "C"],
+    pushed: ["A", "B", "C"],
+    mockHints: [
+      "You stacked them so the first card you placed is buried at the bottom. Which card is sitting on top, ready to come off first?",
+      "Picture lifting cards off the top one at a time. Given how you piled them, which letter leaves first, and is that the one your goal needs first?",
+    ],
+    staticFallback: "Remember: you can only take the card off the top.",
+  },
+  {
+    id: "queue-reversed",
+    label: "Queue filled back to front",
+    discipline: "queue",
+    goalExit: ["A", "B", "C"],
+    pushed: ["C", "B", "A"],
+    mockHints: [
+      "You lined them up so the newest arrival sits at the front. Who gets served first, the person who just showed up or the one who has waited longest?",
+      "Think of a checkout line: people leave in the order they joined. Which letter joined your line first?",
+    ],
+    staticFallback: "Items leave a queue from the front, in the order they arrived.",
+  },
+  {
+    id: "stack-one-off",
+    label: "Stack, one card out of place",
+    discipline: "stack",
+    goalExit: ["A", "B", "C"],
+    pushed: ["B", "A", "C"],
+    mockHints: [
+      "So close. Look at the very first card you placed at the bottom. For your goal order, which letter must come out first, and so where does it need to sit?",
+    ],
+    staticFallback: "The card you want out first must be the last one you put on.",
+  },
+]
 
 // A stateful mock for the checkpoint: the first explanation has a gap (so a probe
 // fires), the second covers everything (so it affirms and continues).
@@ -71,7 +113,8 @@ function makeMockCheckpoint() {
     probe: async (): Promise<ProbeResponse> => {
       await wait(450)
       return {
-        question: "What happens to the most recent card you added when you take one off?",
+        question:
+          "You're almost there! Let's connect that last piece: when you take a card off, which one are you actually able to reach?",
       }
     },
   }
@@ -244,29 +287,63 @@ function HealthPanel({ mode }: { mode: Mode }) {
   )
 }
 
+function CardChips({ items, label }: { items: string[]; label: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="w-28 shrink-0 text-xs text-muted-foreground">{label}</span>
+      <div className="flex items-center gap-1.5">
+        {items.map((c, i) => (
+          <span key={`${c}-${i}`} className="flex items-center gap-1.5">
+            <span className="flex size-7 items-center justify-center rounded-md border border-border bg-card text-xs font-bold text-foreground">
+              {c}
+            </span>
+            {i < items.length - 1 && <span className="text-faint">&rarr;</span>}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function HintPanel({ mode }: { mode: Mode }) {
-  const [discipline, setDiscipline] = useState<Discipline>("stack")
+  const [idx, setIdx] = useState(0)
+  const [hints, setHints] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
-  const [hint, setHint] = useState<string | null | undefined>(undefined)
   const [error, setError] = useState<string | null>(null)
+  const [capped, setCapped] = useState(false)
 
-  const learnerOrder = ["A", "B", "C"]
+  const scenario = HINT_SCENARIOS[idx]
+  const maxHints = 2
 
-  const run = async () => {
+  const select = (next: number) => {
+    setIdx(next)
+    setHints([])
+    setError(null)
+    setCapped(false)
+    setLoading(false)
+  }
+
+  const getHint = async () => {
     setLoading(true)
     setError(null)
-    setHint(undefined)
     try {
-      const res =
-        mode === "mock"
-          ? await mockHint()
-          : await requestHint({
-              stageId: "stacks-and-queues",
-              skill: discipline === "stack" ? "stackConstruct" : "queueConstruct",
-              discipline,
-              learnerOrder,
-            })
-      setHint(res.hint)
+      let hint: string | null
+      if (mode === "mock") {
+        await wait(650)
+        hint = scenario.mockHints[hints.length] ?? null
+      } else {
+        const res = await requestHint({
+          stageId: "stacks-and-queues",
+          skill: scenario.discipline === "stack" ? "stackConstruct" : "queueConstruct",
+          discipline: scenario.discipline,
+          learnerOrder: scenario.pushed,
+          priorHint: hints[hints.length - 1],
+        })
+        hint = res.hint
+      }
+      const next = hint ? [...hints, hint] : hints
+      setHints(next)
+      if (!hint || next.length >= maxHints) setCapped(true)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -274,38 +351,67 @@ function HintPanel({ mode }: { mode: Mode }) {
     }
   }
 
+  const canAsk = !loading && !capped && hints.length < maxHints
+
   return (
     <DemoCard
       icon={<Lightbulb className="size-5" />}
       title="2 · Action-grounded hint"
-      desc="On a wrong build, Poly nudges toward the violated idea without naming it or stating the order. The server verifier rejects any giveaway."
+      desc="On a wrong build, Poly nudges toward the violated idea without naming it or stating the order. The server verifier rejects any giveaway, and a second wrong attempt gets a different angle."
     >
-      <div className="flex flex-wrap items-center gap-2">
-        <Pills
-          options={[
-            { id: "stack", label: "Stack" },
-            { id: "queue", label: "Queue" },
-          ]}
-          value={discipline}
-          onChange={(v) => setDiscipline(v as Discipline)}
-        />
-        <Button variant="tactile" size="default" onClick={run} disabled={loading}>
-          Get a hint
-        </Button>
+      <div className="flex flex-wrap gap-1.5">
+        {HINT_SCENARIOS.map((s, i) => (
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => select(i)}
+            className={cn(
+              "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+              i === idx
+                ? "border-lilac-strong/55 bg-lilac-soft text-lilac-strong"
+                : "border-border text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {s.label}
+          </button>
+        ))}
       </div>
-      <p className="mt-3 text-xs text-muted-foreground">
-        Scenario: a {discipline} build where the learner pushed{" "}
-        <span className="font-mono text-foreground">{learnerOrder.join(", ")}</span>.
-      </p>
-      {loading && (
-        <p className="mt-3 text-sm text-muted-foreground">Poly is thinking...</p>
-      )}
-      {hint !== undefined && !loading && (
-        <p className="mt-3 rounded-xl border border-border bg-muted/50 px-3 py-2 text-sm text-foreground">
-          {hint ?? "(fell back to the static hint)"}
+
+      <div className="mt-4 space-y-2 rounded-2xl border border-border bg-muted/40 p-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-faint">
+          {scenario.discipline} construct
         </p>
+        <CardChips label="Goal: leaves as" items={scenario.goalExit} />
+        <CardChips label="Learner built" items={scenario.pushed} />
+      </div>
+
+      <div className="mt-4 space-y-2">
+        {hints.map((h, i) => (
+          <div
+            key={i}
+            className="rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground"
+          >
+            <span className="mr-2 text-xs font-semibold text-lilac-strong">
+              {i === 0 ? "Poly" : "Another angle"}
+            </span>
+            {h}
+          </div>
+        ))}
+        {loading && <p className="text-sm text-muted-foreground">Poly is thinking...</p>}
+        {capped && (
+          <p className="rounded-xl border border-dashed border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+            Cap reached (2 AI hints). Poly hands back the lesson&apos;s static hint:{" "}
+            <span className="text-foreground">{scenario.staticFallback}</span>
+          </p>
+        )}
+        {error && <ErrorRow error={error} />}
+      </div>
+
+      {canAsk && (
+        <Button variant="tactile" size="default" className="mt-3" onClick={getHint}>
+          {hints.length === 0 ? "Get a hint" : "Try a different angle"}
+        </Button>
       )}
-      {error && <ErrorRow error={error} />}
     </DemoCard>
   )
 }
