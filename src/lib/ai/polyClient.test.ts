@@ -69,3 +69,25 @@ describe("checkpoint client helpers", () => {
     expect(vi.mocked(httpsCallable)).toHaveBeenCalledWith(expect.anything(), "polyProbe")
   })
 })
+
+describe("voice client helpers", () => {
+  beforeEach(() => mockCallable.mockReset())
+
+  it("speak calls polySpeak and returns its data", async () => {
+    const { speak } = await import("./polyClient")
+    const { httpsCallable } = await import("firebase/functions")
+    mockCallable.mockResolvedValue({ data: { audio: "QUJD", mime: "audio/mpeg" } })
+    const res = await speak({ text: "hello" })
+    expect(res).toEqual({ audio: "QUJD", mime: "audio/mpeg" })
+    expect(vi.mocked(httpsCallable)).toHaveBeenCalledWith(expect.anything(), "polySpeak")
+  })
+
+  it("transcribe calls polyTranscribe and returns its data", async () => {
+    const { transcribe } = await import("./polyClient")
+    const { httpsCallable } = await import("firebase/functions")
+    mockCallable.mockResolvedValue({ data: { text: "spoken" } })
+    const res = await transcribe({ audio: "QUJD", mime: "audio/webm" })
+    expect(res).toEqual({ text: "spoken" })
+    expect(vi.mocked(httpsCallable)).toHaveBeenCalledWith(expect.anything(), "polyTranscribe")
+  })
+})
