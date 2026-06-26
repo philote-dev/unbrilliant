@@ -40,14 +40,29 @@ describe("conceptReview substrate", () => {
     expect(r1.dueAt).toBe(5 + GAP_LADDER_MS[0])
   })
 
-  it("a wrong rep demotes, resets the streak, and re-tests after MIN_GAP", () => {
+  it("a wrong rep keeps the rung, resets the streak, and re-tests after MIN_GAP", () => {
     const r0 = applyReview(newReview("c", 0), { correct: true, at: GAP_LADDER_MS[0] + 1 })
+    expect(r0.level).toBe(1)
     const at = r0.lastSeenAt + GAP_LADDER_MS[1] + 1
     const r1 = applyReview(r0, { correct: false, at })
-    expect(r1.level).toBe(0)
+    expect(r1.level).toBe(1) // a miss never demotes the rung
     expect(r1.correctStreak).toBe(0)
     expect(r1.lapses).toBe(1)
     expect(r1.dueAt).toBe(at + MIN_GAP_MS)
+  })
+
+  it("a miss never un-graduates (decay handles long-term un-mastery, not a miss)", () => {
+    let r = newReview("c", 0)
+    let at = 0
+    for (let i = 0; i < MAX_LEVEL; i++) {
+      at += GAP_LADDER_MS[Math.min(r.level, GAP_LADDER_MS.length - 1)] + 1
+      r = applyReview(r, { correct: true, at })
+    }
+    expect(r.graduated).toBe(true)
+    const missed = applyReview(r, { correct: false, at: at + 10 })
+    expect(missed.level).toBe(MAX_LEVEL)
+    expect(missed.graduated).toBe(true)
+    expect(missed.correctStreak).toBe(0)
   })
 
   it("graduates after MAX_LEVEL spaced correct reps and clamps the gap", () => {
