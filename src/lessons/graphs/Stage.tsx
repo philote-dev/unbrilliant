@@ -27,7 +27,8 @@ import { AdjacencyPanel } from "./AdjacencyPanel"
 import { GraphCanvas } from "./GraphCanvas"
 import { SameGraphView } from "./SameGraphView"
 import { SubwayMap, type SubwayVariant } from "./SubwayMap"
-import { METRO, TRANSIT_LINES } from "./transitData"
+import { TRANSIT_FULL_LINES, TRANSIT_LINES, type TransitLine } from "./transitData"
+import { tintLines, useMetroSkin, type MetroSkin } from "./metroSkin"
 
 /**
  * The Graphs stage. Routes the 12 beats: the drag-a-node + teach intros, four
@@ -458,6 +459,7 @@ function DrawDemoPart({ state, dispatch }: PartProps) {
 /* ----------------------------- beats 8 & 9: draws ----------------------------- */
 
 function DrawPart({ state, dispatch }: PartProps) {
+  const skin = useMetroSkin()
   const q = state.question
   if (!q) return null
   const { feedback, showWhy } = state
@@ -486,7 +488,12 @@ function DrawPart({ state, dispatch }: PartProps) {
               nodes={q.nodes}
               adj={state.workingAdj}
               layout={q.layout}
-              variant="geographic"
+              variant="diagrammatic"
+              lines={tintLines(skin, TRANSIT_LINES)}
+              marker="node"
+              labels="none"
+              paper={skin.paper}
+              backdrop={skin.backdrop}
               pendingEdge={drawn}
               missingEdge={q.missingEdge}
               terminal={terminal}
@@ -547,6 +554,7 @@ function DrawPart({ state, dispatch }: PartProps) {
 /* ----------------------------- beat 10: redraw demo --------------------------- */
 
 function RedrawDemoPart({ state, dispatch }: PartProps) {
+  const skin = useMetroSkin()
   const q = state.question
   // One map that MORPHS between the geographic and diagrammatic layouts over the
   // SAME network. The route list underneath stays byte-identical through the
@@ -555,12 +563,14 @@ function RedrawDemoPart({ state, dispatch }: PartProps) {
   const reduced = useReducedMotion() ?? false
   if (!q) return null
   const layout = variant === "geographic" ? q.layout : (q.layoutB ?? q.layout)
+  const fullLines = tintLines(skin, TRANSIT_FULL_LINES)
 
   return (
     <StageCenter>
       <MetroScene
         eyebrow="Same network, two drawings"
         prompt={q.prompt}
+        lines={TRANSIT_FULL_LINES}
         footer={
           <div className="mt-auto pt-2">
             <MetroButton className="w-full" onClick={() => dispatch({ type: "continue" })}>
@@ -576,6 +586,11 @@ function RedrawDemoPart({ state, dispatch }: PartProps) {
           adj={q.adj}
           layout={layout}
           variant={variant}
+          lines={fullLines}
+          marker="node"
+          labels="none"
+          paper={skin.paper}
+          backdrop={skin.backdrop}
           reducedMotion={reduced}
         />
         <button
@@ -583,7 +598,7 @@ function RedrawDemoPart({ state, dispatch }: PartProps) {
           aria-pressed={variant === "diagrammatic"}
           onClick={() => setVariant((v) => (v === "geographic" ? "diagrammatic" : "geographic"))}
           className="rounded-full px-4 py-2 text-[13px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-lilac-strong/70"
-          style={{ background: "#ffffff", color: METRO.ink, border: `1px solid ${METRO.cardEdge}` }}
+          style={{ background: skin.btn2Bg, color: skin.btn2Ink, border: `1px solid ${skin.cardEdge}` }}
         >
           {variant === "geographic" ? "Straighten to diagram" : "Back to street map"}
         </button>
@@ -678,8 +693,6 @@ function ClassifyPart({ state, dispatch }: PartProps) {
 
 /* --------------------------------- metro scene --------------------------------- */
 
-const SCENE_BG = `linear-gradient(180deg, ${METRO.paper}, ${METRO.paperEdge})`
-
 /** The bin label + cumulative gate count, shown in the metro header. */
 function metroEyebrow(state: GraphsState): string {
   const quota = partQuotaGraphs(state)
@@ -696,14 +709,17 @@ function metroEyebrow(state: GraphsState): string {
 function MetroScene({
   eyebrow,
   prompt,
+  lines = TRANSIT_LINES,
   children,
   footer,
 }: {
   eyebrow: string
   prompt?: string
+  lines?: TransitLine[]
   children: React.ReactNode
   footer: React.ReactNode
 }) {
+  const skin = useMetroSkin()
   const reduced = useReducedMotion() ?? false
   return (
     <motion.div
@@ -711,40 +727,48 @@ function MetroScene({
       animate={{ opacity: 1, y: 0 }}
       transition={reduced ? { duration: 0 } : { duration: 0.45, ease: "easeOut" }}
       className="-mx-5 -mb-6 flex flex-1 flex-col px-5 pb-6 pt-6"
-      style={{ background: SCENE_BG }}
+      style={{ background: skin.sceneBg }}
     >
-      <MetroHeader eyebrow={eyebrow} prompt={prompt} />
+      <MetroHeader skin={skin} eyebrow={eyebrow} prompt={prompt} />
       <div className="flex flex-1 flex-col items-center justify-center gap-3 py-2">{children}</div>
-      <MetroLegend />
+      <MetroLegend skin={skin} lines={tintLines(skin, lines)} />
       {footer}
     </motion.div>
   )
 }
 
-function MetroHeader({ eyebrow, prompt }: { eyebrow: string; prompt?: string }) {
+function MetroHeader({
+  skin,
+  eyebrow,
+  prompt,
+}: {
+  skin: MetroSkin
+  eyebrow: string
+  prompt?: string
+}) {
   return (
     <div>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <MetroRoundel />
+          <MetroRoundel skin={skin} />
           <div className="leading-tight">
-            <p className="text-[15px] font-extrabold tracking-tight" style={{ color: METRO.ink }}>
+            <p className="text-[15px] font-extrabold tracking-tight" style={{ color: skin.ink }}>
               City Metro
             </p>
-            <p className="text-[11px] font-medium" style={{ color: METRO.muted }}>
+            <p className="text-[11px] font-medium" style={{ color: skin.sub }}>
               {eyebrow}
             </p>
           </div>
         </div>
         <span
           className="rounded-full px-3 py-1 text-[11px] font-bold"
-          style={{ background: METRO.ink, color: METRO.station }}
+          style={{ background: skin.badgeBg, color: skin.badgeInk }}
         >
           Zone 1
         </span>
       </div>
       {prompt && (
-        <p className="mt-3 text-[15px] font-semibold leading-snug" style={{ color: METRO.ink }}>
+        <p className="mt-3 text-[15px] font-semibold leading-snug" style={{ color: skin.ink }}>
           {prompt}
         </p>
       )}
@@ -752,32 +776,36 @@ function MetroHeader({ eyebrow, prompt }: { eyebrow: string; prompt?: string }) 
   )
 }
 
-function MetroRoundel() {
+/** A transit roundel stamp in the style of a real metro mark: a colored ring with
+ *  a horizontal bar through it, here using the map's own two route colors. */
+function MetroRoundel({ skin }: { skin: MetroSkin }) {
+  const ring = skin.tint(TRANSIT_LINES[0]?.color ?? "#ef5350")
+  const bar = skin.tint(TRANSIT_LINES[1]?.color ?? "#1aa7e0")
   return (
     <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden>
-      <circle cx="15" cy="15" r="10.5" fill="none" stroke={METRO.ink} strokeWidth="4" />
-      <rect x="1" y="12.5" width="28" height="5" rx="1" fill={TRANSIT_LINES[0]?.color ?? METRO.ink} />
+      <circle cx="15" cy="15" r="10.5" fill={skin.paper} stroke={ring} strokeWidth="4" />
+      <rect x="1" y="12" width="28" height="6" rx="1.5" fill={bar} />
     </svg>
   )
 }
 
-function MetroLegend() {
+function MetroLegend({ skin, lines = TRANSIT_LINES }: { skin: MetroSkin; lines?: TransitLine[] }) {
   return (
     <div
       className="mx-auto mt-2 flex w-fit max-w-full flex-wrap items-center justify-center gap-x-4 gap-y-1.5 rounded-xl px-3.5 py-2"
-      style={{ background: "#ffffffd9", border: `1px solid ${METRO.cardEdge}` }}
+      style={{ background: skin.legendBg, border: `1px solid ${skin.cardEdge}` }}
       aria-hidden
     >
-      {TRANSIT_LINES.map((l) => (
-        <span key={l.id} className="flex items-center gap-2 text-[11px] font-bold" style={{ color: METRO.ink }}>
+      {lines.map((l) => (
+        <span key={l.id} className="flex items-center gap-2 text-[11px] font-bold" style={{ color: skin.ink }}>
           <span className="h-2.5 w-7 rounded-full" style={{ background: l.color }} />
           {l.name}
         </span>
       ))}
-      <span className="flex items-center gap-2 text-[11px] font-bold" style={{ color: METRO.ink }}>
+      <span className="flex items-center gap-2 text-[11px] font-bold" style={{ color: skin.ink }}>
         <span
-          className="size-4 rounded-full"
-          style={{ background: METRO.station, border: `3px solid ${METRO.ink}` }}
+          className="h-[18px] w-3 rounded-full"
+          style={{ background: "#ffffff", border: `3px solid ${skin.ink}` }}
         />
         Transfer station
       </span>
@@ -798,10 +826,11 @@ function MetroButton({
   className?: string
   tone?: "primary" | "secondary"
 }) {
+  const skin = useMetroSkin()
   const style: CSSProperties =
     tone === "primary"
-      ? { background: METRO.ink, color: METRO.station }
-      : { background: "#ffffff", color: METRO.ink, border: `1px solid ${METRO.cardEdge}` }
+      ? { background: skin.btnBg, color: skin.btnInk }
+      : { background: skin.btn2Bg, color: skin.btn2Ink, border: `1px solid ${skin.cardEdge}` }
   return (
     <button
       type="button"
@@ -819,7 +848,10 @@ function MetroButton({
 }
 
 function MetroChip({ tone, children }: { tone: "ok" | "bad" | "hint"; children: React.ReactNode }) {
-  const color = tone === "ok" ? "#1f9d57" : tone === "bad" ? "#d4493a" : METRO.muted
+  const skin = useMetroSkin()
+  const ok = skin.id === "night" ? "#34d399" : "#1f9d57"
+  const bad = skin.id === "night" ? "#ff6b6b" : "#d4493a"
+  const color = tone === "ok" ? ok : tone === "bad" ? bad : skin.sub
   return (
     <div className="mb-3 flex flex-col items-center gap-1.5 text-center">
       <span
@@ -835,7 +867,7 @@ function MetroChip({ tone, children }: { tone: "ok" | "bad" | "hint"; children: 
           <span className="size-1.5 rounded-full bg-white" />
         )}
       </span>
-      <p role="status" aria-live="polite" className="text-sm" style={{ color: METRO.ink }}>
+      <p role="status" aria-live="polite" className="text-sm" style={{ color: skin.ink }}>
         {children}
       </p>
     </div>
@@ -852,6 +884,7 @@ function MetroFeedbackFooter({
   dispatch: Dispatch<LessonAction>
   canCheck: boolean
 }) {
+  const skin = useMetroSkin()
   const q = state.question
   const { feedback, showWhy } = state
   if (!q) return null
@@ -859,7 +892,7 @@ function MetroFeedbackFooter({
     <div className="mt-auto min-h-[128px] pt-2">
       {feedback === "idle" && (
         <>
-          <p className="mb-3 text-center text-sm" style={{ color: METRO.muted }}>
+          <p className="mb-3 text-center text-sm" style={{ color: skin.sub }}>
             {q.hint}
           </p>
           <MetroButton className="w-full" disabled={!canCheck} onClick={() => dispatch({ type: "check" })}>
@@ -902,12 +935,23 @@ function MetroFeedbackFooter({
   )
 }
 
-const METRO_OPTION: Record<AnswerState, CSSProperties> = {
-  default: { background: "#ffffff", borderColor: METRO.cardEdge, color: METRO.ink },
-  selected: { background: METRO.activeSoft, borderColor: METRO.active, color: METRO.active },
-  correct: { background: "#e7f5ec", borderColor: "#1f9d57", color: "#15683b" },
-  nudge: { background: "#fdf3e0", borderColor: "#d8a23a", color: "#855612" },
-  fail: { background: "#fbe9e7", borderColor: "#d4493a", color: "#9a2c21" },
+function metroOption(skin: MetroSkin): Record<AnswerState, CSSProperties> {
+  if (skin.id === "night") {
+    return {
+      default: { background: "#101a30", borderColor: "#26324f", color: "#e7ecf5" },
+      selected: { background: "#211d3a", borderColor: "#b4a7e7", color: "#cfc6f2" },
+      correct: { background: "#10241a", borderColor: "#34d399", color: "#a7f3d0" },
+      nudge: { background: "#2a2310", borderColor: "#fbbf24", color: "#fde68a" },
+      fail: { background: "#2a1416", borderColor: "#ff6b6b", color: "#fecaca" },
+    }
+  }
+  return {
+    default: { background: "#ffffff", borderColor: skin.cardEdge, color: skin.ink },
+    selected: { background: "#eef0fb", borderColor: "#8b7fd6", color: "#8b7fd6" },
+    correct: { background: "#e7f5ec", borderColor: "#1f9d57", color: "#15683b" },
+    nudge: { background: "#fdf3e0", borderColor: "#d8a23a", color: "#855612" },
+    fail: { background: "#fbe9e7", borderColor: "#d4493a", color: "#9a2c21" },
+  }
 }
 
 /** Themed same/different option, carrying the e2e data-answer hook byte-for-byte. */
@@ -924,6 +968,7 @@ function MetroOption({
   disabled?: boolean
   onSelect: () => void
 }) {
+  const skin = useMetroSkin()
   return (
     <button
       type="button"
@@ -937,7 +982,7 @@ function MetroOption({
         "focus-visible:ring-2 focus-visible:ring-lilac-strong/70 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         disabled && state === "default" && "cursor-default",
       )}
-      style={METRO_OPTION[state]}
+      style={metroOption(skin)[state]}
     >
       {state === "correct" && <Check className="size-4" strokeWidth={3} aria-hidden />}
       {state === "fail" && <X className="size-4" strokeWidth={3} aria-hidden />}

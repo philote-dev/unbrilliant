@@ -50,3 +50,14 @@ export function useTheme() {
   if (!ctx) throw new Error("useTheme must be used within ThemeProvider")
   return ctx
 }
+
+/**
+ * The active theme without requiring a provider, defaulting to `"light"`. For
+ * brand-takeover surfaces (e.g. the Graphs metro skin) that should follow the app
+ * theme in the app and gallery, but still render in unit tests or isolation where
+ * no `ThemeProvider` is mounted. Subscribes to the context when present, so live
+ * theme toggles still update the surface.
+ */
+export function useOptionalTheme(): Theme {
+  return useContext(ThemeContext)?.theme ?? "light"
+}

@@ -11,8 +11,11 @@
    so light + dark come for free. See docs/design/design-system.md §3 (color tokens).
    ========================================================================= */
 
-:root {
-  /* base palette. Light (default) */
+:root,
+.light {
+  /* base palette. Light (default). `.light` lets a subtree be pinned to the
+     light tokens even inside a `.dark` app (mirrors `.dark`), so two themed
+     previews can sit side by side. */
   --background: #f2f4f7;
   --foreground: #0f1115;
   --card: #ffffff;

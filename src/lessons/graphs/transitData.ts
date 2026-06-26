@@ -1,4 +1,4 @@
-import type { NodeId, Pt } from "@/features/lesson/graphsEngine"
+import type { Adjacency, NodeId, Pt } from "@/features/lesson/graphsEngine"
 
 /**
  * Presentational subway skin for the Graphs draw / redraw / same-graph beats.
@@ -34,6 +34,12 @@ export const TRANSIT_STATIONS: Record<NodeId, string> = {
   E: "Elm",
   F: "Fern",
   G: "Gate",
+  H: "Hill",
+  I: "Ivy",
+  J: "Jade",
+  K: "Kiln",
+  L: "Larch",
+  M: "Moss",
 }
 
 /**
@@ -42,30 +48,160 @@ export const TRANSIT_STATIONS: Record<NodeId, string> = {
  * undirected segments, exactly one cycle. Colors are decoration.
  */
 export const TRANSIT_LINES: TransitLine[] = [
-  { id: "harbor", name: "Harbor Loop", color: "#ef4b43", path: ["A", "B", "C", "D", "E", "A"] },
-  { id: "park", name: "Park Line", color: "#29abe2", path: ["F", "C", "G"] },
+  { id: "harbor", name: "Harbor Loop", color: "#ef5350", path: ["A", "B", "C", "D", "E", "A"] },
+  { id: "park", name: "Park Line", color: "#1aa7e0", path: ["F", "C", "G"] },
 ]
 
-/** Geographic layout: irregular, "where the stations really sit". */
+/**
+ * Geographic layout: irregular, "where the stations really sit". Drawn with
+ * straight segments (no octolinear constraint), spread across the field so the
+ * contrast with the clean diagram reads clearly.
+ */
 export const TRANSIT_GEO_LAYOUT: Record<NodeId, Pt> = {
-  A: { x: 70, y: 60 },
-  B: { x: 150, y: 95 },
-  C: { x: 150, y: 170 },
-  D: { x: 75, y: 195 },
-  E: { x: 60, y: 120 },
-  F: { x: 220, y: 210 },
-  G: { x: 240, y: 120 },
+  A: { x: 60, y: 55 },
+  B: { x: 158, y: 82 },
+  C: { x: 168, y: 168 },
+  D: { x: 92, y: 210 },
+  E: { x: 52, y: 128 },
+  F: { x: 252, y: 208 },
+  G: { x: 258, y: 108 },
 }
 
-/** Diagrammatic layout: clean octolinear schematic (a pentagon loop + two spurs). */
+/**
+ * Diagrammatic layout: the clean octolinear schematic (every segment 0/45/90).
+ * A box-with-a-notch loop (A-B-C-D-E-A) plus two 45-degree spurs off Central, all
+ * well separated so the rounded corners and diagonals read like a real diagram.
+ */
 export const TRANSIT_DIAGRAM_LAYOUT: Record<NodeId, Pt> = {
-  A: { x: 150, y: 70 },
-  B: { x: 228, y: 126 },
-  C: { x: 198, y: 214 },
-  D: { x: 102, y: 214 },
-  E: { x: 72, y: 126 },
-  F: { x: 262, y: 250 },
-  G: { x: 250, y: 150 },
+  A: { x: 95, y: 80 },
+  B: { x: 205, y: 80 },
+  C: { x: 205, y: 160 },
+  D: { x: 150, y: 215 },
+  E: { x: 95, y: 160 },
+  F: { x: 265, y: 220 },
+  G: { x: 265, y: 100 },
+}
+
+/* ------------------------------ fuller network ------------------------------ */
+
+/**
+ * A richer "live example" map for the redraw demo only: the same Harbor + Park
+ * core, plus a Garden branch (G-H-I) and a Sun cross-line (E-J-F). Ten stations,
+ * four colored routes, still a small route list. Used purely as a showcase; the
+ * graded transit beats keep the 7-station network so the data stays tight.
+ */
+export const TRANSIT_FULL_LINES: TransitLine[] = [
+  { id: "harbor", name: "Harbor Loop", color: "#ef5350", path: ["A", "B", "C", "D", "E", "A"] },
+  { id: "park", name: "Park Line", color: "#1aa7e0", path: ["F", "C", "G"] },
+  { id: "garden", name: "Garden Line", color: "#16b08a", path: ["G", "H", "I"] },
+  { id: "sun", name: "Sun Line", color: "#f4bb1c", path: ["E", "J", "F"] },
+]
+
+/** Fuller geographic layout (irregular, straight segments). */
+export const TRANSIT_FULL_GEO_LAYOUT: Record<NodeId, Pt> = {
+  A: { x: 66, y: 64 },
+  B: { x: 162, y: 54 },
+  C: { x: 176, y: 142 },
+  D: { x: 120, y: 200 },
+  E: { x: 58, y: 132 },
+  F: { x: 238, y: 206 },
+  G: { x: 244, y: 110 },
+  H: { x: 284, y: 72 },
+  I: { x: 214, y: 36 },
+  J: { x: 142, y: 258 },
+}
+
+/** Fuller diagrammatic layout (octolinear; the Sun line keeps two rounded bends). */
+export const TRANSIT_FULL_DIAGRAM_LAYOUT: Record<NodeId, Pt> = {
+  A: { x: 90, y: 80 },
+  B: { x: 210, y: 80 },
+  C: { x: 210, y: 155 },
+  D: { x: 150, y: 215 },
+  E: { x: 90, y: 155 },
+  F: { x: 270, y: 215 },
+  G: { x: 270, y: 95 },
+  H: { x: 270, y: 45 },
+  I: { x: 180, y: 45 },
+  J: { x: 150, y: 262 },
+}
+
+/* --------------------------- realistic metro (plan vs built) --------------------------- */
+
+/**
+ * A believable little metro for the "build the network" prototype: two trunk
+ * lines crossing at Central (C), a diamond Loop joining the four mid-points, and
+ * four suburb spurs. `PLAN` is the complete system (the greyed-out outline we are
+ * building toward); `ACTIVE` is what's actually connected and colored so far. The
+ * gap between them (two loop edges + the four spurs) is what the learner builds /
+ * rewires. Octolinear positions, shared by plan and active. Decoration only.
+ */
+export const METRO_PLAN_LAYOUT: Record<NodeId, Pt> = {
+  A: { x: 30, y: 150 },
+  B: { x: 88, y: 150 },
+  C: { x: 150, y: 150 },
+  D: { x: 212, y: 150 },
+  E: { x: 270, y: 150 },
+  F: { x: 150, y: 30 },
+  G: { x: 150, y: 88 },
+  H: { x: 150, y: 212 },
+  I: { x: 150, y: 270 },
+  J: { x: 262, y: 100 },
+  K: { x: 38, y: 100 },
+  L: { x: 270, y: 210 },
+  M: { x: 30, y: 210 },
+}
+
+export const METRO_PLAN_NODES: NodeId[] = [
+  "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
+]
+
+/** Every planned route (the grey outline). Loop is closed (B-G-D-H-B); the four
+ *  short spurs are the unbuilt suburb extensions. */
+export const METRO_PLAN_LINES: TransitLine[] = [
+  { id: "red", name: "Red Line", color: "#ef5350", path: ["A", "B", "C", "D", "E"] },
+  { id: "blue", name: "Blue Line", color: "#1aa7e0", path: ["F", "G", "C", "H", "I"] },
+  { id: "loop", name: "Loop Line", color: "#16b08a", path: ["B", "G", "D", "H", "B"] },
+  { id: "spur-k", name: "Kiln spur", color: "#b6bcc6", path: ["B", "K"] },
+  { id: "spur-j", name: "Jade spur", color: "#b6bcc6", path: ["D", "J"] },
+  { id: "spur-l", name: "Larch spur", color: "#b6bcc6", path: ["E", "L"] },
+  { id: "spur-m", name: "Moss spur", color: "#b6bcc6", path: ["A", "M"] },
+]
+
+export const METRO_PLAN_ADJ: Adjacency = {
+  A: ["B", "M"],
+  B: ["A", "C", "G", "H", "K"],
+  C: ["B", "D", "G", "H"],
+  D: ["C", "E", "G", "H", "J"],
+  E: ["D", "L"],
+  F: ["G"],
+  G: ["B", "C", "D", "F"],
+  H: ["B", "C", "D", "I"],
+  I: ["H"],
+  J: ["D"],
+  K: ["B"],
+  L: ["E"],
+  M: ["A"],
+}
+
+/** What's built + colored so far: both trunks, plus two of the four loop edges. */
+export const METRO_ACTIVE_NODES: NodeId[] = ["A", "B", "C", "D", "E", "F", "G", "H", "I"]
+
+export const METRO_ACTIVE_LINES: TransitLine[] = [
+  { id: "red", name: "Red Line", color: "#ef5350", path: ["A", "B", "C", "D", "E"] },
+  { id: "blue", name: "Blue Line", color: "#1aa7e0", path: ["F", "G", "C", "H", "I"] },
+  { id: "loop", name: "Loop Line", color: "#16b08a", path: ["B", "G", "D", "H", "B"] },
+]
+
+export const METRO_ACTIVE_ADJ: Adjacency = {
+  A: ["B"],
+  B: ["A", "C", "G"],
+  C: ["B", "D", "G", "H"],
+  D: ["C", "E", "H"],
+  E: ["D"],
+  F: ["G"],
+  G: ["B", "C", "F"],
+  H: ["C", "D", "I"],
+  I: ["H"],
 }
 
 /* ------------------------------- edge to line ------------------------------- */
@@ -104,23 +240,35 @@ export const stationName = (id: NodeId): string => TRANSIT_STATIONS[id] ?? id
 /**
  * The full-screen "transit map poster" palette. Hardcoded (a brand takeover, like
  * the Linked Lists Spotify theme), so the scene looks the same in light or dark
- * app theme: a clean light paper map with ink labels and vivid route colors. All
+ * app theme. Modeled on a real published metro diagram: a clean WHITE field, near
+ * black ink for station rings + names, and a couple of vivid route colors. There
+ * is no street grid, park, or water; the map is a schematic, not a city map. All
  * decoration; the route list (text) remains the data. The lilac `active` tone is
  * the shared interaction color reused so "grab / drop / selected" reads the same
  * across every lesson.
  */
 export const METRO = {
   paper: "#ffffff",
-  paperEdge: "#f6f7f9",
-  card: "#ffffff",
-  cardEdge: "#dcdfe6",
-  ink: "#15181f",
+  paperEdge: "#f4f6f8",
+  /** A cool grey-white "poster mat" behind the white map (the optional darker
+   *  background). White casing + dots pop against it like a printed diagram. */
+  mat: "#e9edf2",
+  matEdge: "#dce1e9",
+  cardEdge: "#e6e9ef",
+  ink: "#16181d",
   muted: "#5c6577",
-  grid: "#ece9e0",
-  label: "#b9b3a4",
-  water: "#cfe0f2",
-  park: "#d8e8cf",
   station: "#ffffff",
+  /** A neutral grey route, the metro "line 5" tint (decoration). */
+  grey: "#b6bcc6",
+  /** The greyed-out "complete plan" outline: the metro we are building toward. */
+  ghost: "#c3c8d1",
+  ghostInk: "#9aa1ad",
+  /** Soft map geography to fill empty space (parks, residential blocks, water). */
+  park: "#d8ead0",
+  parkInk: "#b6d2a8",
+  block: "#e7e3d9",
+  blockInk: "#d6d0c2",
+  water: "#d6e6f2",
   active: "#8b7fd6",
   activeSoft: "#eef0fb",
 } as const

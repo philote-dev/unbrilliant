@@ -6,6 +6,8 @@ import {
 } from "@/features/lesson/engine"
 import {
   TRANSIT_DIAGRAM_LAYOUT,
+  TRANSIT_FULL_DIAGRAM_LAYOUT,
+  TRANSIT_FULL_GEO_LAYOUT,
   TRANSIT_GEO_LAYOUT,
 } from "@/lessons/graphs/transitData"
 
@@ -323,6 +325,26 @@ export const TRANSIT: Adjacency = {
   G: ["C"],
 }
 
+export const TRANSIT_FULL_NODES: NodeId[] = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"]
+/**
+ * The fuller showcase network for the redraw demo (the "live example"): the same
+ * Harbor loop + Park branch, plus a Garden branch (G-H-I) and a Sun cross-line
+ * (E-J-F). 10 stations, 11 segments, four routes, still a compact route list.
+ * Decoration-only, like TRANSIT; no graded beat reads it.
+ */
+export const TRANSIT_FULL: Adjacency = {
+  A: ["B", "E"],
+  B: ["A", "C"],
+  C: ["B", "D", "F", "G"],
+  D: ["C", "E"],
+  E: ["A", "D", "J"],
+  F: ["C", "J"],
+  G: ["C", "H"],
+  H: ["G", "I"],
+  I: ["H"],
+  J: ["E", "F"],
+}
+
 /* -------------------------------- layout maps -------------------------------- */
 
 /** Hand-authored positions (presentational only: no verdict reads them). */
@@ -561,7 +583,7 @@ function makeDrawTransit(): GraphsQuestion {
     adj: TRANSIT,
     shownAdj: shown,
     missingEdge: normalizeEdge("A", "E"),
-    layout: TRANSIT_GEO_LAYOUT,
+    layout: TRANSIT_DIAGRAM_LAYOUT,
     hint: "",
     nudge: "One station pair is connected in the list but not on the map. Draw that line.",
     correct: "A to E connected: the Harbor loop is complete.",
@@ -570,14 +592,16 @@ function makeDrawTransit(): GraphsQuestion {
 }
 
 function makeRedrawDemo(): GraphsQuestion {
+  // The live showcase: a fuller four-line network so the metro look reads, but a
+  // route list short enough to still scan. Decoration only (never graded).
   return baseQuestion("redraw-demo", {
     transit: true,
     prompt:
       "Watch the map become a clean diagram. Stations slide, lines re-bend, the route list never moves.",
-    nodes: TRANSIT_NODES,
-    adj: TRANSIT,
-    layout: TRANSIT_GEO_LAYOUT,
-    layoutB: TRANSIT_DIAGRAM_LAYOUT,
+    nodes: TRANSIT_FULL_NODES,
+    adj: TRANSIT_FULL,
+    layout: TRANSIT_FULL_GEO_LAYOUT,
+    layoutB: TRANSIT_FULL_DIAGRAM_LAYOUT,
   })
 }
 
