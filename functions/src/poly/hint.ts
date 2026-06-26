@@ -7,12 +7,25 @@ import { rubricFor, propositionsByIds } from "./rubrics"
 import { findGiveaway } from "./verifier"
 import { Proposition } from "./types"
 
+export interface HintDiagnosis {
+  // Structural failure kind from the client-side diagnose engine. Concept-
+  // agnostic and free of answer items, so it is safe to name in the prompt.
+  kind: string
+  // 1-based index of the first move that left the correct line.
+  stepNumber: number
+}
+
 export interface HintArgs {
   stageId: string
   skill: string
   discipline: "stack" | "queue"
   learnerOrder: string[]
   priorHint?: string
+  // Multi-step (complex) beats: the learner's operation trace as readable steps
+  // plus the structural diagnosis. The correct sequence is never sent, so the
+  // model cannot leak it.
+  attempt?: string[]
+  diagnosis?: HintDiagnosis
 }
 
 export interface HintResult {
@@ -23,7 +36,8 @@ const BASE_SYSTEM =
   "You write one short tutoring hint (at most two sentences) for a data-structures lesson. " +
   "You are given the structure type, the order the learner built, and the concept they violated. " +
   "Point them at their specific mistake. NEVER state the correct order or which item goes where. " +
-  "NEVER name the concept or use its key terms. No analogies unless asked."
+  "NEVER name the concept or use its key terms. No analogies unless asked. " +
+  "Use plain punctuation; never use an em dash (write two sentences or use a comma instead)."
 
 const STRICTER =
   "Your previous attempt revealed too much. Be more indirect: do not name the concept, " +
@@ -34,6 +48,17 @@ function buildUser(args: HintArgs, withheld: Proposition[]): string {
   const prior = args.priorHint
     ? `\nYour previous hint was: "${args.priorHint}". Take a different angle.`
     : ""
+  if (args.diagnosis && args.attempt) {
+    return (
+      `Structure: ${args.discipline}\n` +
+      `The learner is part-way through a multi-step problem.\n` +
+      `Their moves so far: ${args.attempt.join(", ")}\n` +
+      `Their first misstep was move ${args.diagnosis.stepNumber} (issue: ${args.diagnosis.kind}).\n` +
+      `Concept(s) they violated: ${concepts}\n` +
+      `Write a hint that points them at that one move and ends with exactly one short question about it. ` +
+      `Do NOT state the correct sequence or which move to make next.${prior}`
+    )
+  }
   return (
     `Structure: ${args.discipline}\n` +
     `Learner built (in push order): ${args.learnerOrder.join(", ")}\n` +
