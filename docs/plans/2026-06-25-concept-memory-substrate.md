@@ -758,7 +758,7 @@ git commit -m "feat: ConceptReviewProvider (cache + single write path) wired int
 
 Feeds the substrate from normal lesson play: when a lesson's durable correct-count rises, the demonstrated concept is recorded as a correct rep. Rides the same progress-signature effect pattern the activity recorder already uses, so it is StrictMode- and resume-safe (deltas from monotonic counters, baselined while unreconciled).
 
-**Known limitation (documented, not a bug):** the live Stacks & Queues engine stores binary `solved` flags, so a concept's counter rises 0->1 only on the *first* solve. Initial seeding works for every lesson; in-lesson *re-practice* healing works for the six counting engines but not for already-solved S&Q skills. The retrieval drill (Plan 2) heals any concept directly via `recordReview`. Closing the S&Q re-practice gap (a `gradedConcept` seam method, or confirming whether a completed lesson is even re-drillable in-lesson) is a tracked follow-up.
+**Known limitation (documented, not a bug):** the recovery hook fires on a *rise* in a durable correct-counter, which bounds it two ways. (1) Counter shapes differ: three lessons store binary 0/1 solved-flags (stacks-and-queues, arrays, linked-lists), which rise only on the *first* solve; four count up to a quota (hash-tables, heaps, trees, graphs). (2) Completing a lesson saturates every counter, so re-entering an *already-completed* lesson produces no rise on any engine. Net: the hook reliably **seeds** a row the first time each sub-skill is solved (every lesson), but in-lesson **re-practice of a completed lesson heals nothing through this path**. Reliable healing comes from the Plan 2 retrieval drill, which calls `recordReview` directly. Closing the in-lesson re-practice path needs a verdict-based seam (e.g. a per-module `gradedConcept(prev, action, next)`) instead of counter diffing; it is a tracked follow-up to coordinate with the deprogression chat, which expects re-practice to heal.
 
 **Files:**
 - Modify: `src/features/lesson/useLessonRun.tsx`
@@ -840,7 +840,7 @@ git commit -m "feat: in-lesson recovery hook feeding the concept-memory substrat
 
 ## Open coordination notes
 
-- **Recovery for binary S&Q re-practice** (Task 6 limitation) is the one cross-cutting item to resolve with the deprogression chat; both features are unaffected for initial seeding and for the six counting lessons.
+- **In-lesson re-practice healing** (Task 6 limitation) is the one cross-cutting item to resolve with the deprogression chat: the counter-diff hook seeds a row on each sub-skill's first solve, but it does not heal re-practice of a completed lesson on any engine (counters are already saturated), and three engines (stacks-and-queues, arrays, linked-lists) are binary besides. The Plan 2 drill heals directly via `recordReview`; a verdict-based `gradedConcept` seam would close the in-lesson path.
 - **`retrievable` curation** for arrays/linked-lists/hash-tables/trees/heaps/graphs lands with Plan 2's item providers (which require each engine's sub-skill semantics anyway).
 
 ## Execution handoff

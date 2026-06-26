@@ -221,7 +221,9 @@ call `recordReview(conceptId, true)`. No `LessonModule`/engine change is needed.
 
 - Engines bump correct-counters only on correct answers, so in-lesson **wrong**
   answers are invisible here and never demote (only the scheduled drill calls
-  `recordReview(_, false)`). Re-practicing a rusty lesson can only restore it.
+  `recordReview(_, false)`). This path **seeds** a concept on its first solve; it does
+  not heal re-practice of an already-completed lesson (every counter is saturated, so
+  no rise fires). The drill is the reliable healer; a verdict-based seam is a follow-up.
 - `applyReview`'s spaced-vs-massed rule stops same-session grinding from inflating
   the ladder.
 
@@ -254,8 +256,10 @@ saveConceptReview(uid: string, review: ConceptReview): Promise<void> // optimist
   written with merge; mirrors the existing `activity` subcollection pattern.
 - **In-memory fake:** same semantics for tests.
 - **Carry-up:** scheduling is signed-in only, so there is no anonymous review state
-  to merge. At sign-in, reconcile seeds level-0 rows for already-completed lessons
-  lacking rows; the recovery hook and drills maintain them thereafter.
+  to merge. Rows are created lazily by `recordReview` (the recovery hook on a first
+  solve, or a drill answer), so a signed-in learner accrues rows as they play.
+  Backfilling rows for lessons completed before this feature shipped is deferred: a
+  missing row reads as fresh, which is safe, until the concept is next practiced.
 - **Security rules:** a learner may read/write only their own
   `users/{uid}/conceptReviews/**`. Audit before shipping.
 
@@ -266,7 +270,7 @@ saveConceptReview(uid: string, review: ConceptReview): Promise<void> // optimist
   `selectDueDrill` ordering, eligibility, cooldown, and `MIN_GAP`; item-provider
   purity (same `seed+encounter` -> same item; reword varies by `encounter`).
 - **Repository integration (emulator):** `getConceptReviews`/`saveConceptReview`
-  round-trip and sign-in seeding; mirrors `firestoreProgressRepository.emulator.test.ts`.
+  round-trip; mirrors `firestoreProgressRepository.emulator.test.ts`.
 - **One E2E tracer (Playwright):** complete Stacks & Queues, advance the clock so a
   concept is due, enter Arrays, see the warm-up, answer, proceed; assert the drill
   does not reappear the same session.
