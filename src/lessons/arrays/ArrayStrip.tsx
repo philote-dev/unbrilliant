@@ -80,6 +80,9 @@ export function ArrayStrip(props: {
   scale?: number
   frame?: ShiftFrame
   opIndex?: number
+  /** ripple mode: the single end-state sentence to announce (the final frame's
+   * caption), so the SR hears one coherent line instead of every step. */
+  caption?: string
   /** place mode: the gap the learner has chosen so far (e.g. "gap-3"). */
   selectedGap?: string | null
   /** place mode: the cheapest gap (dev-only tracer hook). */
@@ -92,7 +95,14 @@ export function ArrayStrip(props: {
   const isReduced = props.reduced || (prefersReduced ?? false)
 
   if (props.mode === "ripple" && props.frame) {
-    return <RippleStrip frame={props.frame} opIndex={props.opIndex ?? -1} reduced={isReduced} />
+    return (
+      <RippleStrip
+        frame={props.frame}
+        opIndex={props.opIndex ?? -1}
+        reduced={isReduced}
+        caption={props.caption}
+      />
+    )
   }
   if (props.mode === "scan") {
     return (
@@ -540,10 +550,12 @@ function RippleStrip({
   frame,
   opIndex,
   reduced,
+  caption,
 }: {
   frame: ShiftFrame
   opIndex: number
   reduced: boolean
+  caption?: string
 }) {
   const width = frame.columns * CELL
   const spring = { type: "spring", stiffness: 420, damping: 32 } as const
@@ -611,10 +623,11 @@ function RippleStrip({
         ))}
       </AnimatePresence>
 
-      {/* the wave is narrated step by step as it plays (and the end-state caption
-          on reduced motion), so a screen reader hears the shift it cannot see */}
+      {/* announce the settled end-state as one coherent sentence (the final
+          frame's caption), so a screen reader hears the outcome, not every step
+          coalesced into a garbled, last-only blur */}
       <p role="status" aria-live="polite" className="sr-only">
-        {frame.caption}
+        {caption ?? frame.caption}
       </p>
     </div>
   )

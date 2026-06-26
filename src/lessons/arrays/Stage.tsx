@@ -639,6 +639,9 @@ function CountPart({
   // strand); the live wave walks the played index. Guard the index either way.
   const shownIndex = reduced ? last : Math.min(frameIndex, last)
   const currentFrame = frameCount > 0 ? frames[shownIndex] : undefined
+  // Announce the end-state once: the SR hears the final caption as a single
+  // coherent sentence rather than every step coalesced into a last-only blur.
+  const finalCaption = frameCount > 0 ? frames[last].caption : undefined
   const kicker = isRealworld ? "Real-world · row shift" : part === "insert" ? "Insert" : "Delete"
 
   return (
@@ -654,7 +657,12 @@ function CountPart({
           {isRealworld && q.op ? (
             <SpreadsheetInsert cells={q.cells} op={q.op} reveal={reveal} />
           ) : reveal && currentFrame ? (
-            <ArrayStrip mode="ripple" frame={currentFrame} opIndex={q.op?.index ?? -1} />
+            <ArrayStrip
+              mode="ripple"
+              frame={currentFrame}
+              caption={finalCaption}
+              opIndex={q.op?.index ?? -1}
+            />
           ) : (
             <ArrayStrip mode="read" cells={q.cells} highlight={q.op?.index ?? -1} tone="active" />
           )}
