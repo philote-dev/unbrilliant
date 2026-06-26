@@ -44,6 +44,10 @@ service cloud.firestore {
         allow read: if isOwner(uid);
         allow create: if isOwner(uid) && isValidExplanation();
       }
+
+      match /conceptReviews/{conceptId} {
+        allow read, write: if isOwner(uid);
+      }
     }
   }
 }

@@ -19,6 +19,8 @@ import { createFirestoreProgressRepository } from "@/features/progress/firestore
 import { reconcileRun } from "@/features/progress/reconcileRun"
 import { activityDelta, answerTallies } from "@/features/progress/activityDelta"
 import { dayKeyToUTCDate, localDayKey } from "@/features/progress/activityDate"
+import { useConceptReviews } from "@/features/progress/ConceptReviewProvider"
+import { risenConcepts } from "@/features/progress/concepts"
 import { getLessonModule } from "@/features/lesson/lessons"
 import { reconcileModule, type LessonModule } from "@/features/lesson/lessonModule"
 import type { LessonAction } from "@/features/lesson/engine"
@@ -93,6 +95,11 @@ export function LessonRunProvider({ children }: { children: ReactNode }) {
   const [sessionActivityMap, setSessionActivityMap] = useState<
     Record<string, { attempted: number; correct: number }>
   >({})
+
+  // The concept-memory write path plus the per-lesson counters baseline its diff
+  // rides (same StrictMode-/resume-safe idiom as activityBaseRef above).
+  const { recordReview } = useConceptReviews()
+  const reviewBaseRef = useRef<Record<string, Record<string, number>>>({})
 
   // Reconcile once per signed-in user + active lesson. Gating on the COMPLETED
   // key (not a "started" flag) stays correct under React StrictMode's double
@@ -176,6 +183,27 @@ export function LessonRunProvider({ children }: { children: ReactNode }) {
     })
     if (user) void repo.recordActivity(user.uid, dayKey, delta).catch(() => {})
   }, [user, lessonId, repo, module, progressSig])
+
+  // Feed the concept-memory substrate from normal play: each rise in a lesson's
+  // durable correct-count records a correct rep for that concept. Baseline while
+  // signed-in-but-unreconciled (so a resume-hydrate jump never back-fills), then
+  // diff. Anonymous runs no-op inside recordReview (signed-in only).
+  useEffect(() => {
+    const counters = module.toProgress(runsRef.current[lessonId]).counters
+    if (user && reconciledKey.current !== `${user.uid}:${lessonId}`) {
+      reviewBaseRef.current[lessonId] = counters
+      return
+    }
+    const base = reviewBaseRef.current[lessonId]
+    if (!base) {
+      reviewBaseRef.current[lessonId] = counters
+      return
+    }
+    for (const id of risenConcepts(lessonId, base, counters)) {
+      recordReview(id, true)
+    }
+    reviewBaseRef.current[lessonId] = counters
+  }, [user, lessonId, module, recordReview, progressSig])
 
   // Persist the on-fire streak from the run's combo: current tracks the live
   // combo; longest is preserved as the all-time best (carries across sessions
