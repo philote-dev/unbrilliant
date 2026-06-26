@@ -56,6 +56,42 @@ describe("Arrays stage — de-cued access (overlay is post-verdict only)", () =>
   })
 })
 
+describe("Arrays stage: scan walk (reveal cell by cell, no shortcut)", () => {
+  it("hides letters, reveals on tap with an anchor, gates the frontier, and solves at the target", () => {
+    const init = at("scan")
+    const q = init.question!
+    const target = q.answerIndex! // makeScan curates this into 2..n-1
+    render(<Harness initial={init} />)
+
+    // letters start hidden: the searched value is nowhere on screen yet, and no
+    // anchor marks a started search.
+    expect(screen.queryByText(q.value!, { exact: true })).toBeNull()
+    expect(screen.queryByText(q.cells[0], { exact: true })).toBeNull()
+    expect(screen.queryByTestId("scan-anchor")).toBeNull()
+
+    // tap any cell to start: it reveals its letter and drops the search anchor.
+    fireEvent.click(screen.getByRole("button", { name: "Reveal cell 0" }))
+    expect(screen.getByText(q.cells[0], { exact: true })).toBeInTheDocument()
+    expect(screen.getByTestId("scan-anchor")).toBeInTheDocument()
+
+    // only the frontier is tappable: the adjacent cell is, a non-adjacent hidden
+    // cell (the target, at index >= 2) is not.
+    expect(screen.getByRole("button", { name: "Reveal cell 1" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: `Reveal cell ${target}` })).toBeNull()
+
+    // walk the row one cell at a time until the value turns up.
+    for (let i = 1; i <= target; i++) {
+      fireEvent.click(screen.getByRole("button", { name: `Reveal cell ${i}` }))
+    }
+
+    // reaching the target solves the beat: the value shows, the cost reflects the
+    // cells actually checked, and the lesson can continue.
+    expect(screen.getByText(q.value!, { exact: true })).toBeInTheDocument()
+    expect(screen.getByText(`${target + 1} cells checked`)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Continue" })).toBeInTheDocument()
+  })
+})
+
 describe("Arrays stage — place-cheapest commits via tap and keyboard", () => {
   it("dropping the cell on the end gap (tap) clears the beat", () => {
     const init = at("place-cheapest")

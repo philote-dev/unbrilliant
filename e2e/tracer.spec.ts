@@ -61,11 +61,24 @@ async function answerArrays(page: Page) {
   await continueOn(page)
 }
 
-/** Arrays de-cued access (A1/A3): the answer is a cell, not an MCQ card — tap the
- * one marked correct (dev-only data-answer hook), then Check. */
+/** Arrays de-cued jump (A1): the answer is a cell, not an MCQ card. Tap the one
+ * marked correct (dev-only data-answer hook), then Check. */
 async function answerCellTap(page: Page) {
   await page.locator('[data-answer="1"]').first().click()
   await page.getByRole("button", { name: "Check" }).click()
+  await continueOn(page)
+}
+
+/** Arrays scan walk (A3): a value search has no shortcut. Start the search at the
+ * front, then reveal cells rightward one at a time until the value turns up and
+ * the beat auto-commits. The walk self-checks, so there is no Check button. */
+async function walkScanArrays(page: Page) {
+  const cont = page.getByRole("button", { name: "Continue", exact: true })
+  await page.getByRole("button", { name: "Reveal cell 0" }).click()
+  for (let i = 1; i < 8; i++) {
+    if (await cont.isVisible()) break
+    await page.getByRole("button", { name: `Reveal cell ${i}` }).click()
+  }
   await continueOn(page)
 }
 
@@ -265,7 +278,7 @@ test("vision → browse → enter course → play → sign in (carry-up) → com
   // place-cheapest → realworld → grow → grow verdict. 8 graded beats.
   await continueOn(page) // play-access (read the strip)
   await answerCellTap(page) // jump (tap the de-cued cell)
-  await answerCellTap(page) // scan (tap where the value is)
+  await walkScanArrays(page) // scan (walk the row until the value turns up)
   await continueOn(page) // play-mutate (insert/delete playground)
   await answerArrays(page) // insert (predict the shift count)
   await answerArrays(page) // delete (predict the shift count)

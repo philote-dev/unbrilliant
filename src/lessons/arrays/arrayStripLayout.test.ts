@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest"
 
 import {
   CELL,
+  SCAN_REACH_RISE,
   capacitySlots,
   cellBox,
   cellCenter,
@@ -9,7 +10,9 @@ import {
   jumpMarker,
   jumpPath,
   rulerTickX,
+  scanAnchor,
   scanPath,
+  scanReach,
   stripExtent,
 } from "./arrayStripLayout"
 
@@ -87,6 +90,38 @@ describe("arrayStripLayout — access overlays (jump vs scan)", () => {
     expect(scan.points.map((p) => p.x)).toEqual([0, 1, 2, 3, 4].map((i) => cellCenter(i).x))
     expect(scan.d.startsWith("M")).toBe(true)
     expect((scan.d.match(/L/g) ?? []).length).toBe(4) // 4 line segments after the move
+  })
+})
+
+describe("arrayStripLayout: scan walk (reveal cell by cell)", () => {
+  it("the reach line rides above the tops of the revealed run, left to right", () => {
+    const r = scanReach(1, 4)
+    expect(r.from).toEqual({ x: cellCenter(1).x, y: -SCAN_REACH_RISE })
+    expect(r.to).toEqual({ x: cellCenter(4).x, y: -SCAN_REACH_RISE })
+    expect(r.from.y).toBe(r.to.y) // horizontal: rides along the tops
+    expect(r.to.x).toBeGreaterThan(r.from.x)
+    expect(r.d.startsWith("M")).toBe(true)
+    expect((r.d.match(/L/g) ?? []).length).toBe(1)
+  })
+
+  it("a single revealed cell is a zero-length reach (just the start)", () => {
+    const r = scanReach(2, 2)
+    expect(r.from).toEqual(r.to)
+  })
+
+  it("the anchor lollipop is fixed above its cell with a stem to the reach line", () => {
+    const a = scanAnchor(3)
+    expect(a.dot.x).toBe(cellCenter(3).x)
+    expect(a.dot.y).toBeLessThan(0) // floats above the row
+    expect(a.dot.r).toBeGreaterThan(0)
+    expect(a.stem.x).toBe(a.dot.x) // a vertical stem under the dot
+    expect(a.stem.y2).toBe(-SCAN_REACH_RISE) // reaches down to the connector line
+    expect(a.stem.y1).toBeGreaterThan(a.dot.y) // starts below the dot's center
+  })
+
+  it("the anchor x depends only on its cell, never on the reach extent", () => {
+    expect(scanAnchor(0).dot.x).toBe(cellCenter(0).x)
+    expect(scanAnchor(5).dot.x).toBe(cellCenter(5).x)
   })
 })
 

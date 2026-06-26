@@ -134,6 +134,46 @@ export function scanPath(toIndex: number): { points: Pt[]; d: string } {
   return { points, d }
 }
 
+/* ------------------------------- scan walk ------------------------------- */
+
+/** The reach line rides this far above the cell tops; the anchor dot floats higher. */
+export const SCAN_REACH_RISE = 7
+export const SCAN_ANCHOR_RISE = 34
+export const SCAN_ANCHOR_RADIUS = 5
+
+/**
+ * The scan "reach": a thin connector riding just above the tops of the revealed
+ * run [minIndex, maxIndex], from cell-top-center to cell-top-center lifted by
+ * SCAN_REACH_RISE so it hugs the row. A single revealed cell is a zero-length
+ * reach (the start, before any walk). PURE.
+ */
+export function scanReach(
+  minIndex: number,
+  maxIndex: number,
+): { from: Pt; to: Pt; d: string } {
+  const y = -SCAN_REACH_RISE
+  const from: Pt = { x: cellCenter(minIndex).x, y }
+  const to: Pt = { x: cellCenter(maxIndex).x, y }
+  return { from, to, d: `M ${r2(from.x)} ${r2(from.y)} L ${r2(to.x)} ${r2(to.y)}` }
+}
+
+/**
+ * The fixed "search anchor" lollipop above the cell where the walk began: a dot
+ * floating SCAN_ANCHOR_RISE above the cell top, with a vertical stem down to the
+ * reach line. The dot's x is the cell center and never depends on how far the
+ * walk has reached, so it marks where the search started. PURE.
+ */
+export function scanAnchor(i: number): {
+  dot: Pt & { r: number }
+  stem: { x: number; y1: number; y2: number }
+} {
+  const x = cellCenter(i).x
+  return {
+    dot: { x, y: -SCAN_ANCHOR_RISE, r: SCAN_ANCHOR_RADIUS },
+    stem: { x, y1: -SCAN_ANCHOR_RISE + SCAN_ANCHOR_RADIUS, y2: -SCAN_REACH_RISE },
+  }
+}
+
 /* ----------------------------- capacity frame ----------------------------- */
 
 /** `capacity` contiguous slot boxes in a row (the backing block for A6). */

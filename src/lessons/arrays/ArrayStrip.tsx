@@ -16,8 +16,11 @@ import {
   CELL,
   RULER_GAP,
   RULER_H,
+  SCAN_REACH_RISE,
+  cellCenter,
   jumpMarker,
   jumpPath,
+  scanAnchor,
   scanPath,
   stripExtent,
 } from "./arrayStripLayout"
@@ -30,8 +33,11 @@ import {
  *
  * Modes:
  *  - read: de-cued cells (no pre-highlight); tappable for the access asks. On
- *    reveal, an overlay fires the single jump arc (index ask) or the
- *    step-by-step scan (value ask): the visual O(1)-vs-O(n) asymmetry.
+ *    reveal, an overlay fires the single jump arc (index ask): the O(1) picture.
+ *  - scan: a hands-on value search. Cells start blank-faced; tapping reveals one
+ *    cell at a time, but only the frontier (just outside the revealed run) is
+ *    tappable, so the learner must walk the row. A fixed anchor marks the start
+ *    and a lilac reach line grows along the tops: the O(n) picture, felt.
  *  - ripple: a post-verdict wave of one-slot shifts (from the pure shiftFrames
  *    selector); the wave length IS the cost. Reduced motion snaps.
  *  - place: the row with a drop target at EVERY gap (0..n) plus a loose cell to
@@ -48,13 +54,15 @@ const TONE_RING: Record<Tone, string> = {
   wrong: "border-danger bg-danger-soft",
 }
 
+const EMPTY_SET: Set<number> = new Set()
+
 export type Overlay =
   | { kind: "jump"; k: number }
   | { kind: "scan"; to: number }
   | null
 
 export function ArrayStrip(props: {
-  mode: "read" | "ripple" | "place"
+  mode: "read" | "scan" | "ripple" | "place"
   cells?: string[]
   ruler?: boolean
   highlight?: number
@@ -63,6 +71,14 @@ export function ArrayStrip(props: {
   overlay?: Overlay
   /** Dev-only tracer hook: marks the correct cell so the e2e tracer can tap it. */
   answerIndex?: number
+  /** scan mode: indices whose letter has been revealed by the walk. */
+  revealed?: Set<number>
+  /** scan mode: indices the learner may tap next (the frontier). */
+  tappable?: Set<number>
+  /** scan mode: the cell where the walk began (the fixed anchor), or null. */
+  anchorIndex?: number | null
+  /** scan mode: the index of the searched value (toned on reveal). */
+  matchIndex?: number
   /** Light up the WHOLE address ruler (e.g. when the learner hovers "index"). */
   rulerLit?: boolean
   /** Visually enlarge the figure without touching the deterministic px math. */
@@ -82,6 +98,19 @@ export function ArrayStrip(props: {
 
   if (props.mode === "ripple" && props.frame) {
     return <RippleStrip frame={props.frame} opIndex={props.opIndex ?? -1} reduced={isReduced} />
+  }
+  if (props.mode === "scan") {
+    return (
+      <ScanStrip
+        cells={props.cells ?? []}
+        revealed={props.revealed ?? EMPTY_SET}
+        tappable={props.tappable ?? EMPTY_SET}
+        anchorIndex={props.anchorIndex ?? null}
+        matchIndex={props.matchIndex ?? -1}
+        onTap={props.onTap}
+        reduced={isReduced}
+      />
+    )
   }
   if (props.mode === "place") {
     return (
@@ -346,6 +375,182 @@ function JumpOverlay({
         style={{ transformBox: "fill-box", transformOrigin: "center" }}
       />
     </>
+  )
+}
+
+/* --------------------------------- scan mode -------------------------------- */
+
+/**
+ * The hands-on value search. Cells start blank-faced; the learner taps one cell
+ * to start (dropping the fixed anchor), then may only tap the frontier (the cells
+ * immediately outside the revealed run), so the search has to walk the row. The
+ * address ruler stays visible throughout; a lilac reach line grows along the tops
+ * of the revealed cells to show how far the scan has reached.
+ */
+function ScanStrip({
+  cells,
+  revealed,
+  tappable,
+  anchorIndex,
+  matchIndex,
+  onTap,
+  reduced,
+}: {
+  cells: string[]
+  revealed: Set<number>
+  tappable: Set<number>
+  anchorIndex: number | null
+  matchIndex: number
+  onTap?: (i: number) => void
+  reduced: boolean
+}) {
+  const n = cells.length
+  const ext = stripExtent(n)
+  const idxs = [...revealed]
+  const min = idxs.length ? Math.min(...idxs) : -1
+  const max = idxs.length ? Math.max(...idxs) : -1
+
+  return (
+    <div className="relative mx-auto" style={{ width: ext.width }}>
+      {/* the contiguous cell row: blank until revealed */}
+      <div className="flex" style={{ height: CELL }}>
+        {cells.map((c, i) => {
+          const isRevealed = revealed.has(i)
+          const isTap = !!onTap && tappable.has(i)
+          const isMatch = isRevealed && i === matchIndex
+          const Tag = isTap ? "button" : "div"
+          return (
+            <Tag
+              key={i}
+              {...(isTap
+                ? {
+                    type: "button" as const,
+                    onClick: () => onTap!(i),
+                    "aria-label": `Reveal cell ${i}`,
+                  }
+                : isRevealed
+                  ? { "aria-label": `cell ${i}, value ${c}${isMatch ? ", found" : ""}` }
+                  : {})}
+              className={cn(
+                "box-border flex items-center justify-center border-y-2 border-l-2 text-lg font-bold outline-none last:border-r-2",
+                "first:rounded-l-xl last:rounded-r-xl",
+                isMatch
+                  ? cn("relative z-10 text-foreground", TONE_RING.correct)
+                  : isRevealed
+                    ? "border-lilac-strong/40 bg-lilac-soft/60 text-foreground"
+                    : "border-border bg-card text-foreground",
+                isTap &&
+                  "cursor-pointer border-lilac-strong/40 transition-[background-color,border-color,transform] duration-150 hover:relative hover:z-10 hover:-translate-y-0.5 hover:border-lilac-strong hover:bg-lilac-soft focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-lilac-strong/60",
+              )}
+              style={{ width: CELL, height: CELL }}
+            >
+              {isRevealed ? c : ""}
+            </Tag>
+          )
+        })}
+      </div>
+
+      {/* the address ruler stays visible: revealed indices light up in lilac */}
+      <div className="flex" style={{ height: RULER_H, marginTop: RULER_GAP }} aria-hidden>
+        {cells.map((_, i) => {
+          const on = revealed.has(i)
+          return (
+            <span
+              key={i}
+              className={cn(
+                "flex items-center justify-center text-xs tabular-nums transition-all duration-200",
+                on ? "scale-110 font-bold text-lilac-strong" : "text-faint",
+              )}
+              style={{ width: CELL }}
+            >
+              {i}
+            </span>
+          )
+        })}
+      </div>
+
+      {/* the fixed anchor + the growing reach line (decorative) */}
+      {anchorIndex != null && min >= 0 && (
+        <ScanOverlay
+          anchorIndex={anchorIndex}
+          min={min}
+          max={max}
+          width={ext.width}
+          height={ext.height}
+          reduced={reduced}
+        />
+      )}
+    </div>
+  )
+}
+
+/**
+ * The scan overlay: a fixed lilac "search anchor" lollipop above the cell where
+ * the walk began, plus a thin reach line that grows from the anchor out to cover
+ * the revealed run [min, max] (the scan's reach). Reduced motion snaps it open.
+ */
+function ScanOverlay({
+  anchorIndex,
+  min,
+  max,
+  width,
+  height,
+  reduced,
+}: {
+  anchorIndex: number
+  min: number
+  max: number
+  width: number
+  height: number
+  reduced: boolean
+}) {
+  const stroke = "var(--color-lilac-strong, #8B7FD6)"
+  const anchor = scanAnchor(anchorIndex)
+  const minX = cellCenter(min).x
+  const maxX = cellCenter(max).x
+  const reachY = -SCAN_REACH_RISE
+  const spring = { type: "spring", stiffness: 360, damping: 30 } as const
+
+  return (
+    <svg
+      className="pointer-events-none absolute left-0 top-0 overflow-visible"
+      width={width}
+      height={height}
+      aria-hidden
+      data-testid="scan-anchor"
+    >
+      {/* the reach grows from the anchor outward to span the revealed run */}
+      <motion.line
+        y1={reachY}
+        y2={reachY}
+        initial={reduced ? false : { x1: anchor.dot.x, x2: anchor.dot.x }}
+        animate={{ x1: minX, x2: maxX }}
+        transition={reduced ? { duration: 0 } : spring}
+        stroke={stroke}
+        strokeWidth={2}
+        strokeLinecap="round"
+      />
+      {/* the fixed anchor lollipop: a stem to the reach line and a dot above it */}
+      <line
+        x1={anchor.stem.x}
+        y1={anchor.stem.y1}
+        x2={anchor.stem.x}
+        y2={anchor.stem.y2}
+        stroke={stroke}
+        strokeWidth={2}
+        strokeLinecap="round"
+      />
+      <motion.circle
+        cx={anchor.dot.x}
+        cy={anchor.dot.y}
+        r={anchor.dot.r}
+        fill={stroke}
+        initial={reduced ? false : { opacity: 0, scale: 0.4 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 480, damping: 22 }}
+        style={{ transformBox: "fill-box", transformOrigin: "center" }}
+      />
+    </svg>
   )
 }
 

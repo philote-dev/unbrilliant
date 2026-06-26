@@ -40,8 +40,9 @@ export function ArraysStage({
     case "play-access":
       return <PlayAccessPart dispatch={dispatch} />
     case "jump":
-    case "scan":
       return <AccessPart state={state} dispatch={dispatch} />
+    case "scan":
+      return <ScanPart state={state} dispatch={dispatch} />
     case "play-mutate":
       return <PlayMutatePart dispatch={dispatch} />
     case "insert":
@@ -213,7 +214,7 @@ function PlayAccessPart({ dispatch }: { dispatch: Dispatch<LessonAction> }) {
   )
 }
 
-/* --------------------------- jump + scan (de-cued access) --------------------------- */
+/* ------------------------------ jump (de-cued access) ------------------------------ */
 
 function AccessPart({
   state,
@@ -227,20 +228,15 @@ function AccessPart({
   const { feedback, selected, showWhy } = state
   const terminal = isTerminalA(state)
   const reveal = feedback === "correct" || (feedback === "fail" && showWhy)
-  const isScan = currentPartArrays(state) === "scan"
   const selIdx = selected != null ? Number(selected) : -1
   const ansIdx = q.answerIndex ?? -1
   const highlight = reveal ? ansIdx : selIdx
   const tone = reveal ? "correct" : feedback === "nudge" || feedback === "fail" ? "wrong" : "active"
-  const overlay: Overlay = reveal
-    ? isScan
-      ? { kind: "scan", to: ansIdx }
-      : { kind: "jump", k: ansIdx }
-    : null
+  const overlay: Overlay = reveal ? { kind: "jump", k: ansIdx } : null
 
   return (
     <StageCenter>
-      <Header kicker={isScan ? "Search by value" : "Jump by index"} prompt={q.prompt} />
+      <Header kicker="Jump by index" prompt={q.prompt} />
       <Quota state={state} />
 
       {/* extra top room so the jump halo (which floats well above the row) never
@@ -257,15 +253,7 @@ function AccessPart({
         />
         {reveal && <CostReadout word={q.cost.word} count={q.cost.count} unit={q.cost.unit} />}
         <p className="max-w-xs text-center text-sm text-muted-foreground">
-          {isScan ? (
-            <>
-              No index in hand: <span className="concept">scan</span> from the front until the value matches.
-            </>
-          ) : (
-            <>
-              Find the <span className="concept">index</span>, then tap that cell.
-            </>
-          )}
+          Find the <span className="concept">index</span>, then tap that cell.
         </p>
       </div>
 
@@ -277,6 +265,116 @@ function AccessPart({
         copy={copyOf(q)}
         dispatch={dispatch}
       />
+    </StageCenter>
+  )
+}
+
+/* ------------------------------ scan (walk the row) ------------------------------ */
+
+/**
+ * The cells the learner may tap next. Before the search starts (nothing revealed)
+ * any cell can begin it; afterwards only the two cells immediately outside the
+ * revealed run [min, max] are reachable, so the value search has to walk.
+ */
+function scanFrontier(revealed: Set<number>, n: number): Set<number> {
+  if (revealed.size === 0) return new Set(Array.from({ length: n }, (_, i) => i))
+  const min = Math.min(...revealed)
+  const max = Math.max(...revealed)
+  const frontier = new Set<number>()
+  if (min - 1 >= 0) frontier.add(min - 1)
+  if (max + 1 < n) frontier.add(max + 1)
+  return frontier
+}
+
+/**
+ * The value search as a hands-on walk: the strip starts blank-faced, the learner
+ * taps to reveal one cell at a time, and only the frontier is tappable so there
+ * is no shortcut. The walk (revealed set + anchor) is local React state; the
+ * moment the learner reveals the cell holding `q.value` we dispatch the existing
+ * select+check so the engine grades it exactly as before (committed index ===
+ * answerIndex). Finding the value is inevitable, and that is the point: the cost
+ * readout reports how many cells the learner actually had to check.
+ */
+function ScanPart({
+  state,
+  dispatch,
+}: {
+  state: ArraysState
+  dispatch: Dispatch<LessonAction>
+}) {
+  const [revealed, setRevealed] = useState<Set<number>>(() => new Set())
+  const [anchor, setAnchor] = useState<number | null>(null)
+  const q = state.question
+  if (!q) return null
+
+  const { feedback, selected, showWhy } = state
+  const terminal = isTerminalA(state)
+  const solved = feedback === "correct"
+  const n = q.cells.length
+  const ansIdx = q.answerIndex ?? -1
+  const checked = revealed.size
+  const tappable = terminal ? new Set<number>() : scanFrontier(revealed, n)
+
+  const onTap = (i: number) => {
+    if (terminal || !tappable.has(i)) return
+    setRevealed((prev) => new Set(prev).add(i))
+    if (anchor == null) setAnchor(i)
+    if (i === ansIdx) {
+      dispatch({ type: "select", letter: String(ansIdx) })
+      dispatch({ type: "check" })
+    }
+  }
+
+  return (
+    <StageCenter>
+      <Header kicker="Search by value" prompt={q.prompt} />
+      <Quota state={state} />
+
+      {/* top room for the anchor marker, which floats above the row */}
+      <div className="flex flex-1 flex-col items-center justify-center gap-4 pb-5 pt-20">
+        <ArrayStrip
+          mode="scan"
+          cells={q.cells}
+          revealed={revealed}
+          tappable={tappable}
+          anchorIndex={anchor}
+          matchIndex={ansIdx}
+          onTap={onTap}
+        />
+        {solved ? (
+          <CostReadout
+            word={q.cost.word}
+            count={checked}
+            unit={checked === 1 ? "cell checked" : "cells checked"}
+          />
+        ) : (
+          <p className="max-w-xs text-center text-sm text-muted-foreground">
+            {anchor == null ? (
+              <>
+                No index to jump to: tap any cell, then <span className="concept">scan</span>{" "}
+                one at a time until the value turns up.
+              </>
+            ) : (
+              <>
+                Keep walking the row. {checked} cell{checked === 1 ? "" : "s"} checked so far.
+              </>
+            )}
+          </p>
+        )}
+      </div>
+
+      {terminal ? (
+        <FeedbackFooter
+          feedback={feedback}
+          selected={selected}
+          showWhy={showWhy}
+          hideFailHint
+          copy={copyOf(q)}
+          dispatch={dispatch}
+        />
+      ) : (
+        <div className="mt-auto min-h-[132px]" aria-hidden />
+      )}
     </StageCenter>
   )
 }
