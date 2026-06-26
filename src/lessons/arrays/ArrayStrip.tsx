@@ -9,7 +9,7 @@ import {
   CELL,
   RULER_GAP,
   RULER_H,
-  jumpArc,
+  jumpMarker,
   scanPath,
   stripExtent,
 } from "./arrayStripLayout"
@@ -223,11 +223,7 @@ function AccessOverlay({
   height: number
   reduced: boolean
 }) {
-  const draw =
-    overlay.kind === "jump" ? jumpArc(overlay.k) : scanPath(overlay.to)
-  const transition = reduced
-    ? { duration: 0 }
-    : { duration: overlay.kind === "jump" ? 0.5 : 0.12 * (overlay.to + 1), ease: "easeInOut" as const }
+  const stroke = "var(--color-lilac-strong, #8B7FD6)"
 
   return (
     <svg
@@ -236,26 +232,76 @@ function AccessOverlay({
       height={height}
       aria-hidden
     >
-      <motion.path
-        d={draw.d}
-        fill="none"
-        stroke="var(--color-lilac-strong, #8B7FD6)"
-        strokeWidth={3}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        initial={reduced ? false : { pathLength: 0, opacity: 0.2 }}
-        animate={{ pathLength: 1, opacity: 1 }}
-        transition={transition}
-      />
-      {overlay.kind === "jump" && (
-        <motion.circle
-          r={4.5}
-          fill="var(--color-lilac-strong, #8B7FD6)"
-          initial={reduced ? false : { cx: draw.d ? jumpArc(overlay.k).to.x : 0, cy: 0, opacity: 0 }}
-          animate={{ cx: jumpArc(overlay.k).to.x, cy: 0, opacity: 1 }}
-          transition={transition}
-        />
-      )}
+      {overlay.kind === "jump"
+        ? (() => {
+            const m = jumpMarker(overlay.k)
+            const lineT = reduced
+              ? { duration: 0 }
+              : { duration: 0.32, ease: "easeIn" as const, delay: 0.18 }
+            const haloT = reduced
+              ? { duration: 0 }
+              : { type: "spring" as const, stiffness: 480, damping: 22 }
+            return (
+              <>
+                {/* soft outer halo */}
+                <motion.circle
+                  cx={m.circle.x}
+                  cy={m.circle.y}
+                  r={m.circle.r + 6}
+                  fill={stroke}
+                  initial={reduced ? false : { opacity: 0, scale: 0.4 }}
+                  animate={{ opacity: 0.18, scale: 1 }}
+                  transition={haloT}
+                  style={{ transformOrigin: `${m.circle.x}px ${m.circle.y}px` }}
+                />
+                {/* the solid lookup dot, floating above the array */}
+                <motion.circle
+                  cx={m.circle.x}
+                  cy={m.circle.y}
+                  r={m.circle.r}
+                  fill={stroke}
+                  initial={reduced ? false : { opacity: 0, scale: 0.4 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={haloT}
+                  style={{ transformOrigin: `${m.circle.x}px ${m.circle.y}px` }}
+                />
+                {/* the straight drop from the halo's bottom onto the cell top */}
+                <motion.path
+                  d={m.d}
+                  fill="none"
+                  stroke={stroke}
+                  strokeWidth={3}
+                  strokeLinecap="round"
+                  initial={reduced ? false : { pathLength: 0, opacity: 0.3 }}
+                  animate={{ pathLength: 1, opacity: 1 }}
+                  transition={lineT}
+                />
+                {/* a small landing tick where the line meets the cell */}
+                <motion.circle
+                  cx={m.cell.x}
+                  cy={m.cell.y}
+                  r={3.5}
+                  fill={stroke}
+                  initial={reduced ? false : { opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={reduced ? { duration: 0 } : { delay: 0.46, duration: 0.2 }}
+                />
+              </>
+            )
+          })()
+        : (
+          <motion.path
+            d={scanPath(overlay.to).d}
+            fill="none"
+            stroke={stroke}
+            strokeWidth={3}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            initial={reduced ? false : { pathLength: 0, opacity: 0.2 }}
+            animate={{ pathLength: 1, opacity: 1 }}
+            transition={reduced ? { duration: 0 } : { duration: 0.12 * (overlay.to + 1), ease: "easeInOut" }}
+          />
+        )}
     </svg>
   )
 }

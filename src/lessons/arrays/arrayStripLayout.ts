@@ -6,7 +6,8 @@
  * shell that scales this intrinsic layout to fit its container.
  *
  * Two access overlays make the O(1)-vs-O(n) asymmetry visible:
- *  - `jumpArc(k)`: a single arc from ruler tick k up to cell k (one hop).
+ *  - `jumpMarker(k)`: a halo circle hovering above cell k, with a straight line
+ *    dropping from its bottom onto the cell's top (the one direct lookup).
  *  - `scanPath(k)`: a step-by-step polyline through cell centers 0..k (a walk).
  * Plus the dynamic-array `capacitySlots` / `doubledLayout` for the grow figure.
  */
@@ -60,17 +61,29 @@ export function stripExtent(n: number): { width: number; height: number } {
 
 const r2 = (n: number): number => Math.round(n * 100) / 100
 
+/** The "jump" marker geometry: how high the halo floats over the cell, its size. */
+export const JUMP_RADIUS = 7
+export const JUMP_RISE = 26 // length of the straight drop from halo bottom to cell top
+
 /**
- * A single "jump" arc: from the address ruler tick at index k up and over into
- * the top of cell k. One hop, no walking: the O(1) random-access picture.
+ * A single "jump" marker: a halo circle hovering directly above cell k, with a
+ * straight vertical line dropping from the halo's bottom onto the cell's top. One
+ * direct lookup, no walking: the O(1) random-access picture. (Coordinates are in
+ * the strip's space, where y = 0 is the top edge of the cell row, so the halo
+ * sits at a negative y above the array.)
  */
-export function jumpArc(k: number): { from: Pt; to: Pt; control: Pt; d: string } {
-  const from: Pt = { x: rulerTickX(k), y: CELL + RULER_GAP }
-  const to: Pt = { x: cellCenter(k).x, y: 0 }
-  // bow up and to the side so it reads as one springing hop, not a straight line
-  const control: Pt = { x: rulerTickX(k) + CELL * 0.85, y: -CELL * 0.45 }
-  const d = `M ${r2(from.x)} ${r2(from.y)} Q ${r2(control.x)} ${r2(control.y)} ${r2(to.x)} ${r2(to.y)}`
-  return { from, to, control, d }
+export function jumpMarker(k: number): {
+  cell: Pt // top-center of cell k (where the lookup lands)
+  circle: Pt & { r: number } // the halo, floating above the array
+  haloBottom: Pt // the point the connector line leaves from
+  d: string // the straight connector: halo bottom -> cell top
+} {
+  const x = cellCenter(k).x
+  const cell: Pt = { x, y: 0 }
+  const haloBottom: Pt = { x, y: -JUMP_RISE }
+  const circle = { x, y: haloBottom.y - JUMP_RADIUS, r: JUMP_RADIUS }
+  const d = `M ${r2(haloBottom.x)} ${r2(haloBottom.y)} L ${r2(cell.x)} ${r2(cell.y)}`
+  return { cell, circle, haloBottom, d }
 }
 
 /**

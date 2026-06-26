@@ -6,7 +6,7 @@ import {
   cellBox,
   cellCenter,
   doubledLayout,
-  jumpArc,
+  jumpMarker,
   rulerTickX,
   scanPath,
   stripExtent,
@@ -37,13 +37,20 @@ describe("arrayStripLayout — contiguous cells over an address ruler", () => {
 })
 
 describe("arrayStripLayout — access overlays (jump vs scan)", () => {
-  it("a jump arc anchors on ruler tick k and lands on cell k", () => {
-    const arc = jumpArc(3)
-    expect(arc.from.x).toBe(rulerTickX(3)) // starts at the address
-    expect(arc.to.x).toBe(cellCenter(3).x) // lands on the cell
-    expect(arc.to.y).toBe(0) // top of the cell
-    expect(arc.d.startsWith("M")).toBe(true)
-    expect(arc.d).toContain("Q") // a single quadratic arc, not a straight line
+  it("a jump marker is a halo above the cell with a straight drop to its top", () => {
+    const m = jumpMarker(3)
+    // the lookup lands on the top-center of cell 3
+    expect(m.cell.x).toBe(cellCenter(3).x)
+    expect(m.cell.y).toBe(0)
+    // the halo circle sits directly above that cell, off the top of the array
+    expect(m.circle.x).toBe(cellCenter(3).x)
+    expect(m.circle.y).toBeLessThan(0)
+    expect(m.circle.r).toBeGreaterThan(0)
+    // the connector is a single straight vertical segment (no arc), ending on the cell
+    expect(m.d.startsWith("M")).toBe(true)
+    expect(m.d).toContain("L")
+    expect(m.d).not.toContain("Q")
+    expect(m.d.trimEnd().endsWith("0")).toBe(true) // lands at y = 0 (cell top)
   })
 
   it("a scan walks every cell center from 0 up to k, in order", () => {
