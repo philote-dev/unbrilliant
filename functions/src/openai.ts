@@ -74,3 +74,50 @@ export function openAITranscriber(client: OpenAI): Transcriber {
     },
   }
 }
+
+export interface RealtimeTokenResult {
+  value: string
+  expiresAt: number
+}
+
+export interface RealtimeTokenMinter {
+  mint(model: string): Promise<RealtimeTokenResult>
+}
+
+// Mints a short-lived ephemeral token so a browser can open a Realtime
+// transcription session over WebRTC. Uses a raw REST call rather than the chat
+// SDK, so it stays decoupled from SDK drift; fetch is injectable for tests.
+export function openAIRealtimeTokenMinter(
+  apiKey: string,
+  fetchImpl: typeof fetch = fetch,
+): RealtimeTokenMinter {
+  return {
+    async mint(model) {
+      const res = await fetchImpl(
+        "https://api.openai.com/v1/realtime/transcription_sessions",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            input_audio_transcription: { model },
+            turn_detection: { type: "server_vad" },
+          }),
+        },
+      )
+      if (!res.ok) {
+        throw new Error(`realtime token mint failed: ${res.status}`)
+      }
+      const data = (await res.json()) as {
+        client_secret?: { value?: string; expires_at?: number }
+      }
+      const value = data.client_secret?.value
+      if (!value) {
+        throw new Error("realtime token mint returned no client_secret")
+      }
+      return { value, expiresAt: data.client_secret?.expires_at ?? 0 }
+    },
+  }
+}
