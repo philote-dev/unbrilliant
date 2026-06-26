@@ -9,6 +9,8 @@ export interface PathNode {
   id: string
   name: string
   state: PathNodeState
+  /** Set on a completed lesson whose retention has decayed into the rusty band. */
+  needsReview?: boolean
 }
 
 /** Shared contract every course-path layout (generic or themed) conforms to. */

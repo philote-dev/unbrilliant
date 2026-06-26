@@ -88,6 +88,30 @@ describe("derived path nodes (honest states only)", () => {
   })
 })
 
+describe("derived path nodes (spiky-POV needs-review flag)", () => {
+  it("flags a completed lesson whose retention is below threshold", () => {
+    const nodes = derivePathNodes(completedLessons(LIVE_LESSON_ID), (id) =>
+      id === LIVE_LESSON_ID ? 0.3 : null,
+    )
+    expect(nodes.find((n) => n.id === LIVE_LESSON_ID)?.needsReview).toBe(true)
+  })
+
+  it("does not flag a fresh completed lesson", () => {
+    const nodes = derivePathNodes(completedLessons(LIVE_LESSON_ID), () => 0.9)
+    expect(nodes.find((n) => n.id === LIVE_LESSON_ID)?.needsReview).toBe(false)
+  })
+
+  it("never flags an incomplete lesson, even at low retention", () => {
+    const nodes = derivePathNodes({}, () => 0.1)
+    expect(nodes.every((n) => !n.needsReview)).toBe(true)
+  })
+
+  it("defaults to no needs-review when no retention reader is given", () => {
+    const nodes = derivePathNodes(completedLessons(LIVE_LESSON_ID))
+    expect(nodes.every((n) => n.needsReview === false)).toBe(true)
+  })
+})
+
 describe("derived course progress (no fake percentages)", () => {
   it("is 0 with no completed lessons", () => {
     expect(deriveCourseProgress("data-structures", {})).toBe(0)

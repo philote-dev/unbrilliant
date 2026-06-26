@@ -2,6 +2,7 @@ import type { ComponentType } from "react"
 
 import type { PathNode, PathNodeState } from "@/components/willow/CoursePath"
 import type { LessonProgress } from "@/features/lesson/engine"
+import { needsReview as isRusty } from "@/features/progress/retention"
 
 /**
  * Static catalog for the platform. Course/lesson *metadata* lives here; all
@@ -134,8 +135,17 @@ export function isLessonUnlocked(
   return progress[prev.id]?.completed === true
 }
 
-/** The Data Structures path with honest, progress-derived node states. */
-export function derivePathNodes(progress: ProgressByLesson): PathNode[] {
+/**
+ * The Data Structures path with honest, progress-derived node states. An optional
+ * `retentionOf` lookup (0..1 per lesson, or null) flags a completed lesson as
+ * `needsReview` once its retention decays into the rusty band (spiky-POV). Decay
+ * never changes the node `state`: a rusty lesson stays "completed" and unlocks
+ * stay intact.
+ */
+export function derivePathNodes(
+  progress: ProgressByLesson,
+  retentionOf: (lessonId: string) => number | null = () => null,
+): PathNode[] {
   let currentAssigned = false
   return DATA_STRUCTURES_LESSONS.map(({ id, name }) => {
     const completed = progress[id]?.completed ?? false
@@ -151,7 +161,7 @@ export function derivePathNodes(progress: ProgressByLesson): PathNode[] {
     } else {
       state = "locked"
     }
-    return { id, name, state }
+    return { id, name, state, needsReview: completed && isRusty(retentionOf(id)) }
   })
 }
 
