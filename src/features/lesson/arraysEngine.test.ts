@@ -100,7 +100,7 @@ describe("Arrays: flow (11 beats, intro vs graded)", () => {
   })
 })
 
-describe("Arrays — jump (de-cued access, 0-indexed)", () => {
+describe("Arrays: jump (de-cued access, 0-indexed)", () => {
   it("clears accessIndex when the tapped cell index matches the ask", () => {
     const s = at("jump")
     expect(s.question!.answerIndex).toBeGreaterThanOrEqual(0)
@@ -122,7 +122,7 @@ describe("Arrays — jump (de-cued access, 0-indexed)", () => {
   })
 })
 
-describe("Arrays — scan (value search walks the row)", () => {
+describe("Arrays: scan (value search walks the row)", () => {
   it("the searched value is unique and resolves to its first index", () => {
     const q = at("scan").question!
     const v = q.value!
@@ -141,7 +141,7 @@ describe("Arrays — scan (value search walks the row)", () => {
   })
 })
 
-describe("Arrays — insert (predict the shift count)", () => {
+describe("Arrays: insert (predict the shift count)", () => {
   it("the answer is the moved count n - k; correct clears insertCount", () => {
     const s = at("insert")
     const q = s.question!
@@ -155,7 +155,7 @@ describe("Arrays — insert (predict the shift count)", () => {
   })
 })
 
-describe("Arrays — delete (predict the shift count)", () => {
+describe("Arrays: delete (predict the shift count)", () => {
   it("the answer is the moved count n - 1 - k; correct clears deleteCount", () => {
     const s = at("delete")
     const q = s.question!
@@ -168,7 +168,7 @@ describe("Arrays — delete (predict the shift count)", () => {
   })
 })
 
-describe("Arrays — place-cheapest (meaningful gap drag)", () => {
+describe("Arrays: place-cheapest (meaningful gap drag)", () => {
   it("exposes a drop target at every gap while building; the end is cheapest", () => {
     const s = at("place-cheapest")
     const n = s.question!.cells.length
@@ -194,7 +194,7 @@ describe("Arrays — place-cheapest (meaningful gap drag)", () => {
   })
 })
 
-describe("Arrays — realworld (spreadsheet shift count)", () => {
+describe("Arrays: realworld (spreadsheet shift count)", () => {
   it("the answer is the moved-row count; correct clears realworld", () => {
     const s = at("realworld")
     const q = s.question!
@@ -228,7 +228,7 @@ describe("Arrays: grow (pick the cleanest fix, single ask)", () => {
   })
 })
 
-describe("Arrays — gate, flame, completion", () => {
+describe("Arrays: gate, flame, completion", () => {
   it("completes only after all 7 graded beats; combo spans every correct check", () => {
     const s = happyPath()
     expect(gradedCleared(s)).toBe(7)
@@ -307,7 +307,7 @@ describe("Arrays: resume / progress", () => {
   })
 })
 
-describe("Arrays — determinism", () => {
+describe("Arrays: determinism", () => {
   it("same seed yields identical runs and questions", () => {
     expect(createArrays(SEED)).toEqual(createArrays(SEED))
     expect(at("insert").question).toEqual(at("insert").question)
@@ -321,7 +321,7 @@ const labelsBySlot = (f: ShiftFrame): (string | null)[] =>
   Array.from({ length: f.columns }, (_, i) => f.cells.find((c) => c.slot === i)?.label ?? null)
 const movingId = (f: ShiftFrame): string | null => f.cells.find((c) => c.moving)?.id ?? null
 
-describe("Arrays — shiftFrames (deterministic per-cell wave)", () => {
+describe("Arrays: shiftFrames (deterministic per-cell wave)", () => {
   it("inserts by rippling from the end, then placing the new cell", () => {
     const frames = shiftFrames(["A", "B", "C", "D"], { kind: "insert", index: 2, inserted: "X" })
     expect(frames).toHaveLength(4)
@@ -353,7 +353,7 @@ describe("Arrays — shiftFrames (deterministic per-cell wave)", () => {
   })
 })
 
-describe("Arrays — resizeFrames (deterministic doubling)", () => {
+describe("Arrays: resizeFrames (deterministic doubling)", () => {
   it("doubles and copies every item when full", () => {
     const frames = resizeFrames({ size: 4, capacity: 4, resizes: true })
     expect(frames).toHaveLength(7)

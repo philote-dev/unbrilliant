@@ -14,11 +14,14 @@ import type { CostWord } from "@/components/willow/CostReadout"
  * every middle insert/delete; the end is cheap, except when a full block must
  * double-and-copy.
  *
- * Nine beats: two live free-play intros (access, mutation) plus seven graded
- * beats across eight sub-skills (a jump, a value scan, an insert count, a delete
- * count, a cheapest-placement drag, a real-world shift, and a two-part growth
- * synthesis). Same idea, the five-mechanic menu: Predict-the-cost/count
- * (primary), Predict-next-state, and Classify (cheapest position).
+ * Eleven beats: two free-play intros (an access playground, a mutation
+ * playground), seven graded beats across seven sub-skills (a jump, a value scan,
+ * an insert count, a delete count, a cheapest-placement drag, a real-world shift,
+ * and a single grow choice), plus two teach intros bracketing the grow problem
+ * (`teach-grow` sets up fixed-size memory; after `grow`, `grow-summary` shows the
+ * average cost and completes the lesson). Same idea, the five-mechanic menu:
+ * Predict-the-cost/count (primary), Predict-next-state, and Classify (cheapest
+ * position).
  *
  * Deterministic + seedable: same state always yields the same question/verdict
  * (the no-AI guarantee). Reuses the shared feedback machine + flame
@@ -27,10 +30,10 @@ import type { CostWord } from "@/components/willow/CostReadout"
  *
  * Resume migration: an old run's counters are mapped onto the new skill keys
  * (`a1->accessIndex`, `a3->accessScan`, `a2->insertCount`, `a2Skin->realworld`,
- * `a4->placeCheapest`, `a6Grow->grow`, `a6Cheap->growVerdict`); the removed
- * construct skill (`a5`) is dropped and the new `deleteCount` re-earns; an
- * unknown old `currentPart` restarts at the access playground; a completed run
- * stays completed so the next lesson stays unlocked.
+ * `a4->placeCheapest`, `a6Grow->grow`); the removed construct (`a5`) and
+ * grow-verdict (`a6Cheap`) counters are ignored, and the new `deleteCount`
+ * re-earns; an unknown old `currentPart` restarts at the access playground; a
+ * completed run stays completed so the next lesson stays unlocked.
  */
 
 export const ARRAYS_PARTS = [
@@ -465,7 +468,7 @@ function makeGrow(seed: number): { question: ArraysQuestion; next: number } {
   let a = seed
   // Capacity 4 (doubling to 8) keeps the backing block legible on a phone.
   const capacity = 4
-  const size = capacity // seeded full so the synthesis always plays
+  const size = capacity // seeded full so the grow choice always plays
   const sh = shuffle(
     [
       { id: "grow", label: "Make a block twice as big and copy everything over" },
@@ -585,7 +588,7 @@ export function createArrays(seed: number = Date.now()): ArraysState {
 
 /* --------------------------------- reducer --------------------------------- */
 
-/** Which graded counter the current beat + step proves (null on intro beats). */
+/** Which graded counter the current beat proves (null on intro beats). */
 function beatSkill(state: ArraysState): ArraysSkill | null {
   const part = ARRAYS_PARTS[state.partIndex]
   switch (part) {
@@ -665,7 +668,7 @@ export function arraysReducer(state: ArraysState, action: LessonAction): ArraysS
       return { ...state, showWhy: true }
 
     case "reattempt": {
-      // A fresh seeded instance of the live beat / step.
+      // A fresh seeded instance of the live beat.
       switch (part) {
         case "jump": {
           const { question, next } = makeJump(state.rngState)
@@ -727,12 +730,12 @@ export function filledPartsArrays(state: ArraysState): number {
   return state.completed ? ARRAYS_TOTAL_PARTS : state.partIndex
 }
 
-/** Total graded skills cleared so far (0..8). */
+/** Total graded skills cleared so far (0..7). */
 export function gradedCleared(state: ArraysState): number {
   return ARRAYS_SKILLS.reduce((n, s) => n + (state[s] > 0 ? 1 : 0), 0)
 }
 
-/** Lesson-wide progress shown on graded beats ("n / 8"); null on intro beats. */
+/** Lesson-wide progress shown on graded beats ("n / 7"); null on intro beats. */
 export function partQuotaArrays(
   state: ArraysState,
 ): { done: number; total: number } | null {
@@ -741,7 +744,7 @@ export function partQuotaArrays(
     : null
 }
 
-/** The hard mastery gate: all 8 graded beats cleared. */
+/** The hard mastery gate: all 7 graded beats cleared. */
 export function isCompleteArrays(state: ArraysState): boolean {
   return ARRAYS_SKILLS.every((s) => state[s] > 0)
 }
