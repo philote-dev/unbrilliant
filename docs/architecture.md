@@ -11,6 +11,20 @@ The same state always yields the same feedback. All grading is pure functions, n
 model calls. You can play signed-out (a transient in-memory **run**); signing in
 saves a thin durable **progress** slice.
 
+## The optional AI layer (Poly)
+
+The deterministic core never calls a model. Phase 2 layers an *optional* Poly
+tutor on top through Firebase callable functions, the single AI seam, keeping the
+OpenAI key in a server-side secret. Poly scores a learner's typed self-explanation
+at each concept checkpoint (the text loop) and gives action-grounded hints; every
+call is non-gating and falls back to the deterministic lesson on any failure.
+
+- **Poly voice (Chunk 5):** two more callables, `polySpeak` (OpenAI TTS, returns
+  base64 mp3) and `polyTranscribe` (OpenAI STT from base64 audio), let Poly speak
+  its checkpoint questions and accept spoken answers. The transcript feeds the
+  same scorer as typed text; the OpenAI key stays server-side (same secret). All
+  voice paths fall back to the text loop on any failure.
+
 ## Tech stack
 
 | Concern        | Choice                                                            |
