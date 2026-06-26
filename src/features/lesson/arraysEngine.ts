@@ -189,8 +189,13 @@ function countOptions(
   for (const d of [moved - 1, moved + 1, moved + 2, 0]) {
     if (d >= 0 && d <= maxN) counts.add(d)
   }
-  const arr = [...counts].slice(0, 4).map((n) => ({ id: `n${n}`, label: `${n}` }))
-  return shuffle(arr, seed)
+  // Numeric choices read best in ascending order (the position never reveals the
+  // answer); no shuffle, so no rng is consumed here.
+  const arr = [...counts]
+    .slice(0, 4)
+    .sort((x, y) => x - y)
+    .map((n) => ({ id: `n${n}`, label: `${n}` }))
+  return { result: arr, next: seed }
 }
 
 /* ------------------------------ question makers ------------------------------ */
@@ -278,29 +283,34 @@ function makeJump(seed: number): { question: ArraysQuestion; next: number } {
   }
 }
 
-/** `scan` (beat 3): search a value by walking the row from index 0. */
+/** `scan` (beat 3): search a value by walking the row from the front. The letters
+ * are shuffled (so the row is not predictable) and the value sits at index >= 2,
+ * so a front-to-value scan always walks at least three cells (never a 1-tap find).
+ * The shown cost (index + 1) is exactly the cells a front-start walk checks. */
 function makeScan(seed: number): { question: ArraysQuestion; next: number } {
   let a = seed
-  const cells = LETTERS.slice(0, 6) // distinct values: the value-ask stays unambiguous
+  const sh = shuffle(LETTERS.slice(0, 6), a) // distinct values; shuffled row
+  a = sh.next
+  const cells = sh.result
   const n = cells.length
   const r = rngInt(a, n - 2)
   a = r.next
-  const idx = 2 + r.value // 2..n-1, so the scan visibly walks several cells
+  const idx = 2 + r.value // 2..n-1: at least three cells in from the front
   const value = cells[idx]
-  const steps = idx + 1 // a scan checks cells 0..idx
+  const steps = idx + 1 // a front-start scan checks cells 0..idx
   return {
     question: {
       kind: "scan",
-      prompt: `Find ${value}. Walk the row and tap where it is.`,
+      prompt: `Find ${value}. Scan from the front, one cell at a time.`,
       cells,
       ask: "value",
       value,
       answerIndex: idx,
       cost: { word: "scales", count: steps, unit: steps === 1 ? "step" : "steps" },
       hint: "",
-      nudge: "A value search walks cell by cell from index 0.",
-      correct: `Right: ${value} turns up at index ${idx} after a ${steps}-cell scan.`,
-      why: `With only the value you must scan from index 0 until ${value} matches: ${steps} cell${plural(steps)}. That's why a search scales while an index jump is free.`,
+      nudge: "A value search walks cell by cell from the front.",
+      correct: `Right: ${value} sits at index ${idx}, ${steps} cells in. No shortcut, you scan.`,
+      why: `With only the value you must scan from the front until ${value} matches: ${steps} cell${plural(steps)}. That's why a search scales while an index jump is free.`,
     },
     next: a,
   }

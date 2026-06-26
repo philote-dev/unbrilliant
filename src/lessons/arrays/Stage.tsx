@@ -276,16 +276,15 @@ function AccessPart({
 /* ------------------------------ scan (walk the row) ------------------------------ */
 
 /**
- * The cells the learner may tap next. Before the search starts (nothing revealed)
- * any cell can begin it; afterwards only the two cells immediately outside the
- * revealed run [min, max] are reachable, so the value search has to walk.
+ * The cells the learner may tap next. A value search begins at the front (index 0)
+ * and walks rightward one cell at a time, so the only reachable cell is the one
+ * just past the revealed run. There is no shortcut to the value, and the cells
+ * checked are exactly index + 1, matching the cost the engine reports.
  */
 function scanFrontier(revealed: Set<number>, n: number): Set<number> {
-  if (revealed.size === 0) return new Set(Array.from({ length: n }, (_, i) => i))
-  const min = Math.min(...revealed)
+  if (revealed.size === 0) return new Set([0])
   const max = Math.max(...revealed)
   const frontier = new Set<number>()
-  if (min - 1 >= 0) frontier.add(min - 1)
   if (max + 1 < n) frontier.add(max + 1)
   return frontier
 }
@@ -355,8 +354,8 @@ function ScanPart({
           <p className="max-w-xs text-center text-sm text-muted-foreground">
             {anchor == null ? (
               <>
-                No index to jump to: tap any cell, then <span className="concept">scan</span>{" "}
-                one at a time until the value turns up.
+                No index to jump to. Start at the front and <span className="concept">scan</span>{" "}
+                one cell at a time until it turns up.
               </>
             ) : (
               <>

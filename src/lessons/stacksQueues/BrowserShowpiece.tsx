@@ -155,6 +155,7 @@ export function BrowserShowpiece({
                 cell={c}
                 page={pageFor(c.id, arrival)}
                 isTop={i === 0}
+                time={visitTimeLabel(c.id, arrival)}
                 state={cellState?.(c.id) ?? "default"}
                 selectable={selectable}
                 onSelect={() => onSelectCell?.(c.id)}
@@ -216,10 +217,27 @@ const ROW: Record<AnswerState, string> = {
   fail: "border-red-500 bg-red-50",
 }
 
+// History rows show when each page was visited. The most-recently visited page
+// sits on top (the stack), so times descend down the list. Deterministic (no
+// clock): the time is derived from the page's recency in the visit/arrival order.
+const VISIT_BASE_MIN = 16 * 60 + 21 // 4:21 PM
+const VISIT_MINS_AGO = [0, 3, 7, 12, 18, 25, 33, 42] // by recency rank (0 = newest)
+
+function visitTimeLabel(id: string, arrival: string[]): string {
+  const j = arrival.indexOf(id)
+  const rank = j < 0 ? 0 : arrival.length - 1 - j
+  const t = VISIT_BASE_MIN - VISIT_MINS_AGO[Math.min(rank, VISIT_MINS_AGO.length - 1)]
+  const h24 = Math.floor(t / 60)
+  const m = ((t % 60) + 60) % 60
+  const h12 = ((h24 + 11) % 12) + 1
+  return `${h12}:${String(m).padStart(2, "0")} ${h24 < 12 ? "AM" : "PM"}`
+}
+
 function PageRow({
   cell,
   page,
   isTop,
+  time,
   state,
   selectable,
   onSelect,
@@ -230,6 +248,7 @@ function PageRow({
   cell: Cell
   page: BrowserPage
   isTop: boolean
+  time?: string
   state: AnswerState
   selectable?: boolean
   onSelect?: () => void
@@ -268,6 +287,11 @@ function PageRow({
         <span className="block truncate text-sm font-semibold text-neutral-900">{page.title}</span>
         <span className="block truncate text-[11px] text-neutral-500">{page.url}</span>
       </span>
+      {time && (
+        <span aria-hidden className="shrink-0 text-[11px] tabular-nums text-neutral-400">
+          {time}
+        </span>
+      )}
       {state === "correct" && (
         <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white">
           <Check className="size-3" strokeWidth={3} />
