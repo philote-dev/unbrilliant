@@ -57,6 +57,7 @@ export interface LessonDef {
 }
 
 export const DATA_STRUCTURES_LESSONS: LessonDef[] = [
+  { id: "intro", name: "Introduction" },
   { id: "stacks-and-queues", name: "Stacks & Queues" },
   { id: "arrays", name: "Arrays" },
   { id: "linked-lists", name: "Linked Lists" },

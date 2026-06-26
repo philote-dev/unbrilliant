@@ -14,6 +14,7 @@ import { derivePathNodes, lessonName } from "@/lessons/catalog"
 
 /** Per-lesson mastery checks shown on the completion screen. */
 const COMPLETION_CHECKS: Record<string, string[]> = {
+  intro: ["Store", "Sort", "Categorize"],
   "stacks-and-queues": ["Stacks", "Queues", "Compare"],
   arrays: ["Shifting", "Counting", "Resizing"],
 }

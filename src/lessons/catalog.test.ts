@@ -25,9 +25,10 @@ function completedLessons(...ids: string[]): ProgressByLesson {
 }
 
 describe("lesson catalog", () => {
-  it("has all seven Data Structures lessons playable, none left in the lazy registry", () => {
-    expect(LIVE_LESSON_ID).toBe("stacks-and-queues")
+  it("has every Data Structures lesson playable, none left in the lazy registry", () => {
+    expect(LIVE_LESSON_ID).toBe("intro")
     for (const id of [
+      "intro",
       "stacks-and-queues",
       "arrays",
       "linked-lists",
@@ -63,17 +64,24 @@ describe("derived path nodes (honest states only)", () => {
     expect(nodes.slice(1).every((n) => n.state === "locked")).toBe(true)
   })
 
-  it("keeps Arrays locked until S&Q is done, then flips it to current", () => {
-    expect(derivePathNodes({}).find((n) => n.id === "arrays")?.state).toBe(
-      "locked",
+  it("unlocks sequentially: intro then Stacks & Queues then Arrays", () => {
+    expect(
+      derivePathNodes({}).find((n) => n.id === "stacks-and-queues")?.state,
+    ).toBe("locked")
+    const afterIntro = derivePathNodes(completedLessons("intro"))
+    expect(afterIntro.find((n) => n.id === "intro")?.state).toBe("completed")
+    expect(afterIntro.find((n) => n.id === "stacks-and-queues")?.state).toBe(
+      "current",
     )
-    const after = derivePathNodes(completedLessons(LIVE_LESSON_ID))
-    expect(after.find((n) => n.id === LIVE_LESSON_ID)?.state).toBe("completed")
-    expect(after.find((n) => n.id === "arrays")?.state).toBe("current")
+    expect(afterIntro.find((n) => n.id === "arrays")?.state).toBe("locked")
+    const afterSQ = derivePathNodes(completedLessons("intro", "stacks-and-queues"))
+    expect(afterSQ.find((n) => n.id === "arrays")?.state).toBe("current")
   })
 
-  it("unlocks Linked Lists as current once S&Q and Arrays are done (the completion CTA)", () => {
-    const after = derivePathNodes(completedLessons("stacks-and-queues", "arrays"))
+  it("unlocks Linked Lists as current once intro, S&Q, and Arrays are done (the completion CTA)", () => {
+    const after = derivePathNodes(
+      completedLessons("intro", "stacks-and-queues", "arrays"),
+    )
     expect(after.find((n) => n.id === "arrays")?.state).toBe("completed")
     expect(after.find((n) => n.id === "linked-lists")?.state).toBe("current")
   })

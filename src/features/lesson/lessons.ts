@@ -1,4 +1,5 @@
 import type { LessonModule } from "@/features/lesson/lessonModule"
+import { introModule } from "@/lessons/intro"
 import { stacksQueuesModule } from "@/lessons/stacksQueues"
 import { arraysModule } from "@/lessons/arrays"
 import { linkedListsModule } from "@/lessons/linkedLists"
@@ -14,6 +15,7 @@ import { graphsModule } from "@/lessons/graphs"
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const LESSONS: Record<string, LessonModule<any>> = {
+  [introModule.id]: introModule,
   [stacksQueuesModule.id]: stacksQueuesModule,
   [arraysModule.id]: arraysModule,
   [linkedListsModule.id]: linkedListsModule,
