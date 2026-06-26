@@ -9,6 +9,7 @@ export interface PathNode {
   id: string
   name: string
   state: PathNodeState
+  needsReview?: boolean
 }
 
 /** Shared contract every course-path layout (generic or themed) conforms to. */
