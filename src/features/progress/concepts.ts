@@ -18,7 +18,16 @@ export interface Concept {
  */
 const LESSON_SUBSKILLS: Record<string, string[]> = {
   "stacks-and-queues": [...SQ_SKILLS],
-  arrays: ["a1", "a3", "a2", "a2Skin", "a4", "a5", "a6Grow", "a6Cheap"],
+  arrays: [
+    "accessIndex",
+    "accessScan",
+    "insertCount",
+    "deleteCount",
+    "placeCheapest",
+    "realworld",
+    "grow",
+    "growVerdict",
+  ],
   "linked-lists": [
     "traverse",
     "insert",

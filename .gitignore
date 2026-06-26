@@ -49,8 +49,11 @@ docs/*
 !docs/architecture.md
 !docs/plans/
 
-# Dev-only design gallery (gallery.html + src/dev/) is tracked. It is served by
-# `npm run gallery` and is NOT a production build input (only index.html is built).
+# Dev gallery: track only the gallery entry (gallery.html + src/dev/gallery.tsx).
+# Personal dev labs under src/dev/ stay local. The gallery is served by
+# `npm run gallery` and is not a production build input (only index.html is built).
+src/dev/*
+!src/dev/gallery.tsx
 
 # Cloud Functions build output
 functions/lib
