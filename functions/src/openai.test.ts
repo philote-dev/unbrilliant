@@ -121,7 +121,7 @@ describe("openAIRealtimeTokenMinter", () => {
     const fetchImpl = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
-      json: async () => ({ client_secret: { value: "ek_abc", expires_at: 1799999999 } }),
+      json: async () => ({ value: "ek_abc", expires_at: 1799999999 }),
     })
     const minter = openAIRealtimeTokenMinter("sk-test", fetchImpl as unknown as typeof fetch)
 
@@ -130,12 +130,13 @@ describe("openAIRealtimeTokenMinter", () => {
     expect(out).toEqual({ value: "ek_abc", expiresAt: 1799999999 })
     expect(fetchImpl).toHaveBeenCalledTimes(1)
     const [url, init] = fetchImpl.mock.calls[0]
-    expect(String(url)).toContain("/v1/realtime/transcription_sessions")
+    expect(String(url)).toContain("/v1/realtime/client_secrets")
     expect(init.method).toBe("POST")
     expect(init.headers.Authorization).toBe("Bearer sk-test")
     const body = JSON.parse(init.body)
-    expect(body.input_audio_transcription.model).toBe("gpt-4o-transcribe")
-    expect(body.turn_detection.type).toBe("server_vad")
+    expect(body.session.type).toBe("transcription")
+    expect(body.session.audio.input.transcription.model).toBe("gpt-4o-transcribe")
+    expect(body.session.audio.input.turn_detection.type).toBe("server_vad")
   })
 
   it("throws when the mint response is not ok", async () => {
@@ -144,7 +145,7 @@ describe("openAIRealtimeTokenMinter", () => {
     await expect(minter.mint("gpt-4o-transcribe")).rejects.toThrow()
   })
 
-  it("throws when no client_secret value is returned", async () => {
+  it("throws when no token value is returned", async () => {
     const fetchImpl = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({}) })
     const minter = openAIRealtimeTokenMinter("sk-test", fetchImpl as unknown as typeof fetch)
     await expect(minter.mint("gpt-4o-transcribe")).rejects.toThrow()
