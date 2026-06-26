@@ -87,6 +87,11 @@ export function PolyCheckpoint({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [question, voice])
 
+  // Drop a stale "voice unavailable" note so it does not carry to the next question.
+  useEffect(() => {
+    setVoiceError(false)
+  }, [question])
+
   async function startRecording() {
     if (recorderRef.current) return
     setVoiceError(false)
@@ -236,7 +241,7 @@ export function PolyCheckpoint({
               variant="tactile"
               size="lg"
               className="w-full"
-              disabled={phase === "thinking" || answer.trim() === ""}
+              disabled={phase === "thinking" || answer.trim() === "" || recording}
               onClick={submit}
             >
               Submit

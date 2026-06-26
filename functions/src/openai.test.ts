@@ -46,6 +46,7 @@ describe("openAISpeaker", () => {
       model: "gpt-4o-mini-tts",
       voice: "alloy",
       input: "hi",
+      response_format: "mp3",
       instructions: "Speak warmly.",
     })
     expect(Buffer.isBuffer(out)).toBe(true)
@@ -69,6 +70,7 @@ describe("openAISpeaker", () => {
     expect(arg.model).toBe("gpt-4o-mini-tts")
     expect(arg.voice).toBe("alloy")
     expect(arg.input).toBe("hi")
+    expect(arg.response_format).toBe("mp3")
   })
 })
 

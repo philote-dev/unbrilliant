@@ -47,6 +47,7 @@ export function openAISpeaker(client: OpenAI): Speaker {
         model,
         voice,
         input: text,
+        response_format: "mp3",
         ...(instructions ? { instructions } : {}),
       })
       return Buffer.from(await res.arrayBuffer())
