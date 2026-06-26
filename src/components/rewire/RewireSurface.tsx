@@ -51,6 +51,11 @@ export function RewireSurface({
   const [hoveredTarget, setHoveredTarget] = useState<string | null>(null)
   const hoveredRef = useRef<string | null>(null)
   const [announcement, setAnnouncement] = useState("")
+  // The live drag-follow visual (which source is dragging + its offset from the
+  // press origin). Presentation only: the source reads it to track the pointer.
+  const [dragVisual, setDragVisual] = useState<
+    { from: string; dx: number; dy: number } | null
+  >(null)
 
   const setArmed = useCallback((id: string | null) => {
     armedRef.current = id
@@ -176,6 +181,9 @@ export function RewireSurface({
           d.rects = targetRectsRef.current()
           setArmed(from)
         }
+        // Publish the live offset so the source can follow the pointer; the drop
+        // target is still resolved purely from geometry below.
+        setDragVisual({ from, dx: e.clientX - d.startX, dy: e.clientY - d.startY })
         setHovered(resolveDropTarget({ x: e.clientX, y: e.clientY }, d.rects, DROP_TOLERANCE))
       }
 
@@ -183,6 +191,7 @@ export function RewireSurface({
         const d = dragRef.current
         if (!d || e.pointerId !== d.pointerId) return
         finish()
+        setDragVisual(null) // release the follow; the source glides home
         if (!d.active) return // a press without travel — leave it to the tap path
         suppressClickRef.current = true // swallow the drag's trailing click
         const hit = resolveDropTarget({ x: e.clientX, y: e.clientY }, d.rects, DROP_TOLERANCE)
@@ -194,6 +203,7 @@ export function RewireSurface({
         const d = dragRef.current
         if (!d || e.pointerId !== d.pointerId) return
         finish()
+        setDragVisual(null) // release the follow; the source glides home
         if (d.active) {
           suppressClickRef.current = true // swallow the drag's trailing click
           cancelRef.current()
@@ -268,6 +278,7 @@ export function RewireSurface({
       isLegal,
       armedSource,
       hoveredTarget,
+      dragVisual,
       armSource,
       tapSource,
       beginSourceDrag,
@@ -286,6 +297,7 @@ export function RewireSurface({
       isLegal,
       armedSource,
       hoveredTarget,
+      dragVisual,
       armSource,
       tapSource,
       beginSourceDrag,

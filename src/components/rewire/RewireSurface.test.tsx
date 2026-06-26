@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event"
 import { RewireSurface } from "./RewireSurface"
 import { RewireSource } from "./RewireSource"
 import { RewireTarget } from "./RewireTarget"
+import { useRewireContext } from "./RewireContext"
 
 /**
  * Component tests for the rewire surface — the seams a pure function can't
@@ -143,6 +144,67 @@ describe("RewireSurface — pointer drag modality", () => {
     fireEvent.pointerMove(window, { pointerId: 1, clientX: 12, clientY: 12 })
     fireEvent.pointerUp(window, { pointerId: 1, clientX: 12, clientY: 12 })
 
+    expect(onRewire).not.toHaveBeenCalled()
+  })
+})
+
+/** Reads the live drag-follow visual off the context so a test can assert the
+ * plumbing that drives the source's pointer-follow transform, deterministically
+ * (no dependency on motion's async style application in jsdom). */
+function DragVisualProbe() {
+  const { dragVisual } = useRewireContext()
+  return (
+    <div data-testid="drag-visual">
+      {dragVisual ? `${dragVisual.from}:${dragVisual.dx}:${dragVisual.dy}` : "none"}
+    </div>
+  )
+}
+
+describe("RewireSurface — pointer drag-follow visual", () => {
+  function renderProbe() {
+    const onRewire = vi.fn()
+    render(
+      <RewireSurface legalTargets={new Set(["n1"])} onRewire={onRewire} label="Rewire">
+        <RewireSource id="p1" label="head pointer" />
+        <RewireTarget id="n1" label="node one" />
+        <DragVisualProbe />
+      </RewireSurface>,
+    )
+    return { onRewire, visual: () => screen.getByTestId("drag-visual").textContent }
+  }
+
+  it("exposes the live source offset only after the drag threshold, then clears it on drop", () => {
+    const { onRewire, visual } = renderProbe()
+    stubRect(target("n1"), 200, 0, 120, 60)
+
+    expect(visual()).toBe("none")
+
+    fireEvent.pointerDown(source("p1"), { pointerId: 1, button: 0, clientX: 10, clientY: 10 })
+    // a sub-threshold jitter is a press, not a drag: no follow visual yet
+    fireEvent.pointerMove(window, { pointerId: 1, clientX: 12, clientY: 11 })
+    expect(visual()).toBe("none")
+
+    // crossing the threshold begins the follow: the source id + its live offset
+    fireEvent.pointerMove(window, { pointerId: 1, clientX: 260, clientY: 30 })
+    expect(visual()).toBe("p1:250:20")
+
+    // a drop over the target clears the visual AND still emits the same intent
+    fireEvent.pointerUp(window, { pointerId: 1, clientX: 260, clientY: 30 })
+    expect(visual()).toBe("none")
+    expect(onRewire).toHaveBeenCalledTimes(1)
+    expect(onRewire).toHaveBeenCalledWith("p1", "n1")
+  })
+
+  it("clears the drag visual and snaps back without emitting on a miss", () => {
+    const { onRewire, visual } = renderProbe()
+    stubRect(target("n1"), 0, 0, 60, 60)
+
+    fireEvent.pointerDown(source("p1"), { pointerId: 1, button: 0, clientX: 10, clientY: 300 })
+    fireEvent.pointerMove(window, { pointerId: 1, clientX: 500, clientY: 500 })
+    expect(visual()).toBe("p1:490:200")
+
+    fireEvent.pointerUp(window, { pointerId: 1, clientX: 500, clientY: 500 })
+    expect(visual()).toBe("none")
     expect(onRewire).not.toHaveBeenCalled()
   })
 })

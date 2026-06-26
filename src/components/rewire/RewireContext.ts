@@ -23,6 +23,13 @@ export interface RewireContextValue {
 
   armedSource: string | null
   hoveredTarget: string | null
+  /**
+   * The source currently being dragged with its live pointer offset from the
+   * press origin (`dx`/`dy`), or `null` when no drag is in flight. Drives the
+   * source's pointer-follow transform only; the drop geometry and the emitted
+   * intent are computed independently, so this never affects grading.
+   */
+  dragVisual: { from: string; dx: number; dy: number } | null
 
   armSource: (id: string) => void
   /** Tap entry for a source — arms it, unless a drag just ended (ignores the trailing click). */
