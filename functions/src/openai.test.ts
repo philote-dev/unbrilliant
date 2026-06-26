@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest"
-import { openAICompleter } from "./openai"
+import { openAICompleter, openAISpeaker, openAITranscriber } from "./openai"
 
 describe("openAICompleter", () => {
   it("sends system+user messages to chat.completions and returns the content", async () => {
@@ -28,8 +28,6 @@ describe("openAICompleter", () => {
   })
 })
 
-import { openAISpeaker, openAITranscriber } from "./openai"
-
 describe("openAISpeaker", () => {
   it("calls audio.speech.create and returns the bytes as a Buffer", async () => {
     const create = vi.fn().mockResolvedValue({
@@ -53,6 +51,25 @@ describe("openAISpeaker", () => {
     expect(Buffer.isBuffer(out)).toBe(true)
     expect([...out]).toEqual([1, 2, 3])
   })
+
+  it("omits instructions when none are provided", async () => {
+    const create = vi.fn().mockResolvedValue({
+      arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer,
+    })
+    const speaker = openAISpeaker({ audio: { speech: { create } } } as never)
+
+    await speaker.speak({
+      text: "hi",
+      model: "gpt-4o-mini-tts",
+      voice: "alloy",
+    })
+
+    const arg = create.mock.calls[0][0]
+    expect(arg).not.toHaveProperty("instructions")
+    expect(arg.model).toBe("gpt-4o-mini-tts")
+    expect(arg.voice).toBe("alloy")
+    expect(arg.input).toBe("hi")
+  })
 })
 
 describe("openAITranscriber", () => {
@@ -72,6 +89,22 @@ describe("openAITranscriber", () => {
     const arg = create.mock.calls[0][0]
     expect(arg.model).toBe("gpt-4o-mini-transcribe")
     expect(arg.file).toBeDefined()
+    expect(arg.file.name).toBe("speech.webm")
     expect(out).toBe(" hello world ")
+  })
+
+  it("returns an empty string when the model returns no text", async () => {
+    const create = vi.fn().mockResolvedValue({ text: undefined })
+    const transcriber = openAITranscriber({
+      audio: { transcriptions: { create } },
+    } as never)
+
+    const out = await transcriber.transcribe({
+      audio: Buffer.from([7, 8, 9]),
+      filename: "speech.webm",
+      model: "gpt-4o-mini-transcribe",
+    })
+
+    expect(out).toBe("")
   })
 })

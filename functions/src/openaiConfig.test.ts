@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import {
   DEFAULT_MODEL,
   DEFAULT_STT_MODEL,
@@ -10,12 +10,15 @@ import {
   resolveTtsVoice,
 } from "./openaiConfig"
 
-afterEach(() => {
+function clearOpenAIEnv() {
   delete process.env.OPENAI_MODEL
   delete process.env.OPENAI_TTS_MODEL
   delete process.env.OPENAI_STT_MODEL
   delete process.env.OPENAI_TTS_VOICE
-})
+}
+
+beforeEach(clearOpenAIEnv)
+afterEach(clearOpenAIEnv)
 
 describe("openaiConfig resolvers", () => {
   it("fall back to the defaults when no env override is set", () => {
