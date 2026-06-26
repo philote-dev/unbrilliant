@@ -26,6 +26,11 @@ vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: null }) }))
 vi.mock("@/lib/ai/polyClient", () => ({
   scoreExplanation: vi.fn().mockResolvedValue({ scores: [{ id: "P1", verdict: "covered" }], weakest: null }),
   requestProbe: vi.fn().mockResolvedValue({ question: null }),
+  // Checkpoint voice is on in the live Stage now, so the real PolyCheckpoint
+  // speaks the question on mount; stub the audio callables to no-op so this
+  // renderer test makes no network call and exercises the text path.
+  speak: vi.fn().mockResolvedValue({ audio: null, mime: null }),
+  transcribe: vi.fn().mockResolvedValue({ text: null }),
 }))
 vi.mock("@/features/poly/explanationStore", () => ({ saveExplanation: vi.fn() }))
 

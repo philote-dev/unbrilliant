@@ -69,3 +69,33 @@ export async function requestProbe(req: ProbeRequest): Promise<ProbeResponse> {
   const res = await callable(req)
   return res.data
 }
+
+export interface SpeakRequest {
+  text: string
+}
+export interface SpeakResponse {
+  audio: string | null
+  mime: string | null
+}
+export interface TranscribeRequest {
+  audio: string
+  mime: string
+}
+export interface TranscribeResponse {
+  text: string | null
+}
+
+export async function speak(req: SpeakRequest): Promise<SpeakResponse> {
+  const callable = httpsCallable<SpeakRequest, SpeakResponse>(functions, "polySpeak")
+  const res = await callable(req)
+  return res.data
+}
+
+export async function transcribe(req: TranscribeRequest): Promise<TranscribeResponse> {
+  const callable = httpsCallable<TranscribeRequest, TranscribeResponse>(
+    functions,
+    "polyTranscribe",
+  )
+  const res = await callable(req)
+  return res.data
+}

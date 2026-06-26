@@ -1,5 +1,5 @@
-import { useState } from "react"
-import { Sparkles } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import { Sparkles, Mic, Square, Volume2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -12,6 +12,11 @@ import {
   type ProbeRequest,
   type ProbeResponse,
 } from "@/lib/ai/polyClient"
+import {
+  speakText as defaultSpeakText,
+  createRecorder as defaultCreateRecorder,
+  type VoiceRecorder,
+} from "@/lib/ai/voice"
 import {
   saveExplanation as defaultSave,
   type ExplanationRecord,
@@ -27,6 +32,9 @@ export interface PolyCheckpointProps {
   scoreExplanation?: (req: ScoreRequest) => Promise<ScoreResponse>
   requestProbe?: (req: ProbeRequest) => Promise<ProbeResponse>
   saveExplanation?: (uid: string, rec: ExplanationRecord) => Promise<void>
+  voice?: boolean
+  speakText?: (text: string) => Promise<void>
+  createRecorder?: () => VoiceRecorder
 }
 
 type Phase = "asking" | "thinking" | "done"
@@ -46,6 +54,9 @@ export function PolyCheckpoint({
   scoreExplanation = defaultScore,
   requestProbe = defaultProbe,
   saveExplanation = (u, rec) => defaultSave(db, u, rec),
+  voice = false,
+  speakText = defaultSpeakText,
+  createRecorder = defaultCreateRecorder,
 }: PolyCheckpointProps) {
   const [phase, setPhase] = useState<Phase>("asking")
   const [question, setQuestion] = useState(
@@ -55,6 +66,55 @@ export function PolyCheckpoint({
   const [scores, setScores] = useState<PropScore[]>([])
   const [exchanges, setExchanges] = useState(0)
   const [succeeded, setSucceeded] = useState(false)
+  const [recording, setRecording] = useState(false)
+  const [voiceError, setVoiceError] = useState(false)
+  const recorderRef = useRef<VoiceRecorder | null>(null)
+  const spokenRef = useRef<string | null>(null)
+
+  // Release the mic if the component unmounts mid-recording.
+  useEffect(() => () => recorderRef.current?.cancel(), [])
+
+  useEffect(() => {
+    if (!voice || phase !== "asking") return
+    // Speak each question once. The ref guard (not just the deps) prevents a
+    // double utterance under React StrictMode's dev double-invoke and avoids
+    // double-billing the TTS endpoint. It re-speaks when the question text
+    // changes (a new probe), which relies on submit() updating question and
+    // phase in the same render batch.
+    if (spokenRef.current === question) return
+    spokenRef.current = question
+    void speakText(question)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [question, voice])
+
+  // Drop a stale "voice unavailable" note so it does not carry to the next question.
+  useEffect(() => {
+    setVoiceError(false)
+  }, [question])
+
+  async function startRecording() {
+    if (recorderRef.current) return
+    setVoiceError(false)
+    const rec = createRecorder()
+    recorderRef.current = rec
+    try {
+      await rec.start()
+      setRecording(true)
+    } catch {
+      recorderRef.current = null
+      setVoiceError(true)
+    }
+  }
+
+  async function stopRecording() {
+    const rec = recorderRef.current
+    recorderRef.current = null
+    setRecording(false)
+    if (!rec) return
+    const text = await rec.stop()
+    if (text) setAnswer(text)
+    else setVoiceError(true)
+  }
 
   async function submit() {
     const text = answer.trim()
@@ -148,11 +208,40 @@ export function PolyCheckpoint({
                 Poly is thinking...
               </p>
             )}
+            {voice && (
+              <div className="mb-3 flex items-center justify-center gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="default"
+                  disabled={phase === "thinking"}
+                  onClick={recording ? stopRecording : startRecording}
+                >
+                  {recording ? <Square className="size-4" /> : <Mic className="size-4" />}
+                  {recording ? "Stop" : "Speak your answer"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="default"
+                  aria-label="Replay question"
+                  disabled={phase === "thinking" || recording}
+                  onClick={() => void speakText(question)}
+                >
+                  <Volume2 className="size-4" />
+                </Button>
+              </div>
+            )}
+            {voice && voiceError && (
+              <p role="status" className="mb-3 text-center text-xs text-muted-foreground">
+                Voice unavailable, type instead.
+              </p>
+            )}
             <Button
               variant="tactile"
               size="lg"
               className="w-full"
-              disabled={phase === "thinking" || answer.trim() === ""}
+              disabled={phase === "thinking" || answer.trim() === "" || recording}
               onClick={submit}
             >
               Submit
