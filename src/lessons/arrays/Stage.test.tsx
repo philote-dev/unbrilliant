@@ -10,11 +10,11 @@ import {
 import { ArraysStage } from "./Stage"
 
 /**
- * DOM tests for the redesigned Arrays stage. Reduced motion is forced (matchMedia
+ * DOM tests for the rebuilt Arrays stage. Reduced motion is forced (matchMedia
  * matches) so animations snap to their end-state with no timers. They cover the
  * seams that matter: the de-cued access (no pre-highlight; the jump/scan overlay
- * fires only POST-verdict), the A5 construct commits via tap AND keyboard through
- * the shared rewire surface, and the SR-only fail copy (no visible fail sentence).
+ * fires only POST-verdict), the place-cheapest gap drag commits via tap AND
+ * keyboard through the shared rewire surface, and the SR-only fail copy.
  */
 beforeAll(() => {
   window.matchMedia = (query: string): MediaQueryList =>
@@ -41,8 +41,8 @@ const at = (part: string): ArraysState =>
   resumeArrays({ counters: {}, currentPart: part, completed: false }, SEED)
 
 describe("Arrays stage — de-cued access (overlay is post-verdict only)", () => {
-  it("draws no jump/scan overlay until a verdict lands, then reveals it", () => {
-    const { container } = render(<Harness initial={at("a1-access")} />)
+  it("draws no jump overlay until a verdict lands, then reveals it", () => {
+    const { container } = render(<Harness initial={at("jump")} />)
     // de-cued: the access overlay (the only <path> here) is absent before the verdict
     expect(container.querySelector("svg path")).toBeNull()
     expect(screen.getByRole("button", { name: "Check" })).toBeDisabled()
@@ -56,40 +56,38 @@ describe("Arrays stage — de-cued access (overlay is post-verdict only)", () =>
   })
 })
 
-describe("Arrays stage — A5 construct commits via tap and keyboard", () => {
-  it("appending the loose cells in order (tap) clears the beat", () => {
-    const init = at("a5-construct")
-    const ops = init.question!.correctOps!
+describe("Arrays stage — place-cheapest commits via tap and keyboard", () => {
+  it("dropping the cell on the end gap (tap) clears the beat", () => {
+    const init = at("place-cheapest")
+    const n = init.question!.cells.length
     render(<Harness initial={init} />)
 
     expect(screen.getByRole("button", { name: "Check" })).toBeDisabled()
-    for (const id of ops) {
-      fireEvent.click(screen.getByLabelText(`cell ${id}`)) // arm the source
-      fireEvent.click(screen.getByLabelText(/^the open end of the row/)) // drop on the end
-    }
+    fireEvent.click(screen.getByLabelText("cell X")) // arm the loose cell
+    fireEvent.click(screen.getByLabelText(new RegExp(`the gap at index ${n}\\b`))) // drop on the end
     fireEvent.click(screen.getByRole("button", { name: "Check" }))
+
     expect(screen.getByRole("button", { name: "Continue" })).toBeInTheDocument()
   })
 
-  it("keyboard parity: a source can be armed and dropped on the end with the keys", () => {
-    const init = at("a5-construct")
-    const first = init.question!.correctOps![0]
+  it("keyboard parity: arm the cell and cycle to the end gap with the keys", () => {
+    const init = at("place-cheapest")
+    const n = init.question!.cells.length
     render(<Harness initial={init} />)
 
-    const looseBefore = screen.getAllByLabelText(/^cell /).length
-    const src = screen.getByLabelText(`cell ${first}`)
+    const src = screen.getByLabelText("cell X")
     fireEvent.keyDown(src, { key: "Enter" }) // arm
-    fireEvent.keyDown(src, { key: "ArrowRight" }) // hover the end target
+    for (let i = 0; i <= n; i++) fireEvent.keyDown(src, { key: "ArrowRight" }) // hover gap-n
     fireEvent.keyDown(src, { key: "Enter" }) // commit
+    fireEvent.click(screen.getByRole("button", { name: "Check" }))
 
-    // one loose cell was appended, so there is one fewer source
-    expect(screen.getAllByLabelText(/^cell /).length).toBe(looseBefore - 1)
+    expect(screen.getByRole("button", { name: "Continue" })).toBeInTheDocument()
   })
 })
 
 describe("Arrays stage — minimal fail UX (SR-only, no fail sentence)", () => {
   it("hides the fail sentence until Why, keeping the answer withheld", () => {
-    const init = at("a2-shift")
+    const init = at("insert")
     render(<Harness initial={init} />)
 
     const wrongCard = () =>

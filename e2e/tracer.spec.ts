@@ -261,22 +261,18 @@ test("vision → browse → enter course → play → sign in (carry-up) → com
   await expect(page.getByText("You mastered Stacks & Queues.")).toBeVisible()
   await page.getByRole("button", { name: /Continue to Arrays/ }).click()
 
-  // Arrays (redesign): demo → teach → A1 access → A3 (jump, then scan) →
-  // shift demo → teach → A2 shift → A2 spreadsheet skin → A4 classify →
-  // A5 construct (append in order) → A6 grow → A6 cheap. 8 graded beats.
-  await continueOn(page) // demo (read the strip)
-  await continueOn(page) // teach: instant access
-  await answerCellTap(page) // A1 access (tap the de-cued cell)
-  await answerCellTap(page) // A3 index ask (jump)
-  await answerCellTap(page) // A3 value ask (scan)
-  await continueOn(page) // shift demo
-  await continueOn(page) // teach: the shift cascade
-  await answerArrays(page) // A2 shift-predict (resulting row)
-  await answerArrays(page) // A2 spreadsheet skin (row count)
-  await answerArrays(page) // A4 classify-by-position
-  await rewireInOrder(page) // A5 construct-to-target (append in order)
-  await answerArrays(page) // A6 grow-predict
-  await answerArrays(page) // A6 amortized verdict
+  // Arrays (rebuild): play-access → jump → scan → play-mutate → insert → delete →
+  // place-cheapest → realworld → grow → grow verdict. 8 graded beats.
+  await continueOn(page) // play-access (read the strip)
+  await answerCellTap(page) // jump (tap the de-cued cell)
+  await answerCellTap(page) // scan (tap where the value is)
+  await continueOn(page) // play-mutate (insert/delete playground)
+  await answerArrays(page) // insert (predict the shift count)
+  await answerArrays(page) // delete (predict the shift count)
+  await rewireInOrder(page) // place-cheapest (drop the cell on the cheapest gap)
+  await answerArrays(page) // realworld (spreadsheet row shift)
+  await answerArrays(page) // grow-predict (double + copy)
+  await answerArrays(page) // grow amortized verdict
 
   // Arrays completion — a real two-lesson progression.
   await expect(page.getByText("You mastered Arrays.")).toBeVisible()

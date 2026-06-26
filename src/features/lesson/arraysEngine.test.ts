@@ -1,14 +1,15 @@
 import { describe, it, expect } from "vitest"
 
 import {
+  ARRAYS_GATE,
   ARRAYS_TOTAL_PARTS,
   arraysReducer,
-  constructReadyA,
   createArrays,
   currentPartArrays,
+  gapTargetsArrays,
   gradedCleared,
+  hasProgressArrays,
   isCompleteArrays,
-  legalTargetsArrays,
   partQuotaArrays,
   resizeFrames,
   resumeArrays,
@@ -20,10 +21,10 @@ import {
 import type { LessonAction } from "./engine"
 
 /**
- * Behavior-focused tests for the redesigned Arrays engine: everything is driven
- * through dispatched actions and asserted via external behavior (verdict,
- * counters, combo, completion) with a FIXED seed for determinism. Arrays reuses
- * the shared feedback machine + flame (gradeAnswer).
+ * Behavior-focused tests for the rebuilt Arrays engine (the "predict, then act,
+ * then see" redesign). Everything is driven through dispatched actions and
+ * asserted via external behavior (verdict, counters, combo, completion) under a
+ * FIXED seed for determinism. Arrays reuses the shared feedback machine + flame.
  */
 const SEED = 7
 
@@ -36,11 +37,10 @@ const at = (part: string): ArraysState =>
 
 /** Solve whatever the current beat is, correctly. */
 function solve(s: ArraysState): ArraysState {
+  const part = currentPartArrays(s)
   const q = s.question!
-  if (s.construct) {
-    let t = s
-    for (const id of q.correctOps!) t = arraysReducer(t, { type: "rewire", from: id, to: "end" })
-    return arraysReducer(t, { type: "check" })
+  if (part === "place-cheapest") {
+    return apply(s, { type: "rewire", from: "X", to: q.answer! }, { type: "check" })
   }
   if (q.options == null && q.answerIndex != null) {
     return apply(s, { type: "select", letter: String(q.answerIndex) }, { type: "check" })
@@ -51,194 +51,165 @@ function solve(s: ArraysState): ArraysState {
 /** Drive the whole lesson, every beat correct. */
 function happyPath(seed = SEED): ArraysState {
   let s = createArrays(seed)
-  s = apply(s, { type: "continue" }, { type: "continue" }) // demo, teach-access -> a1
-  s = apply(solve(s), { type: "next" }) // a1 -> a3 step0
-  s = apply(solve(s), { type: "next" }) // a3 step0 -> a3 step1
-  s = apply(solve(s), { type: "next" }) // a3 step1 -> shift-demo
-  s = apply(s, { type: "continue" }, { type: "continue" }) // shift-demo, teach-shift -> a2
-  s = apply(solve(s), { type: "next" }) // a2 -> a2-skin
-  s = apply(solve(s), { type: "next" }) // a2-skin -> a4
-  s = apply(solve(s), { type: "next" }) // a4 -> a5
-  s = apply(solve(s), { type: "next" }) // a5 -> a6 step0
-  s = apply(solve(s), { type: "next" }) // a6 step0 -> a6 step1
-  s = apply(solve(s), { type: "next" }) // a6 step1 -> completed
+  s = apply(s, { type: "continue" }) // play-access -> jump
+  s = apply(solve(s), { type: "next" }) // jump -> scan
+  s = apply(solve(s), { type: "next" }) // scan -> play-mutate
+  s = apply(s, { type: "continue" }) // play-mutate -> insert
+  s = apply(solve(s), { type: "next" }) // insert -> delete
+  s = apply(solve(s), { type: "next" }) // delete -> place-cheapest
+  s = apply(solve(s), { type: "next" }) // place-cheapest -> realworld
+  s = apply(solve(s), { type: "next" }) // realworld -> grow step 0
+  s = apply(solve(s), { type: "next" }) // grow step 0 -> grow step 1
+  s = apply(solve(s), { type: "next" }) // grow step 1 -> completed
   return s
 }
 
-const a3Step1 = (): ArraysState => apply(solve(at("a3-contrast")), { type: "next" })
-const a6Step1 = (): ArraysState => apply(solve(at("a6-grow")), { type: "next" })
+const growStep1 = (): ArraysState => apply(solve(at("grow")), { type: "next" })
 
-describe("Arrays — flow (11 beats, intro vs graded)", () => {
-  it("starts on the demo and steps through the intro beats on continue", () => {
+describe("Arrays — flow (9 beats, intro vs graded)", () => {
+  it("starts on the access playground and steps to the first graded beat", () => {
     const s = createArrays(SEED)
-    expect(currentPartArrays(s)).toBe("demo")
-    expect(ARRAYS_TOTAL_PARTS).toBe(11)
-    const s1 = apply(s, { type: "continue" })
-    expect(currentPartArrays(s1)).toBe("teach-access")
-    const s2 = apply(s1, { type: "continue" })
-    expect(currentPartArrays(s2)).toBe("a1-access")
+    expect(currentPartArrays(s)).toBe("play-access")
+    expect(ARRAYS_TOTAL_PARTS).toBe(9)
+    expect(ARRAYS_GATE).toBe(8)
+    expect(currentPartArrays(apply(s, { type: "continue" }))).toBe("jump")
   })
 
   it("a graded beat ignores continue (advances via next, not continue)", () => {
-    const s = at("a1-access")
+    const s = at("jump")
     expect(apply(s, { type: "continue" })).toBe(s)
   })
 
   it("shows n/8 only on graded beats", () => {
-    expect(partQuotaArrays(createArrays(SEED))).toBeNull() // demo
-    expect(partQuotaArrays(at("a1-access"))).toEqual({ done: 0, total: 8 })
+    expect(partQuotaArrays(createArrays(SEED))).toBeNull() // play-access
+    expect(partQuotaArrays(at("jump"))).toEqual({ done: 0, total: 8 })
+    expect(partQuotaArrays(at("play-mutate"))).toBeNull()
   })
 })
 
-describe("Arrays — A1 access-predict (de-cued, 0-indexed)", () => {
-  it("clears a1 when the tapped cell index matches the ask", () => {
-    const s = at("a1-access")
-    const q = s.question!
-    expect(q.answerIndex).toBeGreaterThanOrEqual(0)
+describe("Arrays — jump (de-cued access, 0-indexed)", () => {
+  it("clears accessIndex when the tapped cell index matches the ask", () => {
+    const s = at("jump")
+    expect(s.question!.answerIndex).toBeGreaterThanOrEqual(0)
     const done = solve(s)
     expect(done.feedback).toBe("correct")
-    expect(done.a1).toBe(1)
+    expect(done.accessIndex).toBe(1)
     expect(done.combo).toBe(1)
   })
 
-  it("a wrong tap nudges then fails; a1 stays 0", () => {
-    const s = at("a1-access")
+  it("a wrong tap nudges then fails; accessIndex stays 0", () => {
+    const s = at("jump")
     const wrong = String((s.question!.answerIndex! + 1) % s.question!.cells.length)
     let t = apply(s, { type: "select", letter: wrong }, { type: "check" })
     expect(t.feedback).toBe("nudge")
     t = apply(t, { type: "select", letter: wrong }, { type: "check" })
     expect(t.feedback).toBe("fail")
-    expect(t.a1).toBe(0)
+    expect(t.accessIndex).toBe(0)
     expect(t.combo).toBe(0)
   })
 })
 
-describe("Arrays — A3 access-vs-search (one gate, two asks)", () => {
-  it("step 0 is the index jump; step 1 is the value scan over the same row", () => {
-    const s = at("a3-contrast")
-    expect(s.step).toBe(0)
-    expect(s.question!.ask).toBe("index")
-    expect(s.question!.answerIndex).toBe(s.question!.k)
-
-    const step1 = a3Step1()
-    expect(step1.step).toBe(1)
-    expect(step1.question!.ask).toBe("value")
-    // same row carried across the two asks
-    expect(step1.question!.cells).toEqual(s.question!.cells)
-    // the searched value resolves to its first (and only) index
-    const v = step1.question!.value!
-    expect(step1.question!.cells.indexOf(v)).toBe(step1.question!.answerIndex)
-    expect(step1.question!.cells.filter((c) => c === v)).toHaveLength(1) // unique
+describe("Arrays — scan (value search walks the row)", () => {
+  it("the searched value is unique and resolves to its first index", () => {
+    const q = at("scan").question!
+    const v = q.value!
+    expect(q.cells.indexOf(v)).toBe(q.answerIndex)
+    expect(q.cells.filter((c) => c === v)).toHaveLength(1)
   })
 
-  it("clears a3 only after the second ask (step 0 does not bump it)", () => {
-    const afterStep0 = solve(at("a3-contrast"))
-    expect(afterStep0.feedback).toBe("correct")
-    expect(afterStep0.a3).toBe(0) // step 0 only unlocks step 1
-    const afterStep1 = solve(a3Step1())
-    expect(afterStep1.a3).toBe(1)
+  it("the scan cost scales with the search distance (steps = index + 1)", () => {
+    const q = at("scan").question!
+    expect(q.cost.word).toBe("scales")
+    expect(q.cost.count).toBe(q.answerIndex! + 1)
   })
 
-  it("the scan cost scales with the search distance; the jump is free", () => {
-    expect(at("a3-contrast").question!.cost.word).toBe("free")
-    expect(a3Step1().question!.cost.word).toBe("scales")
+  it("committing the matching cell clears accessScan", () => {
+    expect(solve(at("scan")).accessScan).toBe(1)
   })
 })
 
-describe("Arrays — A2 shift-predict (resulting row) + A2 skin (count)", () => {
-  it("A2: the winning option is the spliced row; correct clears a2", () => {
-    const s = at("a2-shift")
+describe("Arrays — insert (predict the shift count)", () => {
+  it("the answer is the moved count n - k; correct clears insertCount", () => {
+    const s = at("insert")
     const q = s.question!
     const op = q.op!
-    const expected =
-      op.kind === "insert"
-        ? [...q.cells.slice(0, op.index), "X", ...q.cells.slice(op.index)]
-        : [...q.cells.slice(0, op.index), ...q.cells.slice(op.index + 1)]
-    expect(q.answer).toBe(expected.join(" · "))
-    const done = solve(s)
-    expect(done.a2).toBe(1)
+    expect(op.kind).toBe("insert")
+    const moved = q.cells.length - op.index
+    expect(q.answer).toBe(`n${moved}`)
+    expect(q.cost.count).toBe(moved)
+    expect(q.cost.word).toBe("scales")
+    expect(solve(s).insertCount).toBe(1)
+  })
+})
+
+describe("Arrays — delete (predict the shift count)", () => {
+  it("the answer is the moved count n - 1 - k; correct clears deleteCount", () => {
+    const s = at("delete")
+    const q = s.question!
+    const op = q.op!
+    expect(op.kind).toBe("delete")
+    const moved = q.cells.length - 1 - op.index
+    expect(q.answer).toBe(`n${moved}`)
+    expect(q.cost.count).toBe(moved)
+    expect(solve(s).deleteCount).toBe(1)
+  })
+})
+
+describe("Arrays — place-cheapest (meaningful gap drag)", () => {
+  it("exposes a drop target at every gap while building; the end is cheapest", () => {
+    const s = at("place-cheapest")
+    const n = s.question!.cells.length
+    const gaps = gapTargetsArrays(s)
+    expect(gaps.size).toBe(n + 1) // gaps 0..n
+    expect(gaps.has(`gap-${n}`)).toBe(true)
+    expect(s.question!.answer).toBe(`gap-${n}`) // the end (zero ripple)
+    expect(s.question!.cost.word).toBe("free")
   })
 
-  it("A2 skin: the answer is the moved-row count; correct clears a2Skin", () => {
-    const s = at("a2-skin")
+  it("dropping the cell at the end clears placeCheapest; a middle drop fails", () => {
+    const s = at("place-cheapest")
+    expect(solve(s).placeCheapest).toBe(1)
+
+    let t = apply(s, { type: "rewire", from: "X", to: "gap-1" }, { type: "check" })
+    expect(t.feedback).toBe("nudge")
+    expect(t.placeCheapest).toBe(0)
+  })
+
+  it("no gap targets once the beat is terminal", () => {
+    const done = solve(at("place-cheapest"))
+    expect(gapTargetsArrays(done).size).toBe(0)
+  })
+})
+
+describe("Arrays — realworld (spreadsheet shift count)", () => {
+  it("the answer is the moved-row count; correct clears realworld", () => {
+    const s = at("realworld")
     const q = s.question!
     const op = q.op!
     const moved = op.kind === "insert" ? q.cells.length - op.index : q.cells.length - 1 - op.index
     expect(q.answer).toBe(`n${moved}`)
-    expect(q.cost.count).toBe(moved)
-    expect(solve(s).a2Skin).toBe(1)
+    expect(solve(s).realworld).toBe(1)
   })
 })
 
-describe("Arrays — A4 classify-by-position (no tie, end cheapest)", () => {
-  it("the answer is the end and the three costs are distinct", () => {
-    const q = at("a4-classify").question!
-    const { n, midK } = q.classify!
-    const costs = [n, n - midK, 0] // front, middle, end
-    expect(new Set(costs).size).toBe(3) // no tie
-    expect(Math.min(...costs)).toBe(0)
-    expect(q.answer).toBe("end")
-    expect(solve(at("a4-classify")).a4).toBe(1)
-  })
-})
-
-describe("Arrays — A5 construct-to-target (append order, drag)", () => {
-  it("appends are pinned to the open end while loose cells remain", () => {
-    const s = at("a5-construct")
-    expect(legalTargetsArrays(s)).toEqual(new Set(["end"]))
-    expect(constructReadyA(s)).toBe(false)
-  })
-
-  it("a correct append order clears a5; check is gated until all are placed", () => {
-    const s = at("a5-construct")
-    const ops = s.question!.correctOps!
-    // check before placing everything is a no-op
-    const partial = arraysReducer(s, { type: "rewire", from: ops[0], to: "end" })
-    expect(arraysReducer(partial, { type: "check" })).toBe(partial)
-    const done = solve(s)
-    expect(constructReadyA(arraysReducer(s, { type: "rewire", from: ops[0], to: "end" }))).toBe(false)
-    expect(done.feedback).toBe("correct")
-    expect(done.a5).toBe(1)
-  })
-
-  it("a wrong order nudges and resets the bin, then fails on a second miss", () => {
-    const s = at("a5-construct")
-    const ops = s.question!.correctOps!
-    if (ops.length < 2) throw new Error("A5 needs >= 2 loose cells to test order")
-    const wrong = [...ops].reverse()
-    let t = s
-    for (const id of wrong) t = arraysReducer(t, { type: "rewire", from: id, to: "end" })
-    t = arraysReducer(t, { type: "check" })
-    expect(t.feedback).toBe("nudge")
-    expect(t.construct!.placed).toHaveLength(0) // bin reset
-    expect(t.construct!.loose).toHaveLength(ops.length)
-    expect(t.a5).toBe(0)
-    // miss again -> full fail
-    for (const id of wrong) t = arraysReducer(t, { type: "rewire", from: id, to: "end" })
-    t = arraysReducer(t, { type: "check" })
-    expect(t.feedback).toBe("fail")
-    expect(t.a5).toBe(0)
-  })
-})
-
-describe("Arrays — A6 grow synthesis (two graded checks)", () => {
-  it("step 0 grows+copies a full block; clears a6Grow", () => {
-    const s = at("a6-grow")
+describe("Arrays — grow synthesis (two graded checks)", () => {
+  it("step 0 grows+copies a full block; clears grow", () => {
+    const s = at("grow")
     expect(s.question!.answer).toBe("grow")
     expect(s.question!.resize).toMatchObject({ resizes: true })
     expect(s.question!.resize!.size).toBe(s.question!.resize!.capacity) // full
-    expect(solve(s).a6Grow).toBe(1)
+    expect(solve(s).grow).toBe(1)
   })
 
-  it("step 1 verdict is 'expensive' (it copied everything); clears a6Cheap", () => {
-    const s = a6Step1()
+  it("step 1 verdict is 'expensive' (it copied everything); clears growVerdict", () => {
+    const s = growStep1()
     expect(s.step).toBe(1)
     expect(s.question!.answer).toBe("expensive")
-    expect(solve(s).a6Cheap).toBe(1)
+    expect(solve(s).growVerdict).toBe(1)
   })
 
   it("the grow chip uses the locked house word, gloss in why only", () => {
-    const q = at("a6-grow").question!
+    const q = at("grow").question!
     expect(q.cost.word).toBe("usually free")
     expect(q.cost.word).not.toBe("scales")
     expect(q.why).toMatch(/usually free, with the occasional big reshuffle/i)
@@ -246,16 +217,16 @@ describe("Arrays — A6 grow synthesis (two graded checks)", () => {
 })
 
 describe("Arrays — gate, flame, completion", () => {
-  it("completes only after all 8 graded beats, combo spans every correct check", () => {
+  it("completes only after all 8 graded beats; combo spans every correct check", () => {
     const s = happyPath()
     expect(gradedCleared(s)).toBe(8)
     expect(isCompleteArrays(s)).toBe(true)
     expect(s.completed).toBe(true)
-    expect(s.combo).toBe(9) // a3 and a6 each contribute two correct checks
+    expect(s.combo).toBe(8) // jump, scan, insert, delete, place, realworld, grow x2
   })
 
-  it("a full fail anywhere breaks the combo; revealed/failed never count", () => {
-    const s = at("a2-shift")
+  it("a full fail breaks the combo; revealed/failed never count", () => {
+    const s = at("insert")
     const wrong = s.question!.options!.find((o) => o.id !== s.question!.answer)!.id
     const failed = apply(
       s,
@@ -265,10 +236,10 @@ describe("Arrays — gate, flame, completion", () => {
       { type: "check" },
     )
     expect(failed.feedback).toBe("fail")
-    expect(failed.a2).toBe(0)
+    expect(failed.insertCount).toBe(0)
     const revealed = apply(failed, { type: "reveal" })
     expect(revealed.showWhy).toBe(true)
-    expect(revealed.a2).toBe(0)
+    expect(revealed.insertCount).toBe(0)
   })
 })
 
@@ -276,42 +247,52 @@ describe("Arrays — resume / progress", () => {
   it("squashes to the 8-skill counters map (plus attempts)", () => {
     const p = toProgressArrays(happyPath())
     expect(p.counters).toEqual({
-      a1: 1,
-      a3: 1,
-      a2: 1,
-      a2Skin: 1,
-      a4: 1,
-      a5: 1,
-      a6Grow: 1,
-      a6Cheap: 1,
-      attempts: 9,
+      accessIndex: 1,
+      accessScan: 1,
+      insertCount: 1,
+      deleteCount: 1,
+      placeCheapest: 1,
+      realworld: 1,
+      grow: 1,
+      growVerdict: 1,
+      attempts: 8,
     })
     expect(p.completed).toBe(true)
   })
 
   it("restores the persisted part + counts with a cold combo", () => {
     const s = resumeArrays(
-      { counters: { a1: 1, a3: 1 }, currentPart: "a2-shift", completed: false },
+      { counters: { accessIndex: 1, accessScan: 1 }, currentPart: "insert", completed: false },
       SEED,
     )
-    expect(currentPartArrays(s)).toBe("a2-shift")
-    expect(s.a1).toBe(1)
-    expect(s.a3).toBe(1)
+    expect(currentPartArrays(s)).toBe("insert")
+    expect(s.accessIndex).toBe(1)
+    expect(s.accessScan).toBe(1)
     expect(s.combo).toBe(0)
-    expect(s.completed).toBe(false)
+    expect(hasProgressArrays(s)).toBe(true)
   })
 
-  it("migrates an old run cleanly: unknown part restarts, completion is preserved", () => {
-    const inProgress = resumeArrays(
-      { counters: { shiftPredict: 3, costCount: 3 }, currentPart: "shift", completed: false },
+  it("migrates an old run: maps old counters, drops a5, unknown part restarts", () => {
+    const migrated = resumeArrays(
+      {
+        counters: { a1: 1, a3: 1, a2: 1, a2Skin: 1, a4: 1, a5: 1, a6Grow: 1, a6Cheap: 1 },
+        currentPart: "a6-grow",
+        completed: false,
+      },
       SEED,
     )
-    expect(currentPartArrays(inProgress)).toBe("demo") // unknown part -> restart
-    expect(gradedCleared(inProgress)).toBe(0)
-    const done = resumeArrays(
-      { counters: { resizePredict: 2 }, currentPart: "resize", completed: true },
-      SEED,
-    )
+    expect(currentPartArrays(migrated)).toBe("play-access") // unknown part -> restart
+    expect(migrated.accessIndex).toBe(1)
+    expect(migrated.accessScan).toBe(1)
+    expect(migrated.insertCount).toBe(1)
+    expect(migrated.realworld).toBe(1)
+    expect(migrated.placeCheapest).toBe(1)
+    expect(migrated.grow).toBe(1)
+    expect(migrated.growVerdict).toBe(1)
+    expect(migrated.deleteCount).toBe(0) // new skill, re-earned
+    expect(gradedCleared(migrated)).toBe(7)
+
+    const done = resumeArrays({ counters: {}, currentPart: "resize", completed: true }, SEED)
     expect(done.completed).toBe(true) // a finished old run stays finished
   })
 })
@@ -319,7 +300,7 @@ describe("Arrays — resume / progress", () => {
 describe("Arrays — determinism", () => {
   it("same seed yields identical runs and questions", () => {
     expect(createArrays(SEED)).toEqual(createArrays(SEED))
-    expect(at("a2-shift").question).toEqual(at("a2-shift").question)
+    expect(at("insert").question).toEqual(at("insert").question)
     expect(happyPath(11)).toEqual(happyPath(11))
   })
 })
@@ -352,7 +333,7 @@ describe("Arrays — shiftFrames (deterministic per-cell wave)", () => {
 
   it("end-insert ripples nothing (rest + placement only)", () => {
     const frames = shiftFrames(["A", "B", "C"], { kind: "insert", index: 3, inserted: "X" })
-    expect(frames).toHaveLength(2) // no cell moves; just rest + drop-in
+    expect(frames).toHaveLength(2)
     expect(labelsBySlot(frames[1])).toEqual(["A", "B", "C", "X"])
   })
 
@@ -378,9 +359,3 @@ describe("Arrays — resizeFrames (deterministic doubling)", () => {
     expect(frames.some((f) => f.phase === "copy")).toBe(false)
   })
 })
-
-
-
-
-
-

@@ -7,57 +7,56 @@ import {
 import type { CostWord } from "@/components/willow/CostReadout"
 
 /**
- * Pure, framework-agnostic Arrays / Dynamic Arrays engine (the redesign, see
- * docs/lessons/arrays.md). One idea: contiguity buys instant indexing (a jump,
- * not a scan) and charges a shift on every middle insert/delete; the end is
- * cheap, except when a full block must double-and-copy.
+ * Pure, framework-agnostic Arrays / Dynamic Arrays engine (the "predict, then
+ * act, then see the consequence" rebuild, see
+ * docs/plans/specs/2026-06-25-arrays-lesson-redesign-design.md). One idea:
+ * contiguity buys instant indexing (a jump, not a scan) and charges a shift on
+ * every middle insert/delete; the end is cheap, except when a full block must
+ * double-and-copy.
  *
- * The shipped version let a learner win by tapping a lit cell or reading a
- * pre-played row off the screen. This version is a curated set of 8 distinct,
- * de-cued problems across an Access face (A1 access, A3 access-vs-search), a
- * Mutation face (A2 shift, A2 real-world skin, A4 classify-by-position, A5
- * construct-to-target), and a Growth synthesis (A6 grow-predict + amortized
- * verdict), gated on all 8 behind the until-correct wall. Same idea, two
- * mechanics: predict-next-state (primary) + construct-to-target (the shared
- * drag/rewire infra).
+ * Nine beats: two live free-play intros (access, mutation) plus seven graded
+ * beats across eight sub-skills (a jump, a value scan, an insert count, a delete
+ * count, a cheapest-placement drag, a real-world shift, and a two-part growth
+ * synthesis). Same idea, the five-mechanic menu: Predict-the-cost/count
+ * (primary), Predict-next-state, and Classify (cheapest position).
  *
  * Deterministic + seedable: same state always yields the same question/verdict
  * (the no-AI guarantee). Reuses the shared feedback machine + flame
- * (`gradeAnswer`) and the same `LessonAction` / `LessonProgress` shapes; only
- * the structure model, verdicts, and gate are Arrays-specific.
+ * (`gradeAnswer`) and the same `LessonAction` / `LessonProgress` shapes; only the
+ * structure model, verdicts, and gate are Arrays-specific.
  *
- * Resume migration note: an old run saved `{ shiftPredict / costCount /
- * resizePredict, currentPart: shift|cost|resize }` reads every new counter as 0
- * and an unknown `currentPart` resolves to part 0 (restart at the demo);
- * completed old runs keep `completed: true`, so the next lesson stays unlocked.
+ * Resume migration: an old run's counters are mapped onto the new skill keys
+ * (`a1->accessIndex`, `a3->accessScan`, `a2->insertCount`, `a2Skin->realworld`,
+ * `a4->placeCheapest`, `a6Grow->grow`, `a6Cheap->growVerdict`); the removed
+ * construct skill (`a5`) is dropped and the new `deleteCount` re-earns; an
+ * unknown old `currentPart` restarts at the access playground; a completed run
+ * stays completed so the next lesson stays unlocked.
  */
 
 export const ARRAYS_PARTS = [
-  "demo", // 1 free play: tap to read, watch the address ruler (intro)
-  "teach-access", // 2 name "instant access" - a jump, not a scan (teach)
-  "a1-access", // 3 A1 de-cued "value at index k?" (graded)
-  "a3-contrast", // 4 A3 index-jump vs value-scan (two asks, one gate) (graded)
-  "shift-demo", // 5 free play: insert/delete, watch the ripple (intro)
-  "teach-shift", // 6 name "the shift cascade" (contiguity forbids gaps) (teach)
-  "a2-shift", // 7 A2 predict the resulting row (graded)
-  "a2-skin", // 8 A2 real-world row-insert (graded)
-  "a4-classify", // 9 A4 front / middle / end: cheapest? (graded)
-  "a5-construct", // 10 A5 construct-to-target (append-pinned, drag) (graded)
-  "a6-grow", // 11 A6 grow-predict + "was that append cheap?" (graded x2)
+  "play-access", // 1 free play: tap to read, jump to an index (intro)
+  "jump", // 2 de-cued "go to index k" - one hop (graded)
+  "scan", // 3 same idea inverted: search a value by walking the row (graded)
+  "play-mutate", // 4 free play: insert into a gap / delete a cell, watch the ripple (intro)
+  "insert", // 5 predict the insert shift count (graded)
+  "delete", // 6 predict the delete shift count (graded)
+  "place-cheapest", // 7 drop one cell where it costs least (meaningful gap drag) (graded)
+  "realworld", // 8 spreadsheet row insert/delete: the same shift, concrete (graded)
+  "grow", // 9 capacity full -> append: double + copy, then "was it cheap?" (graded x2)
 ] as const
 export type ArraysPart = (typeof ARRAYS_PARTS)[number]
 export const ARRAYS_TOTAL_PARTS = ARRAYS_PARTS.length
 
 /** The 8 graded sub-skills; mastery = all 8 cleared. */
 export const ARRAYS_SKILLS = [
-  "a1",
-  "a3",
-  "a2",
-  "a2Skin",
-  "a4",
-  "a5",
-  "a6Grow",
-  "a6Cheap",
+  "accessIndex",
+  "accessScan",
+  "insertCount",
+  "deleteCount",
+  "placeCheapest",
+  "realworld",
+  "grow",
+  "growVerdict",
 ] as const
 export type ArraysSkill = (typeof ARRAYS_SKILLS)[number]
 export const ARRAYS_GATE = ARRAYS_SKILLS.length // 8
@@ -70,9 +69,8 @@ export interface ArraysOption {
 }
 
 /**
- * The structural op a shift/skin question is about, kept as data (not parsed
- * from the prompt) so the pure frame selectors below can replay it
- * deterministically.
+ * The structural op a shift/skin question is about, kept as data (not parsed from
+ * the prompt) so the pure frame selectors below can replay it deterministically.
  */
 export interface ArrayOp {
   kind: "insert" | "delete"
@@ -87,36 +85,31 @@ export interface ArrayResize {
   resizes: boolean
 }
 
-/** How an A1 / A3 access beat phrases its de-cued ask. */
-export type AskA1 = "value-at-k" | "last-element" | "first-element"
-export type AskA3 = "index" | "value"
+/** How a jump/scan beat phrases its de-cued ask. */
+export type ArraysAsk = "first" | "last" | "value-at-k" | "value"
 
 export interface ArraysQuestion {
   kind: ArraysPart
   prompt: string
   /** The strip contents (the row under consideration). */
   cells: string[]
-  /** A1 ask variant, or the A3 sub-ask. */
-  ask?: AskA1 | AskA3
-  /** Index in question (A1 value-at-k, A3 index-ask). */
+  /** Ask variant (jump: first/last/value-at-k; scan: value). */
+  ask?: ArraysAsk
+  /** Index in question (jump value-at-k). */
   k?: number
-  /** Searched value (A3 value-ask); guaranteed unique in `cells`. */
+  /** Searched value (scan); guaranteed unique in `cells`. */
   value?: string
-  /** De-cued tap answer = a cell index (A1, A3). */
+  /** De-cued tap answer = a cell index (jump, scan). */
   answerIndex?: number
-  /** A2 / A2-skin: drives the post-verdict ripple. */
+  /** insert / delete / realworld: drives the post-verdict ripple. */
   op?: ArrayOp
-  /** A2 / A2-skin / A4 / A6 MCQ. */
+  /** insert / delete / realworld / grow MCQ. */
   options?: ArraysOption[]
-  /** Winning option id (MCQ beats). */
+  /** Winning option id (MCQ beats) or the correct gap id (place-cheapest). */
   answer?: string
-  /** A4 classify-by-position parameters (front=n, middle=n-midK, end=0). */
+  /** place-cheapest parameters (front=n, middle=n-midK, end=0). */
   classify?: { n: number; midK: number }
-  /** A5 construct: the desired final row, the given prefix, the unique appends. */
-  target?: string[]
-  partial?: string[]
-  correctOps?: string[]
-  /** A6 grow: drives the capacity-frame doubling. */
+  /** grow: drives the capacity-frame doubling. */
   resize?: ArrayResize
   /** The locked house word; the chip renders this verbatim. */
   cost: { word: CostWord; count: number; unit: string }
@@ -124,12 +117,6 @@ export interface ArraysQuestion {
   nudge: string
   correct: string
   why: string
-}
-
-/** A5 construct working state (mirrors the S&Q ConstructWork). */
-export interface ConstructWork {
-  loose: string[] // cells not yet appended (display order)
-  placed: string[] // cells appended so far, in append order
 }
 
 export interface ArraysState {
@@ -140,18 +127,17 @@ export interface ArraysState {
   combo: number
   completed: boolean
   // the 8 graded counters (each 0 | 1)
-  a1: number
-  a3: number
-  a2: number
-  a2Skin: number
-  a4: number
-  a5: number
-  a6Grow: number
-  a6Cheap: number
+  accessIndex: number
+  accessScan: number
+  insertCount: number
+  deleteCount: number
+  placeCheapest: number
+  realworld: number
+  grow: number
+  growVerdict: number
   question: ArraysQuestion | null
-  selected: string | null // MCQ id OR the stringified de-cued tapped index
-  construct: ConstructWork | null // A5 working state
-  step: number // sub-step for two-ask beats (a3, a6): 0 | 1
+  selected: string | null // MCQ id, stringified tapped index, or chosen gap id
+  step: number // sub-step for the grow two-asker: 0 | 1
   wrongCount: number
   feedback: Feedback
   revealed: boolean
@@ -185,13 +171,6 @@ function shuffle<T>(arr: T[], seed: number): { result: T[]; next: number } {
   return { result, next: a }
 }
 
-function splice<T>(arr: T[], start: number, deleteCount: number, ...items: T[]): T[] {
-  const copy = arr.slice()
-  copy.splice(start, deleteCount, ...items)
-  return copy
-}
-
-const join = (a: string[]) => a.join(" · ")
 const plural = (n: number) => (n === 1 ? "" : "s")
 const ordinal = (n: number) => {
   const s = ["th", "st", "nd", "rd"]
@@ -199,13 +178,26 @@ const ordinal = (n: number) => {
   return n + (s[(v - 20) % 10] ?? s[v] ?? s[0])
 }
 
+/** Up to four distinct count options (the right count + plausible misses). */
+function countOptions(
+  moved: number,
+  maxN: number,
+  seed: number,
+): { result: ArraysOption[]; next: number } {
+  const counts = new Set<number>([moved])
+  for (const d of [moved - 1, moved + 1, moved + 2, 0]) {
+    if (d >= 0 && d <= maxN) counts.add(d)
+  }
+  const arr = [...counts].slice(0, 4).map((n) => ({ id: `n${n}`, label: `${n}` }))
+  return shuffle(arr, seed)
+}
+
 /* ------------------------------ question makers ------------------------------ */
 
-/** Demo / teach beats: a read-only strip + naming copy, no graded answer. */
+/** Demo / play beats: a read-only strip + naming copy, no graded answer. */
 function makeIntro(part: ArraysPart): ArraysQuestion {
-  const cells = LETTERS.slice(0, 5)
+  const cells = LETTERS.slice(0, 6)
   const base = {
-    kind: part,
     cells,
     cost: { word: "free" as CostWord, count: 1, unit: "step" },
     hint: "",
@@ -213,65 +205,55 @@ function makeIntro(part: ArraysPart): ArraysQuestion {
     correct: "",
     why: "",
   }
-  switch (part) {
-    case "demo":
-      return {
-        ...base,
-        prompt: "Tap any cell to read it. The ruler beneath is the address.",
-      }
-    case "teach-access":
-      return {
-        ...base,
-        prompt: "Instant access: arr[k] is a jump straight to the address, not a walk.",
-      }
-    case "shift-demo":
-      return {
-        ...base,
-        prompt: "Insert or delete in the middle, then watch the ripple of shifts.",
-      }
-    default: // teach-shift
-      return {
-        ...base,
-        prompt: "The shift cascade: contiguity forbids gaps, so the tail slides over.",
-      }
+  if (part === "play-access") {
+    return {
+      ...base,
+      kind: "play-access",
+      prompt: "Tap any cell to read it, or jump to an index. The ruler is the address.",
+    }
+  }
+  return {
+    ...base,
+    kind: "play-mutate",
+    prompt: "Drop a cell into a gap, or remove one, and watch the rest slide over.",
   }
 }
 
-/** A1 (beat 3): de-cued access. The answer is a cell index; the de-cue is purely
+/** `jump` (beat 2): de-cued access. The answer is a cell index; the de-cue is
  * presentational (no lit cell), the answer stays a pure function of 0-indexing. */
-function makeA1(seed: number): { question: ArraysQuestion; next: number } {
+function makeJump(seed: number): { question: ArraysQuestion; next: number } {
   let a = seed
   const cells = LETTERS.slice(0, 6)
   const n = cells.length
   let r = rngInt(a, 3)
   a = r.next
-  const ask: AskA1 = r.value === 0 ? "last-element" : r.value === 1 ? "first-element" : "value-at-k"
+  const ask: ArraysAsk = r.value === 0 ? "last" : r.value === 1 ? "first" : "value-at-k"
 
   let answerIndex: number
   let prompt: string
-  if (ask === "first-element") {
+  if (ask === "first") {
     answerIndex = 0
-    prompt = "Tap the first element."
-  } else if (ask === "last-element") {
+    prompt = "Jump to the first element."
+  } else if (ask === "last") {
     answerIndex = n - 1
-    prompt = "Tap the last element."
+    prompt = "Jump to the last element."
   } else {
     r = rngInt(a, n - 2)
     a = r.next
     answerIndex = 2 + r.value // 2..n-1, so counting from 0 actually matters
-    prompt = `Tap the value at index ${answerIndex}.`
+    prompt = `Jump to index ${answerIndex}.`
   }
   const value = cells[answerIndex]
   const why =
-    ask === "last-element"
+    ask === "last"
       ? `The last index is ${n - 1}, not ${n}: ${n} cells run 0…${n - 1}.`
-      : ask === "first-element"
+      : ask === "first"
         ? "The first element sits at index 0. Counting starts at zero."
         : `arr[${answerIndex}] is a direct address (base + ${answerIndex} steps): one jump, no walking.`
 
   return {
     question: {
-      kind: "a1-access",
+      kind: "jump",
       prompt,
       cells,
       ask,
@@ -281,54 +263,27 @@ function makeA1(seed: number): { question: ArraysQuestion; next: number } {
       cost: { word: "free", count: 1, unit: "step" },
       hint: "",
       nudge: "Counting starts at 0. Line the cell up with its ruler tick.",
-      correct: `Right: ${value} at index ${answerIndex} - one jump.`,
+      correct: `Right: ${value} at index ${answerIndex}, one jump.`,
       why,
     },
     next: a,
   }
 }
 
-/** A3 step 0 (index-ask) over a fresh unique-value strip; the jump face. */
-function makeA3Index(seed: number): { question: ArraysQuestion; next: number } {
+/** `scan` (beat 3): search a value by walking the row from index 0. */
+function makeScan(seed: number): { question: ArraysQuestion; next: number } {
   let a = seed
   const cells = LETTERS.slice(0, 6) // distinct values: the value-ask stays unambiguous
   const n = cells.length
   const r = rngInt(a, n - 2)
   a = r.next
-  const k = 2 + r.value // 2..n-1
-  return {
-    question: {
-      kind: "a3-contrast",
-      prompt: `You know the index. Tap the value at index ${k}.`,
-      cells,
-      ask: "index",
-      k,
-      answerIndex: k,
-      value: cells[k],
-      cost: { word: "free", count: 1, unit: "step" },
-      hint: "",
-      nudge: "Index in hand: jump straight to ruler tick, no scanning.",
-      correct: `Right: index ${k} jumps straight to ${cells[k]}.`,
-      why: `With the index you address arr[${k}] directly: one hop, free no matter how long the row is.`,
-    },
-    next: a,
-  }
-}
-
-/** A3 step 1 (value-ask) over the SAME strip; the scan face. */
-function makeA3Value(cells: string[], seed: number): { question: ArraysQuestion; next: number } {
-  let a = seed
-  const n = cells.length
-  // Search for a value past the front so the scan visibly walks several cells.
-  const r = rngInt(a, n - 2)
-  a = r.next
-  const idx = 2 + r.value // 2..n-1
+  const idx = 2 + r.value // 2..n-1, so the scan visibly walks several cells
   const value = cells[idx]
   const steps = idx + 1 // a scan checks cells 0..idx
   return {
     question: {
-      kind: "a3-contrast",
-      prompt: `Now you only know the value. Find ${value}: tap where it is.`,
+      kind: "scan",
+      prompt: `Find ${value}. Walk the row and tap where it is.`,
       cells,
       ask: "value",
       value,
@@ -337,91 +292,101 @@ function makeA3Value(cells: string[], seed: number): { question: ArraysQuestion;
       hint: "",
       nudge: "A value search walks cell by cell from index 0.",
       correct: `Right: ${value} turns up at index ${idx} after a ${steps}-cell scan.`,
-      why: `Having only the value forces a scan: walk from index 0 until ${value} matches, ${steps} cell${plural(steps)}. That's why a search scales while an index jump is free.`,
+      why: `With only the value you must scan from index 0 until ${value} matches: ${steps} cell${plural(steps)}. That's why a search scales while an index jump is free.`,
     },
     next: a,
   }
 }
 
-/** A2 (beat 7): predict the resulting row after an insert/delete (real shift). */
-function makeA2(seed: number): { question: ArraysQuestion; next: number } {
+/** `insert` (beat 5): predict how many cells a mid-insert shifts (= n - k). */
+function makeInsert(seed: number): { question: ArraysQuestion; next: number } {
   let a = seed
   let r = rngInt(a, 2)
   a = r.next
-  const len = 4 + r.value // 4..5
+  const len = 5 + r.value // 5..6
   const array = LETTERS.slice(0, len)
-  r = rngInt(a, 2)
+  r = rngInt(a, len - 1)
   a = r.next
-  const insert = r.value === 0
-
-  let index: number
-  let result: string[]
-  let shifted: number
-  let prompt: string
-  let op: ArrayOp
-  const candidates: string[][] = []
-
-  if (insert) {
-    r = rngInt(a, len - 1)
-    a = r.next
-    index = 1 + r.value // 1..len-1 (always a real shift)
-    result = splice(array, index, 0, "X")
-    shifted = len - index
-    prompt = `Insert X at index ${index}. What does the row become?`
-    op = { kind: "insert", index, inserted: "X" }
-    for (const j of [index - 1, index + 1, 0, len]) {
-      if (j < 0 || j > len || j === index) continue
-      candidates.push(splice(array, j, 0, "X"))
-    }
-  } else {
-    r = rngInt(a, len - 2)
-    a = r.next
-    index = 1 + r.value // 1..len-2
-    result = splice(array, index, 1)
-    shifted = len - 1 - index
-    prompt = `Delete index ${index} (${array[index]}). What does the row become?`
-    op = { kind: "delete", index }
-    for (const j of [index - 1, index + 1, 0, len - 1]) {
-      if (j < 0 || j >= len || j === index) continue
-      candidates.push(splice(array, j, 1))
-    }
-  }
-
-  const answer = join(result)
-  const options: ArraysOption[] = [{ id: answer, label: answer }]
-  for (const c of candidates) {
-    if (options.length >= 4) break
-    const label = join(c)
-    if (!options.some((o) => o.id === label)) options.push({ id: label, label })
-  }
-  const sh = shuffle(options, a)
-  a = sh.next
-
-  const why = insert
-    ? `Everything from index ${index} on slides right by one to open a gap: ${shifted} cell${plural(shifted)} move.`
-    : `Everything after index ${index} slides left to close the gap: ${shifted} cell${plural(shifted)} move.`
-
+  const index = 1 + r.value // 1..len-1 (always a real shift)
+  const moved = len - index
+  const op: ArrayOp = { kind: "insert", index, inserted: "X" }
+  const opt = countOptions(moved, len, a)
+  a = opt.next
   return {
     question: {
-      kind: "a2-shift",
-      prompt,
+      kind: "insert",
+      prompt: `Insert X at index ${index}. How many cells shift?`,
       cells: array,
-      options: sh.result,
-      answer,
       op,
-      cost: { word: "scales", count: shifted, unit: shifted === 1 ? "cell moved" : "cells moved" },
+      options: opt.result,
+      answer: `n${moved}`,
+      cost: { word: "scales", count: moved, unit: moved === 1 ? "cell moved" : "cells moved" },
       hint: "",
-      nudge: "Watch the gap: each cell after the spot shifts by exactly one.",
-      correct: `Right: ${shifted} cell${plural(shifted)} shift.`,
-      why,
+      nudge: "Only the cells from the insert point on move. Count exactly those.",
+      correct: `Right: ${moved} cell${plural(moved)} shift right.`,
+      why: `Everything from index ${index} on slides right by one to open the gap: ${moved} cell${plural(moved)} move.`,
     },
     next: a,
   }
 }
 
-/** A2-skin (beat 8): the same shift as a real-world row-insert; predict HOW MANY
- * rows move (the count ask, varied from A2's resulting-row ask). */
-function makeA2Skin(seed: number): { question: ArraysQuestion; next: number } {
+/** `delete` (beat 6): predict how many cells a mid-delete shifts (= n - 1 - k). */
+function makeDelete(seed: number): { question: ArraysQuestion; next: number } {
+  let a = seed
+  let r = rngInt(a, 2)
+  a = r.next
+  const len = 5 + r.value // 5..6
+  const array = LETTERS.slice(0, len)
+  r = rngInt(a, len - 1)
+  a = r.next
+  const index = r.value // 0..len-2 (always a real shift)
+  const moved = len - 1 - index
+  const op: ArrayOp = { kind: "delete", index }
+  const opt = countOptions(moved, len, a)
+  a = opt.next
+  return {
+    question: {
+      kind: "delete",
+      prompt: `Delete index ${index} (${array[index]}). How many cells shift?`,
+      cells: array,
+      op,
+      options: opt.result,
+      answer: `n${moved}`,
+      cost: { word: "scales", count: moved, unit: moved === 1 ? "cell moved" : "cells moved" },
+      hint: "",
+      nudge: "Only the cells after the gap move. Count exactly those.",
+      correct: `Right: ${moved} cell${plural(moved)} shift left.`,
+      why: `Everything after index ${index} slides left to close the gap: ${moved} cell${plural(moved)} move.`,
+    },
+    next: a,
+  }
+}
+
+/** `place-cheapest` (beat 7): drop the new cell where it costs least (the end). */
+function makePlaceCheapest(seed: number): { question: ArraysQuestion; next: number } {
+  let a = seed
+  const r = rngInt(a, 2)
+  a = r.next
+  const n = 5 + r.value // 5..6
+  return {
+    question: {
+      kind: "place-cheapest",
+      prompt: "Add one cell so the fewest shift. Drop it where it costs least.",
+      cells: LETTERS.slice(0, n),
+      answer: `gap-${n}`, // the open end: zero ripple
+      classify: { n, midK: 2 },
+      cost: { word: "free", count: 0, unit: "cells moved" },
+      hint: "",
+      nudge: "A middle drop shoves everything after it. The end shoves nothing.",
+      correct: "Right: the end is free - nothing comes after it, so nothing moves.",
+      why: `Dropping at the front shifts all ${n} cells; the middle shifts ${n - 2}; the end shifts 0. Append to the end and nothing ripples.`,
+    },
+    next: a,
+  }
+}
+
+/** `realworld` (beat 8): the same shift as a spreadsheet row insert/delete. */
+function makeRealworld(seed: number): { question: ArraysQuestion; next: number } {
   let a = seed
   let r = rngInt(a, 2)
   a = r.next
@@ -432,123 +397,46 @@ function makeA2Skin(seed: number): { question: ArraysQuestion; next: number } {
   const insert = r.value === 0
 
   let index: number
-  let shifted: number
+  let moved: number
   let prompt: string
   let op: ArrayOp
   if (insert) {
     r = rngInt(a, len - 1)
     a = r.next
     index = 1 + r.value
-    shifted = len - index
+    moved = len - index
     prompt = `Insert a row at position ${index}. How many rows shift down?`
     op = { kind: "insert", index, inserted: "X" }
   } else {
-    r = rngInt(a, len - 2)
+    r = rngInt(a, len - 1)
     a = r.next
-    index = 1 + r.value
-    shifted = len - 1 - index
+    index = r.value // 0..len-2
+    moved = len - 1 - index
     prompt = `Delete the row at position ${index}. How many rows shift up?`
     op = { kind: "delete", index }
   }
-
-  const counts = new Set<number>([shifted])
-  for (const d of [shifted - 1, shifted + 1, shifted + 2, 0]) {
-    if (d >= 0 && d <= len) counts.add(d)
-  }
-  const options = [...counts].slice(0, 4).map((n) => ({ id: `n${n}`, label: `${n}` }))
-  const sh = shuffle(options, a)
-  a = sh.next
-
+  const opt = countOptions(moved, len, a)
+  a = opt.next
   return {
     question: {
-      kind: "a2-skin",
+      kind: "realworld",
       prompt,
       cells: array,
-      options: sh.result,
-      answer: `n${shifted}`,
       op,
-      cost: { word: "scales", count: shifted, unit: shifted === 1 ? "row moved" : "rows moved" },
+      options: opt.result,
+      answer: `n${moved}`,
+      cost: { word: "scales", count: moved, unit: moved === 1 ? "row moved" : "rows moved" },
       hint: "",
       nudge: "Only the rows past the spot move. Count exactly those.",
-      correct: `Right: ${shifted} row${plural(shifted)} shift.`,
-      why: `Rows are stored contiguously, so inserting at ${index} slides every row below it: ${shifted} move.`,
+      correct: `Right: ${moved} row${plural(moved)} shift.`,
+      why: `Rows are stored contiguously, so the change at position ${index} slides every row past it: ${moved} move.`,
     },
     next: a,
   }
 }
 
-/** A4 (beat 9): classify-by-position. Curated so the three costs never tie. */
-function makeA4(seed: number): { question: ArraysQuestion; next: number } {
-  let a = seed
-  const r = rngInt(a, 2)
-  a = r.next
-  const n = 5 + r.value // 5..6
-  const midK = 2 // front=n, middle=n-2, end=0 → three distinct costs (n>=5)
-  const sh = shuffle(
-    [
-      { id: "front", label: "At the front (index 0)" },
-      { id: "middle", label: "In the middle" },
-      { id: "end", label: "At the end" },
-    ],
-    a,
-  )
-  a = sh.next
-  return {
-    question: {
-      kind: "a4-classify",
-      prompt: "Add one element. Which position is cheapest?",
-      cells: LETTERS.slice(0, n),
-      options: sh.result,
-      answer: "end",
-      classify: { n, midK },
-      cost: { word: "free", count: 0, unit: "cells moved" },
-      hint: "",
-      nudge: "Count what moves: front shifts all of them, the end shifts none.",
-      correct: "Right: the end is cheapest - nothing comes after it, so nothing moves.",
-      why: `Front insert shifts all ${n} cells; a middle insert shifts ${n - midK}; the end shifts 0. The end is free; everything else scales with what's after it.`,
-    },
-    next: a,
-  }
-}
-
-/** A5 (beat 10): construct-to-target. Prefix + shuffled end-appends, so the op
- * ORDER is uniquely determined by the target row (one correct answer). */
-function makeA5(seed: number): {
-  question: ArraysQuestion
-  construct: ConstructWork
-  next: number
-} {
-  let a = seed
-  const r = rngInt(a, 2)
-  a = r.next
-  const n = 5 + r.value // target length 5..6
-  const target = LETTERS.slice(0, n)
-  const p = 2 // a true prefix of length 2; the rest are appended in order
-  const partial = target.slice(0, p)
-  const correctOps = target.slice(p) // unique append order
-  const sh = shuffle(correctOps, a)
-  a = sh.next
-  return {
-    question: {
-      kind: "a5-construct",
-      prompt: "Build the target row by appending the loose cells to the end.",
-      cells: partial,
-      target,
-      partial,
-      correctOps,
-      cost: { word: "free", count: 0, unit: "shift" },
-      hint: "",
-      nudge: "Match the target: append whichever cell comes next in the row.",
-      correct: "Right: appending to the end in order builds the row with no shifts.",
-      why: "Appending lands at the open end, so nothing shifts. Build left to right and each cell drops straight in.",
-    },
-    construct: { loose: sh.result, placed: [] },
-    next: a,
-  }
-}
-
-/** A6 step 0 (beat 11): grow-predict over a full block (always doubles+copies). */
-function makeA6Grow(seed: number): { question: ArraysQuestion; next: number } {
+/** `grow` step 0 (beat 9): grow-predict over a full block (always doubles+copies). */
+function makeGrow(seed: number): { question: ArraysQuestion; next: number } {
   let a = seed
   // Capacity 4 (doubling to 8) keeps the backing block legible on a phone.
   const capacity = 4
@@ -564,7 +452,7 @@ function makeA6Grow(seed: number): { question: ArraysQuestion; next: number } {
   a = sh.next
   return {
     question: {
-      kind: "a6-grow",
+      kind: "grow",
       prompt: `The block is full (${size} of ${capacity}). Append one more. What happens?`,
       cells: LETTERS.slice(0, size),
       options: sh.result,
@@ -580,8 +468,11 @@ function makeA6Grow(seed: number): { question: ArraysQuestion; next: number } {
   }
 }
 
-/** A6 step 1 (beat 11): the amortized verdict over the same full block. */
-function makeA6Cheap(resize: ArrayResize, seed: number): { question: ArraysQuestion; next: number } {
+/** `grow` step 1 (beat 9): the amortized verdict over the same full block. */
+function makeGrowVerdict(
+  resize: ArrayResize,
+  seed: number,
+): { question: ArraysQuestion; next: number } {
   let a = seed
   const sh = shuffle(
     [
@@ -593,7 +484,7 @@ function makeA6Cheap(resize: ArrayResize, seed: number): { question: ArraysQuest
   a = sh.next
   return {
     question: {
-      kind: "a6-grow",
+      kind: "grow",
       prompt: "Was that particular append cheap?",
       cells: LETTERS.slice(0, resize.size),
       options: sh.result,
@@ -619,12 +510,7 @@ const FRESH = {
   showWhy: false,
 }
 
-const INTRO_PARTS = new Set<ArraysPart>([
-  "demo",
-  "teach-access",
-  "shift-demo",
-  "teach-shift",
-])
+const INTRO_PARTS = new Set<ArraysPart>(["play-access", "play-mutate"])
 
 export function isGradedPartArrays(part: ArraysPart): boolean {
   return !INTRO_PARTS.has(part)
@@ -636,40 +522,39 @@ function enterPart(state: ArraysState, index: number): ArraysState {
     ...state,
     partIndex: index,
     step: 0,
-    construct: null,
     question: null,
     ...FRESH,
   }
   if (INTRO_PARTS.has(part)) return { ...base, question: makeIntro(part) }
 
   switch (part) {
-    case "a1-access": {
-      const { question, next } = makeA1(state.rngState)
+    case "jump": {
+      const { question, next } = makeJump(state.rngState)
       return { ...base, question, rngState: next }
     }
-    case "a3-contrast": {
-      const { question, next } = makeA3Index(state.rngState)
+    case "scan": {
+      const { question, next } = makeScan(state.rngState)
       return { ...base, question, rngState: next }
     }
-    case "a2-shift": {
-      const { question, next } = makeA2(state.rngState)
+    case "insert": {
+      const { question, next } = makeInsert(state.rngState)
       return { ...base, question, rngState: next }
     }
-    case "a2-skin": {
-      const { question, next } = makeA2Skin(state.rngState)
+    case "delete": {
+      const { question, next } = makeDelete(state.rngState)
       return { ...base, question, rngState: next }
     }
-    case "a4-classify": {
-      const { question, next } = makeA4(state.rngState)
+    case "place-cheapest": {
+      const { question, next } = makePlaceCheapest(state.rngState)
       return { ...base, question, rngState: next }
     }
-    case "a5-construct": {
-      const { question, construct, next } = makeA5(state.rngState)
-      return { ...base, question, construct, rngState: next }
+    case "realworld": {
+      const { question, next } = makeRealworld(state.rngState)
+      return { ...base, question, rngState: next }
     }
     default: {
-      // a6-grow
-      const { question, next } = makeA6Grow(state.rngState)
+      // grow
+      const { question, next } = makeGrow(state.rngState)
       return { ...base, question, rngState: next }
     }
   }
@@ -683,17 +568,16 @@ export function createArrays(seed: number = Date.now()): ArraysState {
     attempts: 0,
     combo: 0,
     completed: false,
-    a1: 0,
-    a3: 0,
-    a2: 0,
-    a2Skin: 0,
-    a4: 0,
-    a5: 0,
-    a6Grow: 0,
-    a6Cheap: 0,
+    accessIndex: 0,
+    accessScan: 0,
+    insertCount: 0,
+    deleteCount: 0,
+    placeCheapest: 0,
+    realworld: 0,
+    grow: 0,
+    growVerdict: 0,
     question: null,
     selected: null,
-    construct: null,
     step: 0,
     wrongCount: 0,
     feedback: "idle",
@@ -705,32 +589,24 @@ export function createArrays(seed: number = Date.now()): ArraysState {
 
 /* --------------------------------- reducer --------------------------------- */
 
-function gradeConstruct(work: ConstructWork, correctOps: string[]): boolean {
-  return (
-    work.placed.length === correctOps.length &&
-    work.placed.every((id, i) => id === correctOps[i])
-  )
-}
-
-/** Which graded counter the current beat + step proves (null on intro beats and
- * on A3's first ask, which only unlocks the second). */
+/** Which graded counter the current beat + step proves (null on intro beats). */
 function beatSkill(state: ArraysState): ArraysSkill | null {
   const part = ARRAYS_PARTS[state.partIndex]
   switch (part) {
-    case "a1-access":
-      return "a1"
-    case "a3-contrast":
-      return state.step === 1 ? "a3" : null // step 0 only unlocks step 1
-    case "a2-shift":
-      return "a2"
-    case "a2-skin":
-      return "a2Skin"
-    case "a4-classify":
-      return "a4"
-    case "a5-construct":
-      return "a5"
-    case "a6-grow":
-      return state.step === 0 ? "a6Grow" : "a6Cheap"
+    case "jump":
+      return "accessIndex"
+    case "scan":
+      return "accessScan"
+    case "insert":
+      return "insertCount"
+    case "delete":
+      return "deleteCount"
+    case "place-cheapest":
+      return "placeCheapest"
+    case "realworld":
+      return "realworld"
+    case "grow":
+      return state.step === 0 ? "grow" : "growVerdict"
     default:
       return null
   }
@@ -747,23 +623,13 @@ export function arraysReducer(state: ArraysState, action: LessonAction): ArraysS
     }
 
     case "rewire": {
-      // A5 append: move the chosen loose cell onto the open end, in order.
-      if (!state.construct || isTerminalA(state)) return state
-      if (action.to !== "end") return state
-      if (!state.construct.loose.includes(action.from)) return state
-      return {
-        ...state,
-        feedback: "idle",
-        construct: {
-          loose: state.construct.loose.filter((id) => id !== action.from),
-          placed: [...state.construct.placed, action.from],
-        },
-      }
+      // place-cheapest: the chosen gap is the answer.
+      if (isTerminalA(state) || part !== "place-cheapest") return state
+      return { ...state, selected: action.to, feedback: "idle" }
     }
 
     case "select": {
       if (isTerminalA(state)) return state
-      if (state.construct) return state // A5 selects via rewire, not tap
       return { ...state, selected: action.letter, feedback: "idle" }
     }
 
@@ -771,11 +637,11 @@ export function arraysReducer(state: ArraysState, action: LessonAction): ArraysS
       if (isTerminalA(state) || !state.question) return state
 
       let correct: boolean
-      if (state.construct) {
-        if (!constructReadyA(state)) return state
-        correct = gradeConstruct(state.construct, state.question.correctOps ?? [])
+      if (part === "place-cheapest") {
+        if (state.selected == null) return state
+        correct = state.selected === state.question.answer
       } else if (state.question.answerIndex != null && state.question.options == null) {
-        // de-cued tap beats (A1, A3): the answer is a cell index
+        // de-cued tap beats (jump, scan): the answer is a cell index
         if (state.selected == null) return state
         correct = Number(state.selected) === state.question.answerIndex
       } else {
@@ -794,13 +660,6 @@ export function arraysReducer(state: ArraysState, action: LessonAction): ArraysS
         attempts: state.attempts + 1,
       }
       if (v.correct && skill) next[skill] = 1
-      // A wrong construct order resets the bin so the learner can re-append.
-      if (!v.correct && state.construct) {
-        next.construct = {
-          loose: [...state.construct.placed, ...state.construct.loose],
-          placed: [],
-        }
-      }
       return next
     }
 
@@ -810,46 +669,36 @@ export function arraysReducer(state: ArraysState, action: LessonAction): ArraysS
     case "reattempt": {
       // A fresh seeded instance of the live beat / step.
       switch (part) {
-        case "a1-access": {
-          const { question, next } = makeA1(state.rngState)
+        case "jump": {
+          const { question, next } = makeJump(state.rngState)
           return { ...state, ...FRESH, question, rngState: next }
         }
-        case "a3-contrast": {
-          const fresh =
-            state.step === 1 && state.question
-              ? makeA3Value(state.question.cells, state.rngState)
-              : makeA3Index(state.rngState)
-          return { ...state, ...FRESH, question: fresh.question, rngState: fresh.next }
-        }
-        case "a2-shift": {
-          const { question, next } = makeA2(state.rngState)
+        case "scan": {
+          const { question, next } = makeScan(state.rngState)
           return { ...state, ...FRESH, question, rngState: next }
         }
-        case "a2-skin": {
-          const { question, next } = makeA2Skin(state.rngState)
+        case "insert": {
+          const { question, next } = makeInsert(state.rngState)
           return { ...state, ...FRESH, question, rngState: next }
         }
-        case "a4-classify": {
-          const { question, next } = makeA4(state.rngState)
+        case "delete": {
+          const { question, next } = makeDelete(state.rngState)
           return { ...state, ...FRESH, question, rngState: next }
         }
-        case "a5-construct": {
-          if (!state.construct) return { ...state, ...FRESH }
-          const all = [...state.construct.placed, ...state.construct.loose]
-          const sh = shuffle(all, state.rngState)
-          return {
-            ...state,
-            ...FRESH,
-            rngState: sh.next,
-            construct: { loose: sh.result, placed: [] },
-          }
+        case "place-cheapest": {
+          const { question, next } = makePlaceCheapest(state.rngState)
+          return { ...state, ...FRESH, question, rngState: next }
         }
-        case "a6-grow": {
+        case "realworld": {
+          const { question, next } = makeRealworld(state.rngState)
+          return { ...state, ...FRESH, question, rngState: next }
+        }
+        case "grow": {
           if (state.step === 1 && state.question?.resize) {
-            const { question, next } = makeA6Cheap(state.question.resize, state.rngState)
+            const { question, next } = makeGrowVerdict(state.question.resize, state.rngState)
             return { ...state, ...FRESH, question, rngState: next }
           }
-          const { question, next } = makeA6Grow(state.rngState)
+          const { question, next } = makeGrow(state.rngState)
           return { ...state, ...FRESH, question, rngState: next }
         }
         default:
@@ -860,15 +709,11 @@ export function arraysReducer(state: ArraysState, action: LessonAction): ArraysS
     case "next": {
       if (state.feedback !== "correct") return state
 
-      if (part === "a3-contrast" && state.step === 0 && state.question) {
-        const { question, next } = makeA3Value(state.question.cells, state.rngState)
+      if (part === "grow" && state.step === 0 && state.question?.resize) {
+        const { question, next } = makeGrowVerdict(state.question.resize, state.rngState)
         return { ...state, ...FRESH, step: 1, question, rngState: next }
       }
-      if (part === "a6-grow" && state.step === 0 && state.question?.resize) {
-        const { question, next } = makeA6Cheap(state.question.resize, state.rngState)
-        return { ...state, ...FRESH, step: 1, question, rngState: next }
-      }
-      if (part === "a6-grow" && state.step === 1) {
+      if (part === "grow" && state.step === 1) {
         return { ...state, ...FRESH, completed: true }
       }
       if (state.partIndex >= ARRAYS_TOTAL_PARTS - 1) {
@@ -919,15 +764,11 @@ export function hasProgressArrays(state: ArraysState): boolean {
   return state.partIndex > 0 || gradedCleared(state) > 0
 }
 
-/** A5: the legal drop target (the open end) while loose cells remain. */
-export function legalTargetsArrays(state: ArraysState): Set<string> {
-  if (state.construct && state.construct.loose.length > 0) return new Set(["end"])
-  return new Set()
-}
-
-/** A5 is ready to check once every loose cell has been appended. */
-export function constructReadyA(state: ArraysState): boolean {
-  return !!state.construct && state.construct.loose.length === 0
+/** place-cheapest: a drop target at every gap (0..n) while the beat is live. */
+export function gapTargetsArrays(state: ArraysState): Set<string> {
+  if (currentPartArrays(state) !== "place-cheapest" || isTerminalA(state)) return new Set()
+  const n = state.question?.cells.length ?? 0
+  return new Set(Array.from({ length: n + 1 }, (_, i) => `gap-${i}`))
 }
 
 /** The 1-based ordinal label for an index, for SR / copy ("1st", "2nd", …). */
@@ -1115,14 +956,14 @@ export function resizeFrames(r: ArrayResize): ResizeFrame[] {
 export function toProgressArrays(s: ArraysState): LessonProgress {
   return {
     counters: {
-      a1: s.a1,
-      a3: s.a3,
-      a2: s.a2,
-      a2Skin: s.a2Skin,
-      a4: s.a4,
-      a5: s.a5,
-      a6Grow: s.a6Grow,
-      a6Cheap: s.a6Cheap,
+      accessIndex: s.accessIndex,
+      accessScan: s.accessScan,
+      insertCount: s.insertCount,
+      deleteCount: s.deleteCount,
+      placeCheapest: s.placeCheapest,
+      realworld: s.realworld,
+      grow: s.grow,
+      growVerdict: s.growVerdict,
       attempts: s.attempts,
     },
     currentPart: currentPartArrays(s),
@@ -1141,16 +982,17 @@ export function resumeArrays(
 ): ArraysState {
   const base = createArrays(seed)
   const c = progress.counters
+  // Read new keys, falling back to the old run's keys (the migration map).
   const seeded: ArraysState = {
     ...base,
-    a1: clampUnit(c.a1),
-    a3: clampUnit(c.a3),
-    a2: clampUnit(c.a2),
-    a2Skin: clampUnit(c.a2Skin),
-    a4: clampUnit(c.a4),
-    a5: clampUnit(c.a5),
-    a6Grow: clampUnit(c.a6Grow),
-    a6Cheap: clampUnit(c.a6Cheap),
+    accessIndex: clampUnit(c.accessIndex ?? c.a1),
+    accessScan: clampUnit(c.accessScan ?? c.a3),
+    insertCount: clampUnit(c.insertCount ?? c.a2),
+    deleteCount: clampUnit(c.deleteCount),
+    placeCheapest: clampUnit(c.placeCheapest ?? c.a4),
+    realworld: clampUnit(c.realworld ?? c.a2Skin),
+    grow: clampUnit(c.grow ?? c.a6Grow),
+    growVerdict: clampUnit(c.growVerdict ?? c.a6Cheap),
     attempts: Math.max(0, Math.trunc(c.attempts ?? 0)),
   }
   const index = Math.max(0, ARRAYS_PARTS.indexOf(progress.currentPart as ArraysPart))

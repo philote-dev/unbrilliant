@@ -1,3 +1,4 @@
+import type { ReactElement } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 
 import { cn } from "@/lib/utils"
@@ -25,8 +26,10 @@ import {
  *    step-by-step scan (value ask): the visual O(1)-vs-O(n) asymmetry.
  *  - ripple: a post-verdict wave of one-slot shifts (from the pure shiftFrames
  *    selector); the wave length IS the cost. Reduced motion snaps.
- *  - construct: the growing placed prefix + an open "end" drop slot (a
- *    RewireTarget) with the loose cells as RewireSources below.
+ *  - place: the row with a drop target at EVERY gap (0..n) plus a loose cell to
+ *    drag in. Where it lands decides how much ripples, so the gesture itself
+ *    encodes the cost (the meaningful drag that replaces the old single-target
+ *    construct). Drives place-cheapest.
  */
 
 type Tone = "active" | "correct" | "wrong"
@@ -43,7 +46,7 @@ export type Overlay =
   | null
 
 export function ArrayStrip(props: {
-  mode: "read" | "ripple" | "construct"
+  mode: "read" | "ripple" | "place"
   cells?: string[]
   ruler?: boolean
   highlight?: number
@@ -54,10 +57,12 @@ export function ArrayStrip(props: {
   answerIndex?: number
   frame?: ShiftFrame
   opIndex?: number
-  partial?: string[]
-  placed?: string[]
-  loose?: string[]
-  correctOps?: string[]
+  /** place mode: the gap the learner has chosen so far (e.g. "gap-3"). */
+  selectedGap?: string | null
+  /** place mode: the cheapest gap (dev-only tracer hook). */
+  correctGap?: string
+  /** place mode: the loose cell's label. */
+  looseLabel?: string
   reduced?: boolean
 }) {
   const prefersReduced = useReducedMotion()
@@ -66,13 +71,13 @@ export function ArrayStrip(props: {
   if (props.mode === "ripple" && props.frame) {
     return <RippleStrip frame={props.frame} opIndex={props.opIndex ?? -1} reduced={isReduced} />
   }
-  if (props.mode === "construct") {
+  if (props.mode === "place") {
     return (
-      <ConstructStrip
-        partial={props.partial ?? []}
-        placed={props.placed ?? []}
-        loose={props.loose ?? []}
-        correctOps={props.correctOps ?? []}
+      <PlaceStrip
+        cells={props.cells ?? []}
+        selectedGap={props.selectedGap ?? null}
+        correctGap={props.correctGap}
+        looseLabel={props.looseLabel ?? "X"}
       />
     )
   }
@@ -305,97 +310,76 @@ function RippleStrip({
   )
 }
 
-/* ------------------------------- construct mode ----------------------------- */
+/* --------------------------------- place mode ------------------------------- */
 
-function ConstructStrip({
-  partial,
-  placed,
-  loose,
-  correctOps,
+/** A thin drop zone that sits in a gap of the row. Where the loose cell lands
+ * decides how much ripples, so each gap is a real, distinct choice. */
+function Gap({ id, selected }: { id: string; selected: boolean }) {
+  return (
+    <RewireTarget
+      id={id}
+      label={`the gap at ${id.replace("gap-", "index ")}`}
+      className={cn(
+        "box-border size-auto min-h-0 min-w-0 self-stretch rounded-md border-0 px-0 py-0",
+        selected ? "w-7 bg-lilac-soft" : "w-2.5",
+      )}
+    >
+      <span aria-hidden className="block size-full" style={{ minHeight: CELL }} />
+    </RewireTarget>
+  )
+}
+
+function PlaceStrip({
+  cells,
+  selectedGap,
+  correctGap,
+  looseLabel,
 }: {
-  partial: string[]
-  placed: string[]
-  loose: string[]
-  correctOps: string[]
+  cells: string[]
+  selectedGap: string | null
+  correctGap?: string
+  looseLabel: string
 }) {
-  const hasOpen = loose.length > 0
-  // The growing row reads left to right: the given prefix (muted), then the cells
-  // appended so far (normal), then the open "end" drop slot.
-  const row = [
-    ...partial.map((label) => ({ label, given: true })),
-    ...placed.map((label) => ({ label, given: false })),
-  ]
+  const n = cells.length
+  // The row, with a gap drop target before every cell and one after the last.
+  const slots: ReactElement[] = []
+  for (let i = 0; i <= n; i++) {
+    slots.push(<Gap key={`gap-${i}`} id={`gap-${i}`} selected={selectedGap === `gap-${i}`} />)
+    if (i < n) {
+      slots.push(
+        <div
+          key={`cell-${i}`}
+          className="box-border flex items-center justify-center rounded-lg border-2 border-border bg-card text-lg font-bold text-foreground"
+          style={{ width: CELL, height: CELL }}
+        >
+          {cells[i]}
+        </div>,
+      )
+    }
+  }
 
   return (
     <div className="flex flex-col items-center gap-6">
-      {/* the growing row: given prefix + appended cells (contiguous) + open end */}
-      <div className="flex items-end">
-        <div className="flex">
-          {row.map((c, i) => (
-            <div
-              key={`${c.label}-${i}`}
-              className={cn(
-                "box-border flex items-center justify-center border-y-2 border-l-2 text-lg font-bold last:border-r-2",
-                "first:rounded-l-xl",
-                !hasOpen && "last:rounded-r-xl",
-                c.given
-                  ? "border-border bg-muted/40 text-muted-foreground"
-                  : "border-success/60 bg-success-soft text-foreground",
-              )}
-              style={{ width: CELL, height: CELL }}
-            >
-              {c.label}
-            </div>
-          ))}
-        </div>
-        {hasOpen && (
-          <RewireTarget
-            id="end"
-            label="the open end of the row"
-            className="box-border size-auto min-h-0 min-w-0 rounded-none rounded-r-xl border-2 border-dashed px-0 py-0 text-xs font-semibold text-faint"
-          >
-            <span style={{ width: CELL, height: CELL }} className="flex items-center justify-center">
-              end
-            </span>
-          </RewireTarget>
-        )}
-      </div>
+      <div className="flex items-stretch">{slots}</div>
 
-      {/* the loose cells to append, in display order */}
-      {loose.length > 0 && (
-        <div className="flex flex-col items-center gap-2">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Loose cells
+      <div className="flex flex-col items-center gap-2">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Drag into a gap
+        </span>
+        <RewireSource id="X" label={`cell ${looseLabel}`} className="box-border size-auto rounded-xl px-0 py-0">
+          {/* dev-only tracer hook: a single write whose correct target is the
+              cheapest gap, so the e2e rewireInOrder helper drives this beat. */}
+          {import.meta.env.DEV && correctGap && (
+            <span className="sr-only" data-write-order={0} data-rewire-correct-target={correctGap} />
+          )}
+          <span
+            style={{ width: CELL, height: CELL }}
+            className="flex items-center justify-center text-lg font-bold"
+          >
+            {looseLabel}
           </span>
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            {loose.map((c) => (
-              <RewireSource
-                key={c}
-                id={c}
-                label={`cell ${c}`}
-                className="box-border size-auto rounded-xl px-0 py-0"
-              >
-                {/* dev-only tracer hooks live INSIDE the source button so the
-                    e2e rewireInOrder helper (which reads data-rewire-source from
-                    the marker's parent) drives the append order. */}
-                {import.meta.env.DEV && (
-                  <span
-                    className="sr-only"
-                    data-write-order={correctOps.indexOf(c)}
-                    data-rewire-correct-target="end"
-                  />
-                )}
-                <span
-                  style={{ width: CELL, height: CELL }}
-                  className="flex items-center justify-center text-lg font-bold"
-                >
-                  {c}
-                </span>
-              </RewireSource>
-            ))}
-          </div>
-        </div>
-      )}
+        </RewireSource>
+      </div>
     </div>
   )
 }
