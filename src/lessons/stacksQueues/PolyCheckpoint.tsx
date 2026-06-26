@@ -114,6 +114,7 @@ export function PolyCheckpoint({
   const [voiceError, setVoiceError] = useState(false)
 
   const transcriberRef = useRef<RealtimeTranscriber | null>(null)
+  const submittingRef = useRef(false)
 
   const voiceText = [finalText, interimText].filter(Boolean).join(" ").trim()
 
@@ -180,7 +181,11 @@ export function PolyCheckpoint({
 
   async function submit(text: string) {
     const trimmed = text.trim()
-    if (!trimmed) return
+    // Only ever submit from an active answering turn, and never re-enter while a
+    // score is already in flight. This bounds the score/probe cycle to genuine
+    // user submissions.
+    if (!trimmed || phase !== "answering" || submittingRef.current) return
+    submittingRef.current = true
     stopListening()
     setPhase("scoring")
     if (uid) void saveExplanation(uid, { conceptId, explanation: trimmed }).catch(() => {})
@@ -212,6 +217,8 @@ export function PolyCheckpoint({
       setPhase("answering")
     } catch {
       setPhase("done")
+    } finally {
+      submittingRef.current = false
     }
   }
 
