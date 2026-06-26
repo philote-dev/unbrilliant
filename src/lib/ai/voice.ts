@@ -1,4 +1,3 @@
-// src/lib/ai/voice.ts
 import {
   speak as defaultSpeak,
   transcribe as defaultTranscribe,
@@ -80,26 +79,33 @@ export function createRecorder(transcribe: TranscribeFn = defaultTranscribe): Vo
   return {
     async start() {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      chunks = []
-      recorder = new MediaRecorder(stream)
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunks.push(e.data)
+      try {
+        chunks = []
+        recorder = new MediaRecorder(stream)
+        recorder.ondataavailable = (e) => {
+          if (e.data.size > 0) chunks.push(e.data)
+        }
+        recorder.start()
+      } catch (err) {
+        release()
+        throw err
       }
-      recorder.start()
     },
     async stop() {
       const rec = recorder
       if (!rec) return ""
-      const blob = await new Promise<Blob>((resolve) => {
-        rec.onstop = () => resolve(new Blob(chunks, { type: rec.mimeType || "audio/webm" }))
-        rec.stop()
-      })
-      release()
       try {
+        const blob = await new Promise<Blob>((resolve, reject) => {
+          rec.onstop = () => resolve(new Blob(chunks, { type: rec.mimeType || "audio/webm" }))
+          rec.onerror = () => reject(new Error("recorder error"))
+          rec.stop()
+        })
+        release()
         const audio = await blobToBase64(blob)
         const res = await transcribe({ audio, mime: blob.type })
         return res.text ?? ""
       } catch {
+        release()
         return ""
       }
     },
