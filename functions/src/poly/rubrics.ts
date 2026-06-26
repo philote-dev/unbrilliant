@@ -6,13 +6,7 @@ const stacksRubric: Rubric = {
     {
       id: "P1",
       text: "LIFO: the last item pushed is the first one removed",
-      answerTokens: [
-        "lifo",
-        "last in first out",
-        "last-in, first-out",
-        "last in, first out",
-        "last one in",
-      ],
+      answerTokens: ["lifo", "last in first out", "last-in, first-out", "last in, first out"],
     },
     {
       id: "P2",
@@ -33,13 +27,7 @@ const queuesRubric: Rubric = {
     {
       id: "P1",
       text: "FIFO: the first item added is the first one removed",
-      answerTokens: [
-        "fifo",
-        "first in first out",
-        "first-in, first-out",
-        "first in, first out",
-        "first one in",
-      ],
+      answerTokens: ["fifo", "first in first out", "first-in, first-out", "first in, first out"],
     },
     {
       id: "P2",

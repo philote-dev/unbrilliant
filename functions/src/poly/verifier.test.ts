@@ -47,9 +47,4 @@ describe("findGiveaway", () => {
     // A hint that only nudges at the action is fine.
     expect(findGiveaway("Check the order you placed the first two cards.", withheld).ok).toBe(true)
   })
-
-  it("catches the broadened FIFO phrasing via the real queues rubric", () => {
-    const withheld = propositionsByIds(rubricFor("queues")!, ["P1"])
-    expect(findGiveaway("Is it first one in here?", withheld).ok).toBe(false)
-  })
 })

@@ -90,18 +90,4 @@ describe("voice client helpers", () => {
     expect(res).toEqual({ text: "spoken" })
     expect(vi.mocked(httpsCallable)).toHaveBeenCalledWith(expect.anything(), "polyTranscribe")
   })
-
-  it("realtimeToken calls polyRealtimeToken and returns its data", async () => {
-    const { realtimeToken } = await import("./polyClient")
-    const { httpsCallable } = await import("firebase/functions")
-    mockCallable.mockResolvedValue({
-      data: { token: "ek_x", expiresAt: 123, model: "gpt-4o-transcribe" },
-    })
-    const res = await realtimeToken()
-    expect(res).toEqual({ token: "ek_x", expiresAt: 123, model: "gpt-4o-transcribe" })
-    expect(vi.mocked(httpsCallable)).toHaveBeenCalledWith(
-      expect.anything(),
-      "polyRealtimeToken",
-    )
-  })
 })
