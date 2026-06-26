@@ -93,31 +93,32 @@ export function openAIRealtimeTokenMinter(
 ): RealtimeTokenMinter {
   return {
     async mint(model) {
-      const res = await fetchImpl(
-        "https://api.openai.com/v1/realtime/transcription_sessions",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            input_audio_transcription: { model },
-            turn_detection: { type: "server_vad" },
-          }),
+      const res = await fetchImpl("https://api.openai.com/v1/realtime/client_secrets", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
         },
-      )
+        body: JSON.stringify({
+          session: {
+            type: "transcription",
+            audio: {
+              input: {
+                transcription: { model },
+                turn_detection: { type: "server_vad" },
+              },
+            },
+          },
+        }),
+      })
       if (!res.ok) {
         throw new Error(`realtime token mint failed: ${res.status}`)
       }
-      const data = (await res.json()) as {
-        client_secret?: { value?: string; expires_at?: number }
+      const data = (await res.json()) as { value?: string; expires_at?: number }
+      if (!data.value) {
+        throw new Error("realtime token mint returned no client secret value")
       }
-      const value = data.client_secret?.value
-      if (!value) {
-        throw new Error("realtime token mint returned no client_secret")
-      }
-      return { value, expiresAt: data.client_secret?.expires_at ?? 0 }
+      return { value: data.value, expiresAt: data.expires_at ?? 0 }
     },
   }
 }
