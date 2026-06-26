@@ -121,7 +121,7 @@ describe("Arrays stage — place-cheapest commits via tap and keyboard", () => {
   })
 })
 
-describe("Arrays stage — insert & delete playground (directional, left-anchored)", () => {
+describe("Arrays stage: insert & delete playground (directional, left-anchored)", () => {
   // The row renders by absolute slot, so DOM order matches index order: the
   // logical outcome (new value at index k, prior cells in their original order)
   // is read straight off the rendered cell order.
