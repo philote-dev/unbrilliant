@@ -47,8 +47,10 @@ export function strength(r: ConceptReview, now: number): number {
 
 /**
  * The ONE write path. A spaced correct rep promotes (lengthens the gap); a
- * massed correct rep holds (no inflation); a wrong rep demotes and re-tests
- * after MIN_GAP. `at` is injected so the substrate stays clock-free and pure.
+ * massed correct rep holds (no inflation); a wrong rep keeps the rung but resets
+ * the streak toward the next rung (slowed mastery, never a demote) and re-tests
+ * after MIN_GAP. Long-term un-mastery is the decay side's job, not one miss. `at`
+ * is injected so the substrate stays clock-free and pure.
  */
 export function applyReview(
   r: ConceptReview,
@@ -68,15 +70,15 @@ export function applyReview(
       graduated: level >= MAX_LEVEL,
     }
   }
-  const level = Math.max(0, r.level - 1)
+  // A miss never drops a rung: the learner is shown the answer and will get it
+  // next time. Keep the rung (and graduated), reset the streak toward the next
+  // rung (slowed mastery), bump lapses, and re-test soon.
   return {
     ...r,
-    level,
     correctStreak: 0,
     lapses: r.lapses + 1,
     seen,
     lastSeenAt: ev.at,
     dueAt: ev.at + MIN_GAP_MS,
-    graduated: false,
   }
 }
