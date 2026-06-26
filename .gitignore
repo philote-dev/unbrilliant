@@ -44,9 +44,10 @@ skills-lock.json
 # Local Firebase project binding (use .firebaserc.example as the template)
 .firebaserc
 
-# Docs: only outward-facing docs are public; internal working docs stay local
+# Docs: outward-facing docs and planning docs are tracked; other internal working docs stay local
 docs/*
 !docs/architecture.md
+!docs/plans/
 
 # Dev-only design gallery (excluded for now; include at your discretion)
 gallery.html
