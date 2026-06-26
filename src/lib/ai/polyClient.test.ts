@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
+import { httpsCallable } from "firebase/functions"
 
 const { mockCallable } = vi.hoisted(() => ({ mockCallable: vi.fn() }))
 
@@ -17,6 +18,10 @@ describe("polyHealthCheck client", () => {
       data: { ok: true, model: "m", reply: "pong", uid: null },
     })
     const res = await polyHealthCheck()
+    expect(vi.mocked(httpsCallable)).toHaveBeenCalledWith(
+      expect.anything(),
+      "polyHealthCheck",
+    )
     expect(res).toEqual({ ok: true, model: "m", reply: "pong", uid: null })
   })
 })

@@ -1,3 +1,4 @@
+import { logger } from "firebase-functions"
 import { onCall, HttpsError } from "firebase-functions/https"
 import { defineSecret, defineString } from "firebase-functions/params"
 import { Completer, createClient, openAICompleter } from "./openai"
@@ -32,9 +33,10 @@ export const polyHealthCheck = onCall(
   { secrets: [OPENAI_API_KEY] },
   async (request): Promise<HealthResult> => {
     try {
-      const completer = openAICompleter(createClient(process.env.OPENAI_API_KEY ?? ""))
+      const completer = openAICompleter(createClient(OPENAI_API_KEY.value()))
       return await runHealthCheck(completer, OPENAI_MODEL.value(), request.auth?.uid ?? null)
-    } catch {
+    } catch (err) {
+      logger.error("polyHealthCheck failed", err)
       throw new HttpsError("internal", "OpenAI health check failed")
     }
   },
