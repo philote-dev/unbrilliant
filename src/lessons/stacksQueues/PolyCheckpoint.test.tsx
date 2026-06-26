@@ -19,6 +19,15 @@ function deps(over: Partial<Parameters<typeof PolyCheckpoint>[0]> = {}) {
   }
 }
 
+// A fake recorder whose stop() yields a canned transcript.
+function fakeRecorder(transcript: string) {
+  return {
+    start: vi.fn().mockResolvedValue(undefined),
+    stop: vi.fn().mockResolvedValue(transcript),
+    cancel: vi.fn(),
+  }
+}
+
 describe("PolyCheckpoint", () => {
   it("affirms and continues when the explanation covers everything", async () => {
     const props = deps()
@@ -69,5 +78,48 @@ describe("PolyCheckpoint", () => {
     await userEvent.type(screen.getByRole("textbox"), "x")
     await userEvent.click(screen.getByRole("button", { name: /submit/i }))
     await waitFor(() => expect(screen.getByRole("button", { name: /continue/i })).toBeInTheDocument())
+  })
+
+  it("speaks the question when voice is enabled", async () => {
+    const speakText = vi.fn().mockResolvedValue(undefined)
+    const props = deps({ voice: true, speakText, createRecorder: () => fakeRecorder("") })
+    render(<PolyCheckpoint {...props} />)
+    await waitFor(() => expect(speakText).toHaveBeenCalledWith("In your own words, explain stacks."))
+  })
+
+  it("records speech, fills the transcript into the answer, and scores it", async () => {
+    const rec = fakeRecorder("last in first out")
+    const props = deps({
+      voice: true,
+      speakText: vi.fn().mockResolvedValue(undefined),
+      createRecorder: () => rec,
+    })
+    render(<PolyCheckpoint {...props} />)
+    await userEvent.click(screen.getByRole("button", { name: /record|speak your answer|mic/i }))
+    await userEvent.click(screen.getByRole("button", { name: /stop/i }))
+    await waitFor(() =>
+      expect(screen.getByRole("textbox", { name: /your explanation/i })).toHaveValue(
+        "last in first out",
+      ),
+    )
+    await userEvent.click(screen.getByRole("button", { name: /submit/i }))
+    await waitFor(() => expect(props.scoreExplanation).toHaveBeenCalled())
+  })
+
+  it("shows a fallback note and keeps typing when the mic is denied", async () => {
+    const rec = {
+      start: vi.fn().mockRejectedValue(new Error("denied")),
+      stop: vi.fn(),
+      cancel: vi.fn(),
+    }
+    const props = deps({
+      voice: true,
+      speakText: vi.fn().mockResolvedValue(undefined),
+      createRecorder: () => rec,
+    })
+    render(<PolyCheckpoint {...props} />)
+    await userEvent.click(screen.getByRole("button", { name: /record|speak your answer|mic/i }))
+    await waitFor(() => expect(screen.getByText(/type instead/i)).toBeInTheDocument())
+    expect(screen.getByRole("textbox", { name: /your explanation/i })).toBeEnabled()
   })
 })
