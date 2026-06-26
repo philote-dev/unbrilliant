@@ -439,48 +439,19 @@ function CheckpointPanel({ mode, uid }: { mode: Mode; uid: string | null }) {
         }
       : {}
 
-  // In mock mode, inject fake voice so the toggle is demoable with no key: Poly
-  // "speaks" (a short pause), then a scripted transcriber streams words into the
-  // captions the way the real Realtime feed would. In live mode, omit these so
-  // the checkpoint uses the real TTS + Realtime transcription.
+  // In mock mode, inject fake voice so the toggle is demoable with no key: the
+  // speaker resolves instantly and the recorder returns a canned transcript on
+  // stop. In live mode, omit these so the checkpoint uses the real TTS/STT.
   const mockVoice =
     mode === "mock"
       ? {
-          speakText: async () => {
-            await new Promise((r) => setTimeout(r, 500))
-          },
-          createTranscriber: ({
-            onUpdate,
-          }: {
-            onUpdate: (u: { finalText: string; interimText: string }) => void
-          }) => {
-            const phrase =
-              concept === "stack"
-                ? "last in first out, and only the top is reachable"
-                : "first in first out, you add at the back and take from the front"
-            const words = phrase.split(" ")
-            let i = 0
-            let acc = ""
-            let timer: ReturnType<typeof setInterval> | null = null
-            return {
-              start: async () => {
-                timer = setInterval(() => {
-                  if (i >= words.length) {
-                    if (timer) clearInterval(timer)
-                    timer = null
-                    return
-                  }
-                  const w = words[i++]
-                  onUpdate({ finalText: acc.trim(), interimText: w })
-                  acc = `${acc}${w} `
-                }, 320)
-              },
-              stop: () => {
-                if (timer) clearInterval(timer)
-                timer = null
-              },
-            }
-          },
+          speakText: async () => {},
+          createRecorder: () => ({
+            start: async () => {},
+            stop: async () =>
+              concept === "stack" ? "last in first out, only the top" : "first in first out",
+            cancel: () => {},
+          }),
         }
       : {}
 
@@ -521,7 +492,7 @@ function CheckpointPanel({ mode, uid }: { mode: Mode; uid: string | null }) {
       </div>
       <p className="mt-3 text-xs text-faint">
         Mock tip: the first answer leaves a gap (so a probe fires); a second answer covers
-        everything. Toggle Voice on to hear Poly and watch the words stream in.
+        everything.
       </p>
       <div className="mt-4 flex min-h-[380px] flex-col rounded-2xl border border-dashed border-border bg-background/40 p-4">
         {completed ? (

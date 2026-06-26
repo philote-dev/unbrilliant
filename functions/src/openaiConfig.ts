@@ -29,12 +29,3 @@ export function resolveSttModel(): string {
 export function resolveTtsVoice(): string {
   return process.env.OPENAI_TTS_VOICE ?? DEFAULT_TTS_VOICE
 }
-
-// Realtime transcription model for the live (streaming) voice path. gpt-4o-transcribe
-// streams incremental deltas as the learner speaks; whisper-1 only returns a final
-// transcript, so it is not used here.
-export const DEFAULT_REALTIME_MODEL = "gpt-4o-transcribe"
-
-export function resolveRealtimeModel(): string {
-  return process.env.OPENAI_REALTIME_MODEL ?? DEFAULT_REALTIME_MODEL
-}

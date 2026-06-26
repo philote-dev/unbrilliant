@@ -23,13 +23,10 @@ const VERDICTS: Verdict[] = ["covered", "partial", "missing"]
 
 const SYSTEM =
   "You evaluate a learner's free-text explanation of a concept against a rubric of " +
-  "propositions. For each proposition return covered, partial, or missing. Be generous: mark " +
-  "covered when the learner conveys the idea in ANY wording, including analogies, examples, " +
-  "or loose paraphrase, even if imprecise. Use partial only when the idea is vague or " +
-  "half-stated, and missing only when it is genuinely absent. Do not require exact " +
-  "terminology. When in doubt, prefer covered; this is a low-stakes confidence check, not a " +
-  'graded test. Return ONLY JSON of the form {"scores":[{"id":"P1","verdict":"covered"}],' +
-  '"weakest":"P2"}. Never include the rubric text.'
+  "propositions. For each proposition return covered, partial, or missing. A proposition " +
+  "is covered if the learner conveys the idea in ANY wording, including analogies or " +
+  "examples. Do not require exact terminology. Return ONLY JSON of the form " +
+  '{"scores":[{"id":"P1","verdict":"covered"}],"weakest":"P2"}. Never include the rubric text.'
 
 function buildUser(rubric: Rubric, explanation: string): string {
   const rubricText = rubric.propositions.map((p) => `${p.id}: ${p.text}`).join("\n")
