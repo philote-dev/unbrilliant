@@ -13,6 +13,11 @@ import {
   getFirestore,
   type Firestore,
 } from "firebase/firestore"
+import {
+  connectFunctionsEmulator,
+  getFunctions,
+  type Functions,
+} from "firebase/functions"
 
 /**
  * Firebase wiring. In development we ALWAYS talk to the local emulators using a
@@ -54,11 +59,13 @@ function resolveAuth(): Auth {
 
 export const auth: Auth = resolveAuth()
 export const db: Firestore = getFirestore(app)
+export const functions: Functions = getFunctions(app)
 
 // Guard against double-connect across Vite HMR / re-imports.
 const g = globalThis as unknown as { __willowEmulatorsConnected?: boolean }
 if (useEmulator && !g.__willowEmulatorsConnected) {
   connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true })
   connectFirestoreEmulator(db, "127.0.0.1", 8080)
+  connectFunctionsEmulator(functions, "127.0.0.1", 5001)
   g.__willowEmulatorsConnected = true
 }
