@@ -26,12 +26,14 @@ import { SpreadsheetInsert } from "./SpreadsheetInsert"
 import { GrowSummary } from "./GrowSummary"
 
 /**
- * The rebuilt Arrays stage: a switch over the 9 beats. Every graded beat is
+ * The rebuilt Arrays stage: a switch over the 11 beats. Every graded beat is
  * "predict, then act, then see the consequence": the access beats fire the
  * jump/scan you triggered, the count beats replay the ripple you predicted, the
  * place beat lets you choose the gap (where it lands is the cost), and the grow
- * beat bursts the full block. The two play beats are live, not slideshows. All
- * verdict UX flows through the shared FeedbackFooter with the SR-only fail copy.
+ * beat bursts the full block. Two teach beats bracket the grow problem (a full
+ * block rejecting a new cell, then an average-cost summary that completes the
+ * lesson), and the two play beats are live, not slideshows. All verdict UX flows
+ * through the shared FeedbackFooter with the SR-only fail copy.
  */
 export function ArraysStage({
   state,
