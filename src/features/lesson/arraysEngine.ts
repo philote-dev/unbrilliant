@@ -940,6 +940,52 @@ export function resizeFrames(r: ArrayResize): ResizeFrame[] {
   return frames
 }
 
+/** One append in a run: how many items it had to copy, and whether it grew. */
+export interface AppendStep {
+  n: number // 1-based append number
+  copied: number // items copied on this append (0 if it just lands)
+  grew: boolean // whether this append triggered a grow
+}
+
+/** A whole run of appends under one growth policy. */
+export interface AmortizedRun {
+  steps: AppendStep[]
+  totalCopied: number
+  count: number
+}
+
+/**
+ * Deterministic amortized tally: append `count` items into a block that starts at
+ * `startCapacity`, growing by the policy when full ("double" = capacity * 2,
+ * "plusOne" = capacity + 1). A grow copies every current item, so `totalCopied`
+ * is the headline cost. PURE and view-only: same args, same run. Used by the
+ * grow-summary figure to contrast doubling (rare copies) with grow-by-one (a copy
+ * on almost every append).
+ */
+export function appendRun(
+  count: number,
+  mode: "double" | "plusOne",
+  startCapacity = 1,
+): AmortizedRun {
+  let capacity = Math.max(1, startCapacity)
+  let size = 0
+  let totalCopied = 0
+  const steps: AppendStep[] = []
+  for (let n = 1; n <= count; n++) {
+    let copied = 0
+    let grew = false
+    if (size === capacity) {
+      grew = true
+      copied = size
+      capacity = mode === "double" ? capacity * 2 : capacity + 1
+    }
+    totalCopied += copied
+    size += 1
+    steps.push({ n, copied, grew })
+  }
+  return { steps, totalCopied, count }
+}
+
 /* ----------------------------- resume / progress ----------------------------- */
 
 export function toProgressArrays(s: ArraysState): LessonProgress {

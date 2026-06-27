@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest"
 
 import {
+  appendRun,
   ARRAYS_GATE,
   ARRAYS_TOTAL_PARTS,
   arraysReducer,
@@ -367,5 +368,26 @@ describe("Arrays: resizeFrames (deterministic doubling)", () => {
     const frames = resizeFrames({ size: 2, capacity: 4, resizes: false })
     expect(frames).toHaveLength(2)
     expect(frames.some((f) => f.phase === "copy")).toBe(false)
+  })
+})
+
+describe("Arrays: appendRun (amortized tally)", () => {
+  it("doubling copies 7 items across 8 appends (rare, growing copies)", () => {
+    const run = appendRun(8, "double")
+    expect(run.count).toBe(8)
+    expect(run.steps).toHaveLength(8)
+    expect(run.totalCopied).toBe(7)
+    expect(run.steps.map((s) => s.copied)).toEqual([0, 1, 2, 0, 4, 0, 0, 0])
+    expect(run.steps.filter((s) => s.grew).map((s) => s.n)).toEqual([2, 3, 5])
+  })
+
+  it("grow-by-one copies 28 items across 8 appends (a copy almost every time)", () => {
+    const run = appendRun(8, "plusOne")
+    expect(run.totalCopied).toBe(28)
+    expect(run.steps.map((s) => s.copied)).toEqual([0, 1, 2, 3, 4, 5, 6, 7])
+  })
+
+  it("is pure: identical args yield identical runs", () => {
+    expect(appendRun(8, "double")).toEqual(appendRun(8, "double"))
   })
 })
