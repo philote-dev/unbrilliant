@@ -20,7 +20,7 @@ import { StageSplit, StageCenter } from "@/components/willow/lesson/StageLayout"
 import { ArrayStrip, type Overlay } from "./ArrayStrip"
 import { CELL, RULER_GAP, RULER_H } from "./arrayStripLayout"
 import { applyDelete, applyInsert, freeLabel, type PlayCell } from "./playMutate"
-import { CapacityFrame } from "./CapacityFrame"
+import { CapacityFrame, FullBlockReject } from "./CapacityFrame"
 import { SpreadsheetInsert } from "./SpreadsheetInsert"
 
 /**
@@ -834,21 +834,17 @@ function TeachGrowPart({ dispatch }: { dispatch: Dispatch<LessonAction> }) {
       </div>
 
       <div className="flex flex-1 flex-col items-center justify-center gap-7 py-6">
-        <CapacityFrame
-          resize={{ size: 4, capacity: 4, resizes: true }}
-          cells={["A", "B", "C", "D"]}
-          reveal={false}
-        />
+        <FullBlockReject cells={["A", "B", "C", "D"]} />
         <p className="mx-auto max-w-md text-pretty text-center text-xl leading-relaxed text-foreground/90 lg:text-2xl">
-          So far every move had a clear cost. But a real array is one{" "}
+          Real memory hands you one{" "}
           <span className="concept" style={{ animationDelay: "200ms" }}>
             fixed-size
           </span>{" "}
-          block of memory: it only holds so many cells. So what happens when you{" "}
+          block up front: it only holds so many cells. When it is full a new item has{" "}
           <span className="concept" style={{ animationDelay: "650ms" }}>
-            append
-          </span>{" "}
-          one more and there is no room left? Think it through, then pick the cleanest fix.
+            nowhere to go
+          </span>
+          , so a new, bigger block has to be made. How would you make room for one more?
         </p>
       </div>
 

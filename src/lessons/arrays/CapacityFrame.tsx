@@ -138,3 +138,50 @@ export function CapacityFrame({
     </div>
   )
 }
+
+/**
+ * Beat 9 memory teach: a full backing block, and a new item that tries to drop in
+ * but bounces off because there is no slot (shake + a red flash, repeated once).
+ * Reduced motion snaps to the static rejected end-state. Pure and view-only.
+ */
+export function FullBlockReject({
+  cells,
+  reduced,
+}: {
+  cells: string[]
+  reduced?: boolean
+}) {
+  const prefersReduced = useReducedMotion()
+  const isReduced = reduced || (prefersReduced ?? false)
+  const capacity = cells.length
+  return (
+    <div className="flex flex-col items-center gap-3" data-testid="full-block-reject">
+      <Block
+        slots={capacity}
+        fill={cells}
+        reduced={isReduced}
+        label={`Backing block · ${capacity} of ${capacity}`}
+      />
+      <div className="flex items-center gap-2">
+        <motion.span
+          data-testid="reject-incoming"
+          className="flex items-center justify-center rounded-md px-2.5 py-1 text-sm font-bold text-amber-900"
+          initial={false}
+          animate={
+            isReduced
+              ? { backgroundColor: "#fecaca" }
+              : { x: [0, 34, 6, 0], backgroundColor: ["#fde68a", "#fecaca", "#fecaca", "#fde68a"] }
+          }
+          transition={
+            isReduced
+              ? { duration: 0 }
+              : { duration: 1.2, repeat: 1, repeatDelay: 0.5, ease: "easeInOut" }
+          }
+        >
+          {NEW_LABEL}
+        </motion.span>
+        <span className="text-xs font-bold uppercase tracking-wide text-danger">No room</span>
+      </div>
+    </div>
+  )
+}

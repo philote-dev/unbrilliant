@@ -221,3 +221,12 @@ describe("Arrays stage: the graded shift wave plays to the end-state on reveal",
     expect(screen.getByText(frames[frames.length - 1].caption)).toBeInTheDocument()
   })
 })
+
+describe("Arrays stage: teach-grow shows a full block rejecting a new cell", () => {
+  it("renders the reject figure and lands on the 'no room' end-state", () => {
+    render(<Harness initial={at("teach-grow")} />)
+    expect(screen.getByTestId("full-block-reject")).toBeInTheDocument()
+    expect(screen.getByText(/No room/i)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Continue" })).toBeInTheDocument()
+  })
+})
