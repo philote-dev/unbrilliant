@@ -25,6 +25,13 @@ import {
 // survives LessonHost remounts as the learner navigates between lessons.
 const shownThisSession = new Set<string>()
 
+// Spaced-repetition retrieval warm-ups are still in development, so they ship
+// disabled: a production build never gates a drill. The feature stays fully live
+// in dev, test, and the gallery, and all of its code and data layer stay in the
+// tree. Flip this on (or build with VITE_ENABLE_RETRIEVAL=true) to ship it.
+const RETRIEVAL_ENABLED =
+  import.meta.env.VITE_ENABLE_RETRIEVAL === "true" || import.meta.env.DEV
+
 export function LessonHost({ lessonId }: { lessonId: string }) {
   const { user } = useAuth()
   const { reviews } = useConceptReviews()
@@ -35,7 +42,7 @@ export function LessonHost({ lessonId }: { lessonId: string }) {
   const finished = useRef(false)
   const [, bump] = useReducer((n: number) => n + 1, 0)
 
-  if (!finished.current && !latched.current && user) {
+  if (RETRIEVAL_ENABLED && !finished.current && !latched.current && user) {
     const completedLessonIds = new Set(
       Object.entries(progressByLesson)
         .filter(([, p]) => p?.completed)
