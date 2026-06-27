@@ -165,12 +165,13 @@ export function FullBlockReject({
       <div className="flex items-center gap-2">
         <motion.span
           data-testid="reject-incoming"
+          aria-hidden
           className="flex items-center justify-center rounded-md px-2.5 py-1 text-sm font-bold text-amber-900"
           initial={false}
           animate={
             isReduced
               ? { backgroundColor: "#fecaca" }
-              : { x: [0, 34, 6, 0], backgroundColor: ["#fde68a", "#fecaca", "#fecaca", "#fde68a"] }
+              : { y: [0, -16, 4, 0], backgroundColor: ["#fde68a", "#fecaca", "#fecaca", "#fecaca"] }
           }
           transition={
             isReduced
