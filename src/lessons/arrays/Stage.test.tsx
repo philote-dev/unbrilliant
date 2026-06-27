@@ -1,5 +1,5 @@
 import { useReducer } from "react"
-import { describe, it, expect, beforeAll } from "vitest"
+import { describe, it, expect, beforeAll, vi } from "vitest"
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 
 import {
@@ -10,6 +10,16 @@ import {
 } from "@/features/lesson/arraysEngine"
 import { ArraysStage } from "./Stage"
 import { GrowByOneLoop } from "./CapacityFrame"
+
+// Mock the live Poly hook: deterministic, no Firebase. It returns hint text only
+// when a wrong attempt is in flight (GrowPart only sets one for the "growone"
+// answer), so the inplace path falls through to the static nudge.
+vi.mock("@/lib/ai/usePolyHint", () => ({
+  usePolyHint: ({ wrongAttempt }: { wrongAttempt: { id: number } | null }) => ({
+    loading: false,
+    text: wrongAttempt ? "Picture doing that copy for the next item, and the next." : null,
+  }),
+}))
 
 /**
  * DOM tests for the rebuilt Arrays stage. Reduced motion is forced (matchMedia
@@ -238,5 +248,45 @@ describe("Arrays stage: GrowByOneLoop conveys repeated copying", () => {
     render(<GrowByOneLoop start={4} steps={3} />)
     expect(screen.getByTestId("grow-by-one-loop")).toBeInTheDocument()
     expect(screen.getByText(/copy everything again\. And again\./i)).toBeInTheDocument()
+  })
+})
+
+describe("Arrays stage: grow (cleanest fix, branching consequences)", () => {
+  const growoneCard = () =>
+    screen.getByRole("button", { name: /Make a block one bigger and copy everything over/ })
+  const inplaceCard = () => screen.getByRole("button", { name: /Drop it in the next slot/ })
+
+  it("growone plays the repetitive-copy loop and shows the live Poly hint, then lets you retry", () => {
+    render(<Harness initial={at("grow")} />)
+
+    fireEvent.click(growoneCard())
+    fireEvent.click(screen.getByRole("button", { name: "Check" }))
+
+    // wrong (growone): the repetitive-copy loop and the AI hint both appear
+    expect(screen.getByTestId("grow-by-one-loop")).toBeInTheDocument()
+    expect(
+      screen.getByText("Picture doing that copy for the next item, and the next."),
+    ).toBeInTheDocument()
+
+    // retry with the correct fix: the doubling reveal lands and the lesson can continue
+    fireEvent.click(document.querySelector('[data-answer="1"]') as HTMLElement)
+    fireEvent.click(screen.getByRole("button", { name: "Check" }))
+    expect(screen.getByText("Doubled to 8 · copied 4")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Continue" })).toBeInTheDocument()
+  })
+
+  it("inplace nudges with the static line and never shows the loop or an AI hint", () => {
+    render(<Harness initial={at("grow")} />)
+
+    fireEvent.click(inplaceCard())
+    fireEvent.click(screen.getByRole("button", { name: "Check" }))
+
+    expect(screen.queryByTestId("grow-by-one-loop")).toBeNull()
+    expect(
+      screen.queryByText("Picture doing that copy for the next item, and the next."),
+    ).toBeNull()
+    expect(
+      screen.getByText("There's no next slot. The block has to move somewhere bigger first."),
+    ).toBeInTheDocument()
   })
 })

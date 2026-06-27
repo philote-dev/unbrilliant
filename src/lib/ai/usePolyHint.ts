@@ -9,7 +9,7 @@ import {
 export interface UsePolyHintArgs {
   stageId: string
   skill: string
-  discipline: "stack" | "queue"
+  discipline: "stack" | "queue" | "array"
   /** Non-null when a wrong build just happened. `id` is a monotonically rising
    * attempt marker so each new wrong attempt triggers at most one fetch. */
   wrongAttempt: { id: number; learnerOrder: string[] } | null

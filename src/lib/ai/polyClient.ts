@@ -21,9 +21,13 @@ export async function polyHealthCheck(): Promise<HealthResult> {
 export interface HintRequest {
   stageId: string
   skill: string
-  discipline: "stack" | "queue"
+  discipline: "stack" | "queue" | "array"
   learnerOrder: string[]
   priorHint?: string
+  /** Multi-step beats: the learner's operation trace as readable steps. */
+  attempt?: string[]
+  /** Structural read from the client diagnose engine (kind + 1-based step). */
+  diagnosis?: { kind: string; stepNumber: number }
 }
 
 export interface HintResponse {
@@ -73,16 +77,10 @@ export async function requestProbe(req: ProbeRequest): Promise<ProbeResponse> {
 export interface SpeakRequest {
   text: string
 }
+
 export interface SpeakResponse {
   audio: string | null
   mime: string | null
-}
-export interface TranscribeRequest {
-  audio: string
-  mime: string
-}
-export interface TranscribeResponse {
-  text: string | null
 }
 
 export async function speak(req: SpeakRequest): Promise<SpeakResponse> {
@@ -91,11 +89,17 @@ export async function speak(req: SpeakRequest): Promise<SpeakResponse> {
   return res.data
 }
 
+export interface TranscribeRequest {
+  audio: string
+  mime: string
+}
+
+export interface TranscribeResponse {
+  text: string | null
+}
+
 export async function transcribe(req: TranscribeRequest): Promise<TranscribeResponse> {
-  const callable = httpsCallable<TranscribeRequest, TranscribeResponse>(
-    functions,
-    "polyTranscribe",
-  )
+  const callable = httpsCallable<TranscribeRequest, TranscribeResponse>(functions, "polyTranscribe")
   const res = await callable(req)
   return res.data
 }

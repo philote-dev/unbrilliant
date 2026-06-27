@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type Dispatch, type ReactNode } from "reac
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 
 import { cn } from "@/lib/utils"
+import { usePolyHint } from "@/lib/ai/usePolyHint"
 import { Button } from "@/components/ui/button"
 import { AnswerCard, type AnswerState } from "@/components/willow/AnswerCard"
 import { CostReadout } from "@/components/willow/CostReadout"
@@ -20,7 +21,7 @@ import { StageSplit, StageCenter } from "@/components/willow/lesson/StageLayout"
 import { ArrayStrip, type Overlay } from "./ArrayStrip"
 import { CELL, RULER_GAP, RULER_H } from "./arrayStripLayout"
 import { applyDelete, applyInsert, freeLabel, type PlayCell } from "./playMutate"
-import { CapacityFrame, FullBlockReject } from "./CapacityFrame"
+import { CapacityFrame, FullBlockReject, GrowByOneLoop } from "./CapacityFrame"
 import { SpreadsheetInsert } from "./SpreadsheetInsert"
 
 /**
@@ -864,7 +865,24 @@ function GrowPart({
   state: ArraysState
   dispatch: Dispatch<LessonAction>
 }) {
+  const prefersReduced = useReducedMotion()
+  const reduced = prefersReduced ?? false
   const q = state.question
+  const wrong = state.feedback === "nudge" || state.feedback === "fail"
+  const wrongGrowOne = wrong && state.selected === "growone"
+
+  // Live Poly hint: fire ONLY on a "grow by one" wrong attempt. The chosen option
+  // rides along as the learner's order; the backend withholds the doubling fix.
+  // (Hooks run before any early return so the order stays stable across renders.)
+  const aiHint = usePolyHint({
+    stageId: "arrays",
+    skill: "grow",
+    discipline: "array",
+    wrongAttempt: wrongGrowOne
+      ? { id: state.attempts, learnerOrder: ["grow the block by one slot"] }
+      : null,
+  })
+
   if (!q || !q.options) return null
   const { feedback, selected, showWhy } = state
   const terminal = isTerminalA(state)
@@ -880,7 +898,19 @@ function GrowPart({
       }
       figure={
         <div className="flex flex-col items-center gap-3 py-4">
-          {q.resize && <CapacityFrame resize={q.resize} cells={q.cells} reveal={reveal} />}
+          {reveal && q.resize ? (
+            <CapacityFrame resize={q.resize} cells={q.cells} reveal={reveal} />
+          ) : wrongGrowOne ? (
+            <GrowByOneLoop start={q.cells.length} reduced={reduced} />
+          ) : q.resize ? (
+            <motion.div
+              key={wrong ? state.attempts : "idle"}
+              animate={wrong && !reduced ? { x: [0, -7, 7, -4, 4, 0] } : { x: 0 }}
+              transition={{ duration: 0.4, ease: "easeInOut" }}
+            >
+              <CapacityFrame resize={q.resize} cells={q.cells} reveal={false} />
+            </motion.div>
+          ) : null}
           {reveal && <CostReadout word={q.cost.word} count={q.cost.count} unit={q.cost.unit} />}
         </div>
       }
@@ -907,6 +937,7 @@ function GrowPart({
             hideFailHint
             copy={copyOf(q)}
             dispatch={dispatch}
+            aiHint={aiHint}
           />
         </>
       }

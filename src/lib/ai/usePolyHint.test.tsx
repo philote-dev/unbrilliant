@@ -103,4 +103,25 @@ describe("usePolyHint", () => {
     await waitFor(() => expect(result.current).toEqual({ loading: false, text: null }))
     expect(requestHint).toHaveBeenCalledTimes(1)
   })
+
+  it("forwards the array discipline and the chosen wrong option", async () => {
+    const requestHint = vi
+      .fn<(r: HintRequest) => Promise<HintResponse>>()
+      .mockResolvedValue({ hint: "again and again" })
+    const { result } = renderHook(() =>
+      usePolyHint({
+        stageId: "arrays",
+        skill: "grow",
+        discipline: "array",
+        wrongAttempt: { id: 1, learnerOrder: ["grow the block by one slot"] },
+        requestHint,
+      }),
+    )
+    await waitFor(() => expect(result.current.text).toBe("again and again"))
+    expect(requestHint.mock.calls[0][0]).toMatchObject({
+      discipline: "array",
+      skill: "grow",
+      learnerOrder: ["grow the block by one slot"],
+    })
+  })
 })
