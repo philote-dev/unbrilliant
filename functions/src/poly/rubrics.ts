@@ -54,9 +54,48 @@ const queuesRubric: Rubric = {
   ],
 }
 
+const arraysRubric: Rubric = {
+  conceptId: "arrays",
+  propositions: [
+    {
+      id: "P1",
+      text: "A full fixed-size block has no spare room for another item",
+      answerTokens: ["no spare room", "no room", "no free slot", "no space", "already full"],
+    },
+    {
+      id: "P2",
+      text: "Growing by a fixed small amount forces a copy on almost every later append",
+      answerTokens: [
+        "copy every time",
+        "copy each time",
+        "copy again each time",
+        "copy on every",
+        "every append",
+        "recopy",
+        "over and over",
+        "again and again",
+      ],
+    },
+    {
+      id: "P3",
+      text: "A proportionally bigger block makes copies rare",
+      answerTokens: [
+        "double",
+        "twice as big",
+        "twice the size",
+        "proportional",
+        "bigger block makes",
+        "rarely",
+        "rare",
+      ],
+    },
+  ],
+}
+
 export const RUBRICS: Record<string, Rubric> = {
   stacks: stacksRubric,
   queues: queuesRubric,
+  arrays: arraysRubric,
 }
 
 export function rubricFor(conceptId: string): Rubric | undefined {

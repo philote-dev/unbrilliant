@@ -23,4 +23,10 @@ describe("rubrics", () => {
     const picked = propositionsByIds(stacks, ["P3", "P1"])
     expect(picked.map((p) => p.id)).toEqual(["P1", "P3"])
   })
+
+  it("exposes an arrays rubric with three token-bearing propositions", () => {
+    const arrays = rubricFor("arrays")
+    expect(arrays?.conceptId).toBe("arrays")
+    expect(arrays?.propositions.map((p) => p.id)).toEqual(["P1", "P2", "P3"])
+  })
 })

@@ -9,6 +9,10 @@ import { SkillTarget } from "./types"
 export const skillTargets: Record<string, SkillTarget> = {
   stackConstruct: { conceptId: "stacks", propositionIds: ["P1", "P3"] },
   queueConstruct: { conceptId: "queues", propositionIds: ["P1", "P3"] },
+  // Arrays grow: the learner who picks "grow by one" violates P2 (copies pile up)
+  // and implicates P3 (a proportionally bigger block keeps copies rare). Both are
+  // withheld so the model nudges without naming "double".
+  grow: { conceptId: "arrays", propositionIds: ["P2", "P3"] },
 }
 
 export function targetsForSkill(skill: string): SkillTarget | undefined {

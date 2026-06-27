@@ -15,6 +15,13 @@ describe("skillMap", () => {
     expect(targetsForSkill("unknownSkill")).toBeUndefined()
   })
 
+  it("maps the arrays grow skill to the arrays concept and its withheld propositions", () => {
+    expect(targetsForSkill("grow")).toEqual({
+      conceptId: "arrays",
+      propositionIds: ["P2", "P3"],
+    })
+  })
+
   it("every mapped proposition id exists in the referenced rubric", () => {
     for (const target of Object.values(skillTargets)) {
       const rubric = rubricFor(target.conceptId)
