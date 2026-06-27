@@ -791,9 +791,9 @@ function PlaceCheapestPart({
 
         {reveal && (
           <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
-            <LabeledCost label="Front" count={n} />
+            <LabeledCost label="Head" count={n} />
             <LabeledCost label="Middle" count={n - midK} />
-            <LabeledCost label="End" count={0} />
+            <LabeledCost label="Tail" count={0} />
           </div>
         )}
       </div>

@@ -394,18 +394,22 @@ function makePlaceCheapest(seed: number): { question: ArraysQuestion; next: numb
   const r = rngInt(a, 2)
   a = r.next
   const n = 5 + r.value // 5..6
+  // Shuffle the labels so the row never reads as a sorted run (which would imply an
+  // ordered insert); the cheapest gap is the open tail whatever the contents are.
+  const sh = shuffle(LETTERS.slice(0, n), a)
+  a = sh.next
   return {
     question: {
       kind: "place-cheapest",
-      prompt: "Add one cell so the fewest shift. Drop it where it costs least.",
-      cells: LETTERS.slice(0, n),
-      answer: `gap-${n}`, // the open end: zero ripple
+      prompt: "Where should the new cell go?",
+      cells: sh.result,
+      answer: `gap-${n}`, // the open end past the tail: zero ripple
       classify: { n, midK: 2 },
       cost: { word: "free", count: 0, unit: "cells moved" },
       hint: "",
-      nudge: "A middle drop shoves everything after it. The end shoves nothing.",
-      correct: "Right: the end is free - nothing comes after it, so nothing moves.",
-      why: `Dropping at the front shifts all ${n} cells; the middle shifts ${n - 2}; the end shifts 0. Add at the end and nothing has to move.`,
+      nudge: "Adding at the head shoves every cell over. The open end past the tail shoves nothing.",
+      correct: "Right: the tail is free, nothing comes after it, so nothing moves.",
+      why: `Inserting at the head shifts all ${n} cells; the middle shifts ${n - 2}; the tail shifts 0. Add past the tail and nothing has to move.`,
     },
     next: a,
   }

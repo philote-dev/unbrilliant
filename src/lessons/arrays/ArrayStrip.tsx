@@ -1,4 +1,5 @@
 import { useEffect } from "react"
+import { ChevronDown } from "lucide-react"
 import {
   AnimatePresence,
   animate,
@@ -665,12 +666,28 @@ function PlaceStrip({
   // The caret sits on the gap the drag is hovering, or the chosen gap once dropped.
   const caretGap = hoveredTarget ?? selectedGap
   const caretIndex = caretGap?.startsWith("gap-") ? Number(caretGap.slice(4)) : null
+  // A small band above the row marks the head of the block, so the row reads with a
+  // direction: index 0 is the anchored start and the only open end is past the tail.
+  const HEAD_H = 20
 
   return (
     <div className="flex flex-col items-center gap-7">
-      <div className="relative" style={{ width, height: CELL + RULER_GAP + RULER_H }}>
+      <div className="relative" style={{ width, height: HEAD_H + CELL + RULER_GAP + RULER_H }}>
+        {/* head-of-block marker: the array is anchored at its head, so the cheap
+            spot is the open end past the tail, never the front. */}
+        <div
+          className="pointer-events-none absolute top-0 flex flex-col items-center"
+          style={{ left: 0, width: CELL }}
+          aria-hidden
+        >
+          <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-lilac-strong">
+            head
+          </span>
+          <ChevronDown className="-mt-0.5 size-3 text-lilac-strong" />
+        </div>
+
         {/* the contiguous cell row (no gaps, no dots) */}
-        <div className="absolute inset-x-0 top-0 flex" style={{ height: CELL }}>
+        <div className="absolute inset-x-0 flex" style={{ top: HEAD_H, height: CELL }}>
           {cells.map((c, i) => (
             <div
               key={i}
@@ -685,7 +702,7 @@ function PlaceStrip({
         {/* the fixed address ruler */}
         <div
           className="absolute inset-x-0 flex"
-          style={{ top: CELL + RULER_GAP, height: RULER_H }}
+          style={{ top: HEAD_H + CELL + RULER_GAP, height: RULER_H }}
           aria-hidden
         >
           {cells.map((_, i) => (
@@ -702,8 +719,8 @@ function PlaceStrip({
         {/* the line cursor: where the drop will land */}
         {caretIndex != null && (
           <motion.div
-            className="pointer-events-none absolute top-0 z-10 w-[3px] rounded-full bg-lilac-strong"
-            style={{ height: CELL }}
+            className="pointer-events-none absolute z-10 w-[3px] rounded-full bg-lilac-strong"
+            style={{ top: HEAD_H, height: CELL }}
             initial={false}
             animate={{ x: caretIndex * CELL - 1.5 }}
             transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 420, damping: 32 }}
@@ -715,8 +732,8 @@ function PlaceStrip({
         {Array.from({ length: n + 1 }).map((_, i) => (
           <div
             key={i}
-            className="absolute top-0"
-            style={{ left: i * CELL - CELL / 2, width: CELL, height: CELL }}
+            className="absolute"
+            style={{ top: HEAD_H, left: i * CELL - CELL / 2, width: CELL, height: CELL }}
           >
             <RewireTarget id={`gap-${i}`} label={`index ${i}`} bare className="size-full" />
           </div>
