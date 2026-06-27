@@ -124,15 +124,24 @@ export function CopyGrow({
   baseDelay?: number
   stagger?: number
 }) {
-  // When delayed (the summary), the full block settles first, then a beat later the
-  // copy plays; an un-delayed reveal stays snappy (the grow verdict).
-  const copyDelay = baseDelay > 0 ? baseDelay + 0.5 : 0
+  // When delayed (the summary), the full block settles first, then the arrow, then a
+  // beat later the copy plays, so the column reveals top-to-bottom; an un-delayed
+  // reveal stays snappy (the grow verdict).
+  const arrowDelay = baseDelay > 0 ? baseDelay + 0.3 : 0
+  const copyDelay = baseDelay > 0 ? baseDelay + 0.6 : 0
   return (
     <div className="flex flex-col items-center gap-1.5">
       <div className="opacity-45">
         <Block slots={items.length} fill={items} reduced={reduced} label={oldLabel} slot={slot} baseDelay={baseDelay} />
       </div>
-      <ArrowDown className="size-4 shrink-0 text-lilac-strong" aria-hidden />
+      <motion.div
+        initial={reduced ? false : { opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={reduced ? { duration: 0 } : { delay: arrowDelay }}
+        aria-hidden
+      >
+        <ArrowDown className="size-4 shrink-0 text-lilac-strong" />
+      </motion.div>
       <Block
         key={cycle}
         slots={newCapacity}

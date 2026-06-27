@@ -1,25 +1,25 @@
-import { useReducedMotion } from "motion/react"
+import { motion, useReducedMotion } from "motion/react"
 
 import { cn } from "@/lib/utils"
 import { appendRun } from "@/features/lesson/arraysEngine"
 import { CopyGrow } from "./CapacityFrame"
 import { useReplayCycle } from "./useReplayCycle"
+import { SUMMARY_REVEAL } from "./summaryReveal"
 
 /**
  * The average-cost summary figure (beat 11). It shows the same grow choreography
  * from the previous beat, twice and side by side: doubling (a big block, so the
  * copy is rare) next to grow-by-one (a barely-bigger block that fills again at
- * once). Both columns animate together and on one shared cycle, so the two tactics
- * play in sync: the full block lands, then a beat later (long enough to read the
- * title) the copy plays, a little slowly for clarity. The total copies over a run
- * of 8 appends sit beneath each block: 7 (doubling) vs 28 (grow-by-one). Numbers
- * come from the pure `appendRun` helper, so they are deterministic and unit-tested.
- * Reduced motion holds it at rest. Pure and view-only (no Big-O, no "amortization").
+ * once). The page reveals top to bottom: the learner reads the title, then each
+ * column cascades in (its label, the full block, the arrow, then the slow copy) on
+ * one shared cycle so the two tactics play in sync, and finally each total settles
+ * beneath its block. The totals over a run of 8 appends are 7 (doubling) vs 28
+ * (grow-by-one), from the pure `appendRun` helper, so they are deterministic and
+ * unit-tested. Reduced motion holds it at rest. Pure and view-only.
  */
 const APPENDS = 8
 const SUMMARY_SLOT = 18
 const ITEMS = ["A", "B", "C", "D"]
-const READ_DELAY = 0.7 // let the title land before the copy plays
 const SLOW_STAGGER = 0.18 // a slower copy, for visualization
 
 export function GrowSummary({ reduced }: { reduced?: boolean }) {
@@ -77,9 +77,14 @@ function SummaryColumn({
 }) {
   return (
     <div className="flex flex-col items-center gap-3">
-      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <motion.span
+        className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+        initial={reduced ? false : { opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={reduced ? { duration: 0 } : { delay: SUMMARY_REVEAL.colTitle }}
+      >
         {title}
-      </span>
+      </motion.span>
       <CopyGrow
         items={ITEMS}
         newCapacity={newCapacity}
@@ -88,16 +93,19 @@ function SummaryColumn({
         slot={SUMMARY_SLOT}
         reduced={reduced}
         cycle={cycle}
-        baseDelay={READ_DELAY}
+        baseDelay={SUMMARY_REVEAL.oldBlock}
         stagger={SLOW_STAGGER}
       />
-      <div
+      <motion.div
         className={cn(
           "flex flex-col items-center gap-0.5 rounded-xl border-2 px-4 py-2",
           tone === "good"
             ? "border-success/40 bg-success-soft/40"
             : "border-danger/40 bg-danger-soft/40",
         )}
+        initial={reduced ? false : { opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={reduced ? { duration: 0 } : { delay: SUMMARY_REVEAL.total }}
       >
         <span
           className={cn(
@@ -108,7 +116,7 @@ function SummaryColumn({
           {total} copies
         </span>
         <span className="text-xs text-muted-foreground">{blurb}</span>
-      </div>
+      </motion.div>
     </div>
   )
 }
