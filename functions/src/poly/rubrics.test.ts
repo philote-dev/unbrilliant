@@ -28,5 +28,6 @@ describe("rubrics", () => {
     const arrays = rubricFor("arrays")
     expect(arrays?.conceptId).toBe("arrays")
     expect(arrays?.propositions.map((p) => p.id)).toEqual(["P1", "P2", "P3"])
+    expect(arrays?.propositions.every((p) => p.answerTokens.length > 0)).toBe(true)
   })
 })

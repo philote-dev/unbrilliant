@@ -108,4 +108,18 @@ describe("generateHint", () => {
     expect(res.hint).toBe("Think about the next add, and the one after.")
     expect(c.complete).toHaveBeenCalledTimes(2)
   })
+
+  it("rejects a grow hint that leaks the repeated-copy idea (P2), then regenerates", async () => {
+    const c = completer("You'd copy them over and over.", "What does the next add make you redo?")
+    const res = await generateHint(c, "m", growBase)
+    expect(res.hint).toBe("What does the next add make you redo?")
+    expect(c.complete).toHaveBeenCalledTimes(2)
+  })
+
+  it("allows a grow hint that only touches the not-withheld 'no room' idea (P1)", async () => {
+    const c = completer("There's no room for it where it is.")
+    const res = await generateHint(c, "m", growBase)
+    expect(res.hint).toBe("There's no room for it where it is.")
+    expect(c.complete).toHaveBeenCalledTimes(1)
+  })
 })
