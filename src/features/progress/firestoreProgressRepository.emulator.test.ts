@@ -428,4 +428,45 @@ describe("FirestoreProgressRepository (emulator)", () => {
       }),
     )
   })
+
+  // Raw writes proving the tightened lessonProgress / user validation holds even
+  // when the repo is bypassed.
+  function lessonProgressDoc(uid: string, lessonId: string) {
+    const db = testEnv
+      .authenticatedContext(uid)
+      .firestore() as unknown as FirestoreClient
+    return doc(db, "users", uid, "lessonProgress", lessonId)
+  }
+
+  function userDoc(uid: string) {
+    const db = testEnv
+      .authenticatedContext(uid)
+      .firestore() as unknown as FirestoreClient
+    return doc(db, "users", uid)
+  }
+
+  it("rejects a lessonProgress write with an unexpected field", async () => {
+    await assertFails(
+      setDoc(lessonProgressDoc("pat", LESSON), {
+        counters: { pops: 1 },
+        currentPart: "stack-pop",
+        completed: false,
+        completedAt: null,
+        updatedAt: new Date(),
+        hacked: true,
+      }),
+    )
+  })
+
+  it("rejects a user write with an oversized displayName", async () => {
+    await assertFails(
+      setDoc(userDoc("pat"), { displayName: "z".repeat(300), updatedAt: new Date() }),
+    )
+  })
+
+  it("rejects a user write with an injected field", async () => {
+    await assertFails(
+      setDoc(userDoc("pat"), { displayName: "Pat", isAdmin: true, updatedAt: new Date() }),
+    )
+  })
 })

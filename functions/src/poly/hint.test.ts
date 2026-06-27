@@ -122,4 +122,14 @@ describe("generateHint", () => {
     expect(res.hint).toBe("There's no room for it where it is.")
     expect(c.complete).toHaveBeenCalledTimes(1)
   })
+
+  it("clamps oversized inputs before building the prompt (public-endpoint abuse guard)", async () => {
+    const c = completer("A short, safe nudge.")
+    const huge = Array.from({ length: 500 }, () => "z".repeat(200))
+    await generateHint(c, "m", { ...base, learnerOrder: huge, priorHint: "p".repeat(5000) })
+    const call = (c.complete as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    // The raw payload is >100k chars; the item-count, item-length, and prior-hint
+    // caps bound the prompt to a small, fixed envelope.
+    expect(call.user.length).toBeLessThan(7000)
+  })
 })

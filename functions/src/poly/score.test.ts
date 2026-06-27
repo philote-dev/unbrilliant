@@ -49,4 +49,11 @@ describe("scoreExplanation", () => {
     expect(res).toEqual({ scores: [], weakest: null })
     expect(c.complete).not.toHaveBeenCalled()
   })
+
+  it("caps an oversized explanation before sending it to the model", async () => {
+    const c = completer('{"scores":[{"id":"P1","verdict":"covered"}],"weakest":null}')
+    await scoreExplanation(c, "m", { conceptId: "stacks", explanation: "x".repeat(20000) })
+    const call = (c.complete as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(call.user.length).toBeLessThan(6000)
+  })
 })

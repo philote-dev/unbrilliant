@@ -28,6 +28,10 @@ const STRICTER =
   "Your previous question revealed too much. Keep the warm encouragement, but ask a more " +
   "indirect question: do not use the idea's key terms. "
 
+// A learner explanation is short; cap it so a public, unauthenticated caller
+// can't push a huge prompt to the model.
+const MAX_EXPLANATION = 5000
+
 function buildUser(missing: Proposition, explanation: string): string {
   return (
     `Missing proposition: ${missing.text}\n` +
@@ -46,7 +50,7 @@ export async function probeQuestion(
   const [missing] = propositionsByIds(rubric, [args.propositionId])
   if (!missing) return { question: null }
   const withheld = [missing]
-  const user = buildUser(missing, args.explanation)
+  const user = buildUser(missing, (args.explanation ?? "").slice(0, MAX_EXPLANATION))
 
   const first = (await completer.complete({ system: BASE_SYSTEM, user, model })).trim()
   if (findGiveaway(first, withheld).ok) return { question: first || null }

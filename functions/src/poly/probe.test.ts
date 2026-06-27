@@ -36,4 +36,11 @@ describe("probeQuestion", () => {
     expect((await probeQuestion(c, "m", { ...base, propositionId: "ZZ" })).question).toBeNull()
     expect(c.complete).not.toHaveBeenCalled()
   })
+
+  it("caps an oversized explanation before sending it to the model", async () => {
+    const c = completer("What can you reach first?")
+    await probeQuestion(c, "m", { conceptId: "stacks", propositionId: "P1", explanation: "y".repeat(20000) })
+    const call = (c.complete as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(call.user.length).toBeLessThan(6000)
+  })
 })

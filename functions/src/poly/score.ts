@@ -31,6 +31,10 @@ const SYSTEM =
   'graded test. Return ONLY JSON of the form {"scores":[{"id":"P1","verdict":"covered"}],' +
   '"weakest":"P2"}. Never include the rubric text.'
 
+// A self-explanation is short; cap it so a public, unauthenticated caller can't
+// push a huge prompt to the model.
+const MAX_EXPLANATION = 5000
+
 function buildUser(rubric: Rubric, explanation: string): string {
   const rubricText = rubric.propositions.map((p) => `${p.id}: ${p.text}`).join("\n")
   return `Concept: ${rubric.conceptId}\nRubric:\n${rubricText}\nLearner explanation: ${explanation}`
@@ -86,7 +90,7 @@ export async function scoreExplanation(
   if (!rubric) return { scores: [], weakest: null }
   const raw = await completer.complete({
     system: SYSTEM,
-    user: buildUser(rubric, args.explanation),
+    user: buildUser(rubric, (args.explanation ?? "").slice(0, MAX_EXPLANATION)),
     model,
   })
   try {

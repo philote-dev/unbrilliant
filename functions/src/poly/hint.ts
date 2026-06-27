@@ -43,6 +43,38 @@ const STRICTER =
   "Your previous attempt revealed too much. Be more indirect: do not name the concept, " +
   "do not use its key terms, and do not state any ordering. "
 
+// Defensive caps: these callables are public and unauthenticated, so a hostile
+// caller could pass huge payloads to run up model cost and latency. The real
+// client sends tiny data, so clamping is invisible in normal use.
+// learnerOrder items are short tokens for stacks/queues ("A") but full option
+// phrases for arrays ("grow the block by one slot"), so the per-item cap is
+// generous while the list count stays small.
+const MAX_ORDER_ITEMS = 32
+const MAX_ITEM_LEN = 120
+const MAX_TRACE_STEPS = 128
+const MAX_STEP_LEN = 40
+const MAX_PRIOR_HINT = 600
+
+function clampList(list: string[] | undefined, max: number, itemLen: number): string[] {
+  return (Array.isArray(list) ? list : [])
+    .slice(0, max)
+    .map((s) => String(s ?? "").slice(0, itemLen))
+}
+
+function sanitizeHintArgs(args: HintArgs): HintArgs {
+  return {
+    ...args,
+    learnerOrder: clampList(args.learnerOrder, MAX_ORDER_ITEMS, MAX_ITEM_LEN),
+    attempt: args.attempt
+      ? clampList(args.attempt, MAX_TRACE_STEPS, MAX_STEP_LEN)
+      : undefined,
+    priorHint:
+      typeof args.priorHint === "string"
+        ? args.priorHint.slice(0, MAX_PRIOR_HINT)
+        : undefined,
+  }
+}
+
 function buildUser(args: HintArgs, withheld: Proposition[]): string {
   const concepts = withheld.map((p) => p.text).join("; ")
   const prior = args.priorHint
@@ -80,8 +112,9 @@ function buildUser(args: HintArgs, withheld: Proposition[]): string {
 export async function generateHint(
   completer: Completer,
   model: string,
-  args: HintArgs,
+  rawArgs: HintArgs,
 ): Promise<HintResult> {
+  const args = sanitizeHintArgs(rawArgs)
   const target = targetsForSkill(args.skill)
   if (!target) return { hint: null }
   const rubric = rubricFor(target.conceptId)

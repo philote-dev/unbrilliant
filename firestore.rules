@@ -25,14 +25,59 @@ service cloud.firestore {
         && d.createdAt is timestamp;
     }
 
+    // The user profile doc. Fields are written piecemeal via merge (ensureUser,
+    // updateUser), so each is optional but, when present, must match its type and
+    // a sane size. hasOnly bounds the doc to the known shape (no injected fields).
+    function isValidUser() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['displayName', 'createdAt', 'updatedAt', 'currentCourseId', 'streak'])
+        && (!('displayName' in d) || (d.displayName is string && d.displayName.size() <= 200))
+        && (!('currentCourseId' in d) || d.currentCourseId == null
+            || (d.currentCourseId is string && d.currentCourseId.size() <= 200))
+        && (!('streak' in d) || (d.streak is map
+            && d.streak.keys().hasOnly(['current', 'longest'])
+            && d.streak.current is number && d.streak.longest is number))
+        && (!('createdAt' in d) || d.createdAt is timestamp)
+        && (!('updatedAt' in d) || d.updatedAt is timestamp);
+    }
+
+    // Per-lesson durable progress: a bounded counters map plus a short part id
+    // and the completion flags. Caps keep a self-owned doc from being inflated.
+    function isValidLessonProgress() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['counters', 'currentPart', 'completed', 'completedAt', 'updatedAt'])
+        && d.counters is map && d.counters.size() <= 50
+        && d.currentPart is string && d.currentPart.size() <= 100
+        && d.completed is bool
+        && (d.completedAt == null || d.completedAt is timestamp)
+        && d.updatedAt is timestamp;
+    }
+
+    // Spaced-repetition substrate: all numeric scheduling state, non-negative,
+    // with the known shape (no injected fields, no unbounded growth).
+    function isValidConceptReview() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['level', 'correctStreak', 'lapses', 'seen', 'lastSeenAt', 'dueAt', 'graduated', 'updatedAt'])
+        && d.level is number && d.level >= 0
+        && d.correctStreak is number && d.correctStreak >= 0
+        && d.lapses is number && d.lapses >= 0
+        && d.seen is number && d.seen >= 0
+        && d.lastSeenAt is number && d.lastSeenAt >= 0
+        && d.dueAt is number && d.dueAt >= 0
+        && d.graduated is bool
+        && d.updatedAt is timestamp;
+    }
+
     // A learner can read and write only their own data. Subcollections are
     // enumerated (no catch-all wildcard) so the activity log can be shape-checked
     // on write without changing lessonProgress access.
     match /users/{uid} {
-      allow read, write: if isOwner(uid);
+      allow read: if isOwner(uid);
+      allow write: if isOwner(uid) && isValidUser();
 
       match /lessonProgress/{lessonId} {
-        allow read, write: if isOwner(uid);
+        allow read: if isOwner(uid);
+        allow write: if isOwner(uid) && isValidLessonProgress();
       }
 
       match /activity/{dayKey} {
@@ -46,7 +91,8 @@ service cloud.firestore {
       }
 
       match /conceptReviews/{conceptId} {
-        allow read, write: if isOwner(uid);
+        allow read: if isOwner(uid);
+        allow write: if isOwner(uid) && isValidConceptReview();
       }
     }
   }

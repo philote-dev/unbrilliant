@@ -5,7 +5,7 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing"
-import type { Firestore } from "firebase/firestore"
+import { doc, setDoc, type Firestore } from "firebase/firestore"
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
 
 import { createFirestoreProgressRepository } from "@/features/progress/firestoreProgressRepository"
@@ -69,5 +69,24 @@ describe("FirestoreProgressRepository concept reviews (emulator)", () => {
     )
     const mallory = repoFor("mallory")
     await assertFails(mallory.getConceptReviews("alice"))
+  })
+
+  it("rejects a concept review write with an unexpected field", async () => {
+    const db = testEnv
+      .authenticatedContext("pat")
+      .firestore() as unknown as Firestore
+    await assertFails(
+      setDoc(doc(db, "users", "pat", "conceptReviews", "trees:locate"), {
+        level: 0,
+        correctStreak: 0,
+        lapses: 0,
+        seen: 0,
+        lastSeenAt: 0,
+        dueAt: 0,
+        graduated: false,
+        updatedAt: new Date(),
+        hacked: true,
+      }),
+    )
   })
 })
