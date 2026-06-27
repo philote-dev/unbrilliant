@@ -488,7 +488,7 @@ function makeGrow(seed: number): { question: ArraysQuestion; next: number } {
       resize: { size, capacity, resizes: true },
       cost: { word: "usually free", count: size, unit: "items copied" },
       hint: "",
-      nudge: "There's no next slot. The block has to move somewhere bigger first.",
+      nudge: "A full block can't take a quick fix. Think about what the very next item would cost.",
       correct: `Right: it doubles to ${capacity * 2} and copies all ${capacity} across.`,
       why: "A full block has no room, so it makes a bigger one and copies every item over. Make it twice as big and those copies stay rare. Usually free, with the occasional big reshuffle.",
     },

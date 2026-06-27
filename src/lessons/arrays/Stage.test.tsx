@@ -11,15 +11,19 @@ import {
 import { ArraysStage } from "./Stage"
 import { GrowByOneLoop } from "./CapacityFrame"
 
+const mockUsePolyHint = vi.hoisted(() =>
+  vi.fn(
+    ({ wrongAttempt }: { wrongAttempt: { id: number; learnerOrder: string[] } | null }) => ({
+      loading: false,
+      text: wrongAttempt ? "Picture doing that copy for the next item, and the next." : null,
+    }),
+  ),
+)
+
 // Mock the live Poly hook: deterministic, no Firebase. It returns hint text only
 // when a wrong attempt is in flight (GrowPart only sets one for the "growone"
 // answer), so the inplace path falls through to the static nudge.
-vi.mock("@/lib/ai/usePolyHint", () => ({
-  usePolyHint: ({ wrongAttempt }: { wrongAttempt: { id: number } | null }) => ({
-    loading: false,
-    text: wrongAttempt ? "Picture doing that copy for the next item, and the next." : null,
-  }),
-}))
+vi.mock("@/lib/ai/usePolyHint", () => ({ usePolyHint: mockUsePolyHint }))
 
 /**
  * DOM tests for the rebuilt Arrays stage. Reduced motion is forced (matchMedia
@@ -268,6 +272,11 @@ describe("Arrays stage: grow (cleanest fix, branching consequences)", () => {
       screen.getByText("Picture doing that copy for the next item, and the next."),
     ).toBeInTheDocument()
 
+    // the stage wired the hook with the arrays grow args
+    expect(mockUsePolyHint).toHaveBeenCalledWith(
+      expect.objectContaining({ stageId: "arrays", skill: "grow", discipline: "array" }),
+    )
+
     // retry with the correct fix: the doubling reveal lands and the lesson can continue
     fireEvent.click(document.querySelector('[data-answer="1"]') as HTMLElement)
     fireEvent.click(screen.getByRole("button", { name: "Check" }))
@@ -286,7 +295,7 @@ describe("Arrays stage: grow (cleanest fix, branching consequences)", () => {
       screen.queryByText("Picture doing that copy for the next item, and the next."),
     ).toBeNull()
     expect(
-      screen.getByText("There's no next slot. The block has to move somewhere bigger first."),
+      screen.getByText("A full block can't take a quick fix. Think about what the very next item would cost."),
     ).toBeInTheDocument()
   })
 })
