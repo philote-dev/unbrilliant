@@ -22,7 +22,7 @@ export function GrowSummary({ reduced }: { reduced?: boolean }) {
   return (
     <div className="flex flex-col items-center gap-6" data-testid="grow-summary">
       <div className="flex flex-col items-center gap-2">
-        <div className="flex gap-1.5">
+        <div className="flex gap-1.5" aria-hidden>
           {doubling.steps.map((s, i) => (
             <motion.div
               key={s.n}
@@ -40,7 +40,7 @@ export function GrowSummary({ reduced }: { reduced?: boolean }) {
           ))}
         </div>
         <p className="max-w-xs text-center text-sm text-muted-foreground">
-          {APPENDS} appends, only {copies} had to copy. Spread out, that is about one step each.
+          {APPENDS} appends, only {copies} of them triggered a copy. Spread out, that is about one step each.
         </p>
       </div>
 

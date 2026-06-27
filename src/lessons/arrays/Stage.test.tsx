@@ -301,7 +301,7 @@ describe("Arrays stage: grow (cleanest fix, branching consequences)", () => {
 })
 
 describe("Arrays stage: grow-summary contrasts doubling with grow-by-one", () => {
-  it("renders the tally and both running totals, then completes on continue", () => {
+  it("renders the tally, both running totals, and the Continue button", () => {
     render(<Harness initial={at("grow-summary")} />)
     expect(screen.getByTestId("grow-summary")).toBeInTheDocument()
     expect(screen.getByText(/8 appends/i)).toBeInTheDocument()
