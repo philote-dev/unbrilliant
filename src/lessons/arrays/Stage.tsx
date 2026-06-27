@@ -23,6 +23,7 @@ import { CELL, RULER_GAP, RULER_H } from "./arrayStripLayout"
 import { applyDelete, applyInsert, freeLabel, type PlayCell } from "./playMutate"
 import { CapacityFrame, FullBlockReject, GrowByOneLoop } from "./CapacityFrame"
 import { SpreadsheetInsert } from "./SpreadsheetInsert"
+import { GrowSummary } from "./GrowSummary"
 
 /**
  * The rebuilt Arrays stage: a switch over the 9 beats. Every graded beat is
@@ -58,6 +59,8 @@ export function ArraysStage({
       return <TeachGrowPart dispatch={dispatch} />
     case "grow":
       return <GrowPart state={state} dispatch={dispatch} />
+    case "grow-summary":
+      return <GrowSummaryPart dispatch={dispatch} />
   }
 }
 
@@ -942,5 +945,45 @@ function GrowPart({
         </>
       }
     />
+  )
+}
+
+/* ----------------------------- grow: average-cost summary ----------------------------- */
+
+/**
+ * The closing teach page: most appends just land, and the rare copy is shared
+ * across all of them, so doubling is cheap on average; grow-by-one pays a copy
+ * almost every time. Finishing it completes the lesson.
+ */
+function GrowSummaryPart({ dispatch }: { dispatch: Dispatch<LessonAction> }) {
+  return (
+    <StageCenter maxWidthClass="max-w-xl">
+      <div className="mt-8 text-center animate-fade-in">
+        <Eyebrow>Dynamic arrays</Eyebrow>
+        <h2 className="mt-3 text-balance text-3xl font-bold tracking-tight text-foreground lg:text-5xl">
+          What it costs on average
+        </h2>
+      </div>
+
+      <div className="flex flex-1 flex-col items-center justify-center gap-7 py-6">
+        <GrowSummary />
+        <p className="mx-auto max-w-md text-pretty text-center text-xl leading-relaxed text-foreground/90 lg:text-2xl">
+          Most appends just{" "}
+          <span className="concept" style={{ animationDelay: "200ms" }}>
+            land
+          </span>
+          , and the rare copy is shared across all of them. Grow by one and you pay a copy almost
+          every time. That is why arrays{" "}
+          <span className="concept" style={{ animationDelay: "650ms" }}>
+            double
+          </span>
+          .
+        </p>
+      </div>
+
+      <Button variant="tactile" size="lg" className="w-full" onClick={() => dispatch({ type: "continue" })}>
+        Continue
+      </Button>
+    </StageCenter>
   )
 }
