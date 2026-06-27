@@ -26,7 +26,6 @@ const LESSON_SUBSKILLS: Record<string, string[]> = {
     "placeCheapest",
     "realworld",
     "grow",
-    "growVerdict",
   ],
   "linked-lists": [
     "traverse",

@@ -275,7 +275,7 @@ test("vision → browse → enter course → play → sign in (carry-up) → com
   await page.getByRole("button", { name: /Continue to Arrays/ }).click()
 
   // Arrays (rebuild): play-access → jump → scan → play-mutate → insert → delete →
-  // place-cheapest → realworld → teach-grow → grow → grow verdict. 8 graded beats.
+  // place-cheapest → realworld → teach-grow → grow → grow-summary. 7 graded beats.
   await continueOn(page) // play-access (read the strip)
   await answerCellTap(page) // jump (tap the de-cued cell)
   await walkScanArrays(page) // scan (walk the row until the value turns up)
@@ -284,9 +284,9 @@ test("vision → browse → enter course → play → sign in (carry-up) → com
   await answerArrays(page) // delete (predict the shift count)
   await rewireInOrder(page) // place-cheapest (drop the cell on the cheapest gap)
   await answerArrays(page) // realworld (spreadsheet row shift)
-  await continueOn(page) // teach-grow (dynamic-array context)
-  await answerArrays(page) // grow-predict (double + copy)
-  await answerArrays(page) // grow amortized verdict
+  await continueOn(page) // teach-grow (full block rejects a new cell)
+  await answerArrays(page) // grow (pick the cleanest fix: double + copy)
+  await continueOn(page) // grow-summary (average-cost teach) → completes the lesson
 
   // Arrays completion — a real two-lesson progression.
   await expect(page.getByText("You mastered Arrays.")).toBeVisible()
