@@ -846,11 +846,11 @@ function TeachGrowPart({ dispatch }: { dispatch: Dispatch<LessonAction> }) {
           <span className="concept" style={{ animationDelay: "200ms" }}>
             fixed-size
           </span>{" "}
-          block up front: it only holds so many cells. When it is full a new item has{" "}
+          block up front: it only holds so many cells. When it is full, a new item has{" "}
           <span className="concept" style={{ animationDelay: "650ms" }}>
             nowhere to go
           </span>
-          , so a new, bigger block has to be made. How would you make room for one more?
+          . What now?
         </p>
       </div>
 
@@ -906,7 +906,7 @@ function GrowPart({
           {reveal && q.resize ? (
             <CapacityFrame resize={q.resize} cells={q.cells} reveal={reveal} />
           ) : wrongGrowOne ? (
-            <GrowByOneLoop start={q.cells.length} reduced={reduced} />
+            <GrowByOneLoop cells={q.cells} reduced={reduced} />
           ) : q.resize ? (
             <motion.div
               key={wrong ? state.attempts : "idle"}
@@ -970,12 +970,11 @@ function GrowSummaryPart({ dispatch }: { dispatch: Dispatch<LessonAction> }) {
       <div className="flex flex-1 flex-col items-center justify-center gap-7 py-6">
         <GrowSummary />
         <p className="mx-auto max-w-md text-pretty text-center text-xl leading-relaxed text-foreground/90 lg:text-2xl">
-          Most appends just{" "}
+          Grow by one and you pay a copy almost{" "}
           <span className="concept" style={{ animationDelay: "200ms" }}>
-            land
+            every time
           </span>
-          , and the rare copy is shared across all of them. Grow by one and you pay a copy almost
-          every time. That is why arrays{" "}
+          . That is why arrays{" "}
           <span className="concept" style={{ animationDelay: "650ms" }}>
             double
           </span>

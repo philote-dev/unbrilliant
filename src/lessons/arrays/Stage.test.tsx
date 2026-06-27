@@ -248,10 +248,10 @@ describe("Arrays stage: teach-grow shows a full block rejecting a new cell", () 
 })
 
 describe("Arrays stage: GrowByOneLoop conveys repeated copying", () => {
-  it("renders a growing run of blocks and the 'again' caption", () => {
-    render(<GrowByOneLoop start={4} steps={3} />)
+  it("renders the grow-by-one copy choreography and the 'again' caption", () => {
+    render(<GrowByOneLoop cells={["A", "B", "C", "D"]} />)
     expect(screen.getByTestId("grow-by-one-loop")).toBeInTheDocument()
-    expect(screen.getByText(/copy everything again\. And again\./i)).toBeInTheDocument()
+    expect(screen.getByText(/copy it all again\. And again\./i)).toBeInTheDocument()
   })
 })
 
@@ -301,10 +301,11 @@ describe("Arrays stage: grow (cleanest fix, branching consequences)", () => {
 })
 
 describe("Arrays stage: grow-summary contrasts doubling with grow-by-one", () => {
-  it("renders the tally, both running totals, and the Continue button", () => {
+  it("renders both grow policies side by side with their copy totals and Continue", () => {
     render(<Harness initial={at("grow-summary")} />)
     expect(screen.getByTestId("grow-summary")).toBeInTheDocument()
-    expect(screen.getByText(/8 appends/i)).toBeInTheDocument()
+    expect(screen.getByText("Double the block")).toBeInTheDocument()
+    expect(screen.getByText("Grow by one")).toBeInTheDocument()
     expect(screen.getByText("7 copies")).toBeInTheDocument()
     expect(screen.getByText("28 copies")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Continue" })).toBeInTheDocument()

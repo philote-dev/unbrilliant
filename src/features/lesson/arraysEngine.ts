@@ -481,7 +481,7 @@ function makeGrow(seed: number): { question: ArraysQuestion; next: number } {
   return {
     question: {
       kind: "grow",
-      prompt: "The block is full. What's the cleanest way to make room for one more?",
+      prompt: "What's the cleanest way to make room for one more?",
       cells: LETTERS.slice(0, size),
       options: sh.result,
       answer: "grow",
