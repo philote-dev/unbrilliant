@@ -1,3 +1,4 @@
+import { Fragment } from "react"
 import { ArrowDown } from "lucide-react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 
@@ -183,6 +184,72 @@ export function FullBlockReject({
         </motion.span>
         <span className="text-xs font-bold uppercase tracking-wide text-danger">No room</span>
       </div>
+    </div>
+  )
+}
+
+/**
+ * Beat 10 wrong-answer (growone) visual: grow the block by ONE slot, copy
+ * everything, then do it all again for the next item, and the next. A staggered
+ * sequence of ever-bigger fully-copied blocks makes the repetition felt. Reduced
+ * motion shows the whole sequence at once. Pure and view-only.
+ */
+export function GrowByOneLoop({
+  start = 4,
+  steps = 3,
+  reduced,
+}: {
+  start?: number
+  steps?: number
+  reduced?: boolean
+}) {
+  const prefersReduced = useReducedMotion()
+  const isReduced = reduced || (prefersReduced ?? false)
+  const MINI = 16
+  const sizes = Array.from({ length: steps + 1 }, (_, i) => start + i)
+  return (
+    <div className="flex flex-col items-center gap-2" data-testid="grow-by-one-loop">
+      <div className="flex items-end gap-1.5 overflow-x-auto">
+        {sizes.map((size, i) => (
+          <Fragment key={size}>
+            {i > 0 && (
+              <motion.span
+                aria-hidden
+                className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-danger"
+                initial={isReduced ? false : { opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={isReduced ? { duration: 0 } : { delay: i * 0.55 }}
+              >
+                copy {size - 1}
+              </motion.span>
+            )}
+            <motion.div
+              className="flex"
+              initial={isReduced ? false : { opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={isReduced ? { duration: 0 } : { delay: i * 0.55 + 0.2 }}
+            >
+              {Array.from({ length: size }).map((_, s) => (
+                <div
+                  key={s}
+                  className="box-border border-y-2 border-l-2 first:rounded-l-md last:rounded-r-md last:border-r-2"
+                  style={{ width: MINI, height: MINI }}
+                >
+                  <span
+                    className={cn(
+                      "block size-full",
+                      s === size - 1 ? "bg-amber-300" : "bg-lilac-soft",
+                    )}
+                  />
+                </div>
+              ))}
+            </motion.div>
+          </Fragment>
+        ))}
+      </div>
+      <p className="max-w-xs text-center text-xs text-muted-foreground">
+        Grow by one and the next item makes you copy everything again. And again.
+      </p>
     </div>
   )
 }

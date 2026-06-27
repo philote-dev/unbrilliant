@@ -9,6 +9,7 @@ import {
   type ArraysState,
 } from "@/features/lesson/arraysEngine"
 import { ArraysStage } from "./Stage"
+import { GrowByOneLoop } from "./CapacityFrame"
 
 /**
  * DOM tests for the rebuilt Arrays stage. Reduced motion is forced (matchMedia
@@ -229,5 +230,13 @@ describe("Arrays stage: teach-grow shows a full block rejecting a new cell", () 
     expect(screen.getByText(/No room/i)).toBeInTheDocument()
     expect(screen.getByTestId("reject-incoming")).toHaveTextContent("X")
     expect(screen.getByRole("button", { name: "Continue" })).toBeInTheDocument()
+  })
+})
+
+describe("Arrays stage: GrowByOneLoop conveys repeated copying", () => {
+  it("renders a growing run of blocks and the 'again' caption", () => {
+    render(<GrowByOneLoop start={4} steps={3} />)
+    expect(screen.getByTestId("grow-by-one-loop")).toBeInTheDocument()
+    expect(screen.getByText(/copy everything again\. And again\./i)).toBeInTheDocument()
   })
 })
