@@ -6,28 +6,29 @@ import { CopyGrow } from "./CapacityFrame"
 import { useReplayCycle } from "./useReplayCycle"
 
 /**
- * The average-cost summary figure (beat 11). It shows the SAME grow choreography
+ * The average-cost summary figure (beat 11). It shows the same grow choreography
  * from the previous beat, twice and side by side: doubling (a big block, so the
  * copy is rare) next to grow-by-one (a barely-bigger block that fills again at
- * once, so the copy repeats fast). Each runs on its own cadence, and the total
- * copies over a run of 8 appends sit beneath the respective block: 7 (doubling)
- * vs 28 (grow-by-one). Numbers come from the pure `appendRun` helper, so they are
- * deterministic and unit-tested. Reduced motion holds it at rest. Pure and
- * view-only (no Big-O, no "amortization" wording).
+ * once). Both columns animate together and on one shared cycle, so the two tactics
+ * play in sync: the full block lands, then a beat later (long enough to read the
+ * title) the copy plays, a little slowly for clarity. The total copies over a run
+ * of 8 appends sit beneath each block: 7 (doubling) vs 28 (grow-by-one). Numbers
+ * come from the pure `appendRun` helper, so they are deterministic and unit-tested.
+ * Reduced motion holds it at rest. Pure and view-only (no Big-O, no "amortization").
  */
 const APPENDS = 8
 const SUMMARY_SLOT = 18
 const ITEMS = ["A", "B", "C", "D"]
+const READ_DELAY = 0.7 // let the title land before the copy plays
+const SLOW_STAGGER = 0.18 // a slower copy, for visualization
 
 export function GrowSummary({ reduced }: { reduced?: boolean }) {
   const prefersReduced = useReducedMotion()
   const isReduced = reduced || (prefersReduced ?? false)
   const doubling = appendRun(APPENDS, "double")
   const plusOne = appendRun(APPENDS, "plusOne")
-  // Doubling copies rarely (slow replay); grow-by-one copies on almost every
-  // append (fast replay). The cadence contrast carries the lesson with the totals.
-  const slow = useReplayCycle(!isReduced, 3200)
-  const fast = useReplayCycle(!isReduced, 1400)
+  // One shared cycle drives both columns, so the two copies stay in lockstep.
+  const cycle = useReplayCycle(!isReduced, 5200)
 
   return (
     <div className="flex w-full items-start justify-center gap-6" data-testid="grow-summary">
@@ -35,7 +36,7 @@ export function GrowSummary({ reduced }: { reduced?: boolean }) {
         title="Double the block"
         newCapacity={ITEMS.length * 2}
         newLabel="…to 8"
-        cycle={slow}
+        cycle={cycle}
         reduced={isReduced}
         total={doubling.totalCopied}
         blurb="copies stay rare"
@@ -45,7 +46,7 @@ export function GrowSummary({ reduced }: { reduced?: boolean }) {
         title="Grow by one"
         newCapacity={ITEMS.length + 1}
         newLabel="…to 5"
-        cycle={fast}
+        cycle={cycle}
         reduced={isReduced}
         total={plusOne.totalCopied}
         blurb="copies pile up"
@@ -87,6 +88,8 @@ function SummaryColumn({
         slot={SUMMARY_SLOT}
         reduced={reduced}
         cycle={cycle}
+        baseDelay={READ_DELAY}
+        stagger={SLOW_STAGGER}
       />
       <div
         className={cn(

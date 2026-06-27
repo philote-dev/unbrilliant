@@ -10,9 +10,9 @@ import { useReplayCycle } from "./useReplayCycle"
  * sized to `capacity` with `size` filled slots; when it is full, appending one more
  * allocates a bigger block and copies every item across (the "occasional big
  * reshuffle"), then drops the new item in. Both the doubling fix and the grow-by-one
- * trap render through ONE shared figure (`CopyGrow`), so the only visible difference
- * is how much bigger the new block is and how often the copy repeats. Reduced motion
- * snaps to the end-state. Pure and view-only.
+ * trap render through the same `Block` figure, so the only visible difference is how
+ * much bigger the new block is and how often the copy repeats. Reduced motion snaps
+ * to the end-state. Pure and view-only.
  */
 
 const SLOT = 34
@@ -28,18 +28,24 @@ function Block({
   slots,
   fill,
   newAt,
+  goldLabel = NEW_LABEL,
   copying,
   reduced,
   label,
   slot = SLOT,
+  baseDelay = 0,
+  stagger = 0.08,
 }: {
   slots: number
   fill: string[] // labels in the first fill.length slots
   newAt?: number // slot index for the gold "arrival" item
+  goldLabel?: string // the gold cell's label (defaults to the new item "X")
   copying?: boolean // stagger the filled cells in (the copy)
   reduced: boolean
   label?: string
   slot?: number
+  baseDelay?: number // hold before this block animates (sequencing / read-the-title)
+  stagger?: number // per-cell copy delay (raise it to slow the copy down)
 }) {
   return (
     <div className="flex flex-col items-center gap-1">
@@ -64,7 +70,9 @@ function Block({
                     initial={reduced ? false : { opacity: 0, scale: 0.5 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={
-                      reduced ? { duration: 0 } : { delay: copying ? i * 0.08 : 0, type: "spring", stiffness: 360 }
+                      reduced
+                        ? { duration: 0 }
+                        : { delay: baseDelay + (copying ? i * stagger : 0), type: "spring", stiffness: 360 }
                     }
                     style={{ fontSize: cellFont(slot) }}
                     className={cn(
@@ -72,7 +80,7 @@ function Block({
                       isNew ? "bg-amber-200 text-amber-900" : "bg-lilac-soft text-foreground",
                     )}
                   >
-                    {isNew ? NEW_LABEL : value}
+                    {isNew ? goldLabel : value}
                   </motion.span>
                 )}
               </AnimatePresence>
@@ -85,12 +93,13 @@ function Block({
 }
 
 /**
- * The shared grow choreography, used everywhere a block grows: the full old block
- * (faded) on top, an arrow down, and a new bigger block below that copies every
- * item across (staggered) and drops the gold arrival in. Doubling and grow-by-one
- * differ only in `newCapacity` (and, via `cycle`, how often the copy replays), so
- * they read as the same move at different scales. Reduced motion snaps to the
- * copied end-state.
+ * The shared grow choreography: a full old block (faded) on top, an arrow down, and
+ * a new bigger block below that copies every item across (staggered) and drops the
+ * gold arrival in. Doubling and grow-by-one differ only in `newCapacity` (and, via
+ * `cycle`, how often the copy replays), so they read as the same move at different
+ * scales. `baseDelay` holds the copy back so the full block lands first (used by the
+ * summary so the learner reads the title, then watches the copy); reduced motion
+ * snaps to the copied end-state.
  */
 export function CopyGrow({
   items,
@@ -101,6 +110,8 @@ export function CopyGrow({
   slot = SLOT,
   reduced,
   cycle = 0,
+  baseDelay = 0,
+  stagger = 0.08,
 }: {
   items: string[]
   newCapacity: number
@@ -110,11 +121,16 @@ export function CopyGrow({
   slot?: number
   reduced: boolean
   cycle?: number
+  baseDelay?: number
+  stagger?: number
 }) {
+  // When delayed (the summary), the full block settles first, then a beat later the
+  // copy plays; an un-delayed reveal stays snappy (the grow verdict).
+  const copyDelay = baseDelay > 0 ? baseDelay + 0.5 : 0
   return (
     <div className="flex flex-col items-center gap-1.5">
       <div className="opacity-45">
-        <Block slots={items.length} fill={items} reduced={reduced} label={oldLabel} slot={slot} />
+        <Block slots={items.length} fill={items} reduced={reduced} label={oldLabel} slot={slot} baseDelay={baseDelay} />
       </div>
       <ArrowDown className="size-4 shrink-0 text-lilac-strong" aria-hidden />
       <Block
@@ -126,6 +142,8 @@ export function CopyGrow({
         reduced={reduced}
         label={newLabel}
         slot={slot}
+        baseDelay={copyDelay}
+        stagger={stagger}
       />
     </div>
   )
@@ -251,11 +269,37 @@ export function FullBlockReject({
   )
 }
 
+/** One step's arrow + cost tag inside the grow-by-one chain. */
+function CopyTick({
+  label,
+  delay,
+  reduced,
+}: {
+  label: string
+  delay: number
+  reduced: boolean
+}) {
+  return (
+    <motion.div
+      className="flex items-center gap-1.5"
+      initial={reduced ? false : { opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={reduced ? { duration: 0 } : { delay }}
+      aria-hidden
+    >
+      <ArrowDown className="size-3.5 text-danger" />
+      <span className="text-[10px] font-semibold uppercase tracking-wide text-danger">{label}</span>
+    </motion.div>
+  )
+}
+
 /**
- * Beat 10 wrong-answer (growone) visual: the SAME copy choreography as the doubling
- * fix, but the new block is only one bigger, so it is full again the instant the
- * gold item lands. The copy replays on a loop, so the learner feels that every
- * future append repeats the whole copy. Reduced motion shows the copied end-state.
+ * Beat 10 wrong-answer (growone) visual: two appends in a row, to show the trap.
+ * The block is full, so a one-bigger block is made and everything is copied to add
+ * X; that block is full again at once, so the very next item copies it ALL again
+ * (now including X) to add Y. The copy count climbs (copy n, then copy n+1), which
+ * is the point: grow-by-one re-copies on every append, again and again. Reduced
+ * motion snaps to the end-state. Pure and view-only.
  */
 export function GrowByOneLoop({
   cells,
@@ -266,19 +310,44 @@ export function GrowByOneLoop({
 }) {
   const prefersReduced = useReducedMotion()
   const isReduced = reduced || (prefersReduced ?? false)
-  const cycle = useReplayCycle(!isReduced, 2200)
+  const cycle = useReplayCycle(!isReduced, 4600)
+  const n = cells.length
+  const SL = 30
+  const stagger = 0.12
+  const afterFirst = [...cells, "X"] // the X just added is now just more to copy
+  const d1 = 0.25 // step 1 copy begins
+  const d2 = d1 + (n + 1) * stagger + 0.6 // step 2 begins after step 1 settles
   return (
-    <div className="flex flex-col items-center gap-2" data-testid="grow-by-one-loop">
-      <CopyGrow
-        items={cells}
-        newCapacity={cells.length + 1}
-        oldLabel="Full block"
-        newLabel={`One bigger · copied ${cells.length}`}
+    <div className="flex flex-col items-center gap-1" data-testid="grow-by-one-loop">
+      <Block key={`a${cycle}`} slots={n} fill={cells} reduced={isReduced} slot={SL} label="Full block" />
+      <CopyTick label={`copy ${n}, add 1`} delay={d1 - 0.1} reduced={isReduced} />
+      <Block
+        key={`b${cycle}`}
+        slots={n + 1}
+        fill={cells}
+        newAt={n}
+        goldLabel="X"
+        copying
         reduced={isReduced}
-        cycle={cycle}
+        slot={SL}
+        baseDelay={d1}
+        stagger={stagger}
       />
-      <p className="max-w-xs text-center text-xs text-muted-foreground">
-        One bigger, and the next item makes you copy it all again. And again.
+      <CopyTick label={`copy ${n + 1}, add 1`} delay={d2 - 0.1} reduced={isReduced} />
+      <Block
+        key={`c${cycle}`}
+        slots={n + 2}
+        fill={afterFirst}
+        newAt={n + 1}
+        goldLabel="Y"
+        copying
+        reduced={isReduced}
+        slot={SL}
+        baseDelay={d2}
+        stagger={stagger}
+      />
+      <p className="mt-1 max-w-xs text-center text-xs text-muted-foreground">
+        One bigger only delays it: the next item makes you copy it all again. And again.
       </p>
     </div>
   )

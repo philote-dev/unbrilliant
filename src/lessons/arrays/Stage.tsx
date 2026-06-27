@@ -963,7 +963,7 @@ function GrowSummaryPart({ dispatch }: { dispatch: Dispatch<LessonAction> }) {
       <div className="mt-8 text-center animate-fade-in">
         <Eyebrow>Dynamic arrays</Eyebrow>
         <h2 className="mt-3 text-balance text-3xl font-bold tracking-tight text-foreground lg:text-5xl">
-          What it costs on average
+          It's all about the average cost
         </h2>
       </div>
 
