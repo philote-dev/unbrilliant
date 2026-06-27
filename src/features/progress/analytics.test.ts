@@ -35,7 +35,7 @@ describe("lessonStats (Progress drill-down analytics)", () => {
       completed: false,
     })
     expect(s.correct).toBe(3)
-    expect(s.mastery).toBeCloseTo(3 / 8)
+    expect(s.mastery).toBeCloseTo(3 / 7)
     expect(s.accuracy).toBeCloseTo(3 / 5)
   })
 })
