@@ -15,6 +15,7 @@ export type Screen =
   | { name: "signin"; intent?: "save" | "unlock" }
   | { name: "lesson"; lessonId: string }
   | { name: "playtest"; lessonId: string }
+  | { name: "trial"; trialId: string }
   | { name: "complete"; lessonId: string }
   | { name: "progress" }
   | { name: "settings" }
