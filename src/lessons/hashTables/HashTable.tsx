@@ -33,6 +33,8 @@ export function HashTable({
   mode,
   selected,
   highlightBucket,
+  collisionBuckets,
+  masked,
   newestBucket,
   correctTarget,
   searchBucket,
@@ -51,6 +53,15 @@ export function HashTable({
   selected?: string | null
   /** A bucket to emphasize (display mode: e.g. the colliding bucket). */
   highlightBucket?: number
+  /** Buckets to tint as collisions (display mode: 2+ keys sharing a bin). */
+  collisionBuckets?: ReadonlySet<number>
+  /**
+   * Seal the bins: occupied buckets show a masked placeholder instead of their
+   * contents (and the key strings are never rendered), so a lookup cannot be
+   * read off at idle. The learner must hash the key to pick the bin; the real
+   * chains render once the beat reveals (post-commit).
+   */
+  masked?: boolean
   /** A bucket whose chain tail just grew (highlights the newest key). */
   newestBucket?: number
   /** DEV-only: the correct bucket target id, marked for the e2e tracer (tap mode). */
@@ -83,7 +94,9 @@ export function HashTable({
         const targetId = bucketTargetId(i)
         const isSearch = searchBucket === i
         const inner =
-          chain.length > 0 ? (
+          masked && chain.length > 0 ? (
+            <SealedChip />
+          ) : chain.length > 0 ? (
             <BucketChain
               chain={chain}
               highlightLast={newestBucket === i}
@@ -113,6 +126,7 @@ export function HashTable({
                 data-answer={
                   correctTarget === targetId && import.meta.env.DEV ? "1" : undefined
                 }
+                aria-label={`bin ${i}`}
                 aria-pressed={selected === targetId}
                 onClick={() => onTap?.(targetId)}
                 className={cn(
@@ -130,9 +144,11 @@ export function HashTable({
               <div
                 className={cn(
                   BUCKET_BOX,
-                  highlightBucket === i
-                    ? "border-lilac-strong bg-lilac-soft"
-                    : "border-border bg-card",
+                  collisionBuckets?.has(i)
+                    ? "border-warning bg-warning-soft"
+                    : highlightBucket === i
+                      ? "border-lilac-strong bg-lilac-soft"
+                      : "border-border bg-card",
                 )}
               >
                 {inner}
@@ -142,5 +158,24 @@ export function HashTable({
         )
       })}
     </div>
+  )
+}
+
+/**
+ * A sealed-bucket placeholder: a bin holds items, but neither the keys nor the
+ * count are shown (every sealed bin reads the same), so a lookup must be hashed
+ * rather than read off. The contents render once the beat reveals (post-commit).
+ */
+function SealedChip() {
+  return (
+    <span
+      data-testid="sealed-bucket"
+      aria-label="contents sealed until you choose"
+      className="flex items-center gap-1 text-faint"
+    >
+      <span className="size-1.5 rounded-full bg-faint" aria-hidden />
+      <span className="size-1.5 rounded-full bg-faint" aria-hidden />
+      <span className="size-1.5 rounded-full bg-faint" aria-hidden />
+    </span>
   )
 }

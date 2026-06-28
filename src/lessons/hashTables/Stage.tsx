@@ -1,4 +1,4 @@
-import { useState, type Dispatch } from "react"
+import { useState, type Dispatch, type ReactNode } from "react"
 import { useReducedMotion } from "motion/react"
 
 import { Button } from "@/components/ui/button"
@@ -11,27 +11,28 @@ import {
   bucketIndexOf,
   canCheckHash,
   chainAfter,
+  collisionCount,
   currentPartHash,
+  designDistribution,
+  distribute,
   isTapPart,
   isTerminalHash,
   legalBuckets,
   partQuotaHash,
   searchTrail,
+  type CombineRule,
   type HashCost,
   type HashQuestion,
   type HashTablesState,
 } from "@/features/lesson/hashTablesEngine"
 import { StageSplit, StageCenter } from "@/components/willow/lesson/StageLayout"
+import { AbstractDemo } from "./AbstractDemo"
 import { HashBox } from "./HashBox"
+import { HashBuilder } from "./HashBuilder"
+import { HashFlyReplay } from "./HashFlyReplay"
 import { HashTable } from "./HashTable"
-import { WarehouseDemo } from "./WarehouseDemo"
 import { WarehouseShelf } from "./WarehouseShelf"
-import {
-  WarehouseButton,
-  WarehouseFooter,
-  WarehouseHeader,
-  WarehousePage,
-} from "./warehouseChrome"
+import { WarehouseFooter, WarehouseHeader, WarehousePage } from "./warehouseChrome"
 
 /** The id of the draggable key tile on the insert (drag) beats. */
 const KEY_SOURCE = "hash-key"
@@ -44,13 +45,17 @@ export function HashTablesStage({
   dispatch: Dispatch<LessonAction>
 }) {
   const part = currentPartHash(state)
-  // Key each part so per-beat local state (a teach step, a lookup scan cursor)
-  // resets cleanly when the beat changes; two lookup beats render back to back.
+  // Key each part so per-beat local state (a teach step, a lookup scan cursor, the
+  // sandbox drop set) resets cleanly when the beat changes.
   if (part === "demo") return <DemoPart key={part} state={state} dispatch={dispatch} />
-  if (part === "teach-hash" || part === "teach-collision") {
-    return <TeachPart key={part} state={state} dispatch={dispatch} />
+  if (part === "teach-hash") return <TeachHashPart key={part} state={state} dispatch={dispatch} />
+  if (part === "teach-collision") {
+    return <TeachCollisionPart key={part} state={state} dispatch={dispatch} />
   }
-  // The real-world beat transforms the page into the warehouse (full-bleed).
+  if (part === "hash-build-demo") return <SandboxPart key={part} state={state} dispatch={dispatch} />
+  if (part === "hash-design") return <DesignPart key={part} state={state} dispatch={dispatch} />
+  // The real-world beat transforms the page into the warehouse (full-bleed); the
+  // warehouse skin is reserved for this graded payoff only.
   if (part === "realworld") return <StowPart key={part} state={state} dispatch={dispatch} />
   if (isTapPart(part)) return <LocatePart key={part} state={state} dispatch={dispatch} />
   if (part === "hash-cat" || part === "hash-dog") {
@@ -59,12 +64,36 @@ export function HashTablesStage({
   return <CollisionPart key={part} state={state} dispatch={dispatch} />
 }
 
-/* ------------------------------- demo (race) ------------------------------- */
+/* -------------------------------- shared bits ------------------------------ */
+
+/** The house teach/intro kicker: a small, wide-tracked lilac eyebrow. */
+function Eyebrow({ children }: { children: ReactNode }) {
+  return (
+    <p className="text-center text-xs font-semibold uppercase tracking-[0.18em] text-lilac-strong">
+      {children}
+    </p>
+  )
+}
+
+function ContinueButton({ dispatch }: { dispatch: Dispatch<LessonAction> }) {
+  return (
+    <Button
+      variant="tactile"
+      size="lg"
+      className="w-full"
+      onClick={() => dispatch({ type: "continue" })}
+    >
+      Continue
+    </Button>
+  )
+}
+
+/* --------------------------- abstract demo (beat 1) ------------------------- */
 
 /**
- * The full-bleed warehouse demo: a toggle between "shelve by type" and "chaotic
- * + index", plus a retrieval race where the index wins instantly. Ungraded; the
- * page transforms into the fulfilment center to sell the counterintuitive idea.
+ * Beat 1, the abstract two-scenario demo (ungraded free play). Willow-styled: the
+ * learner picks a key and watches a sorted scan (scales) versus a hashed jump
+ * (free). No warehouse here; that skin is reserved for the graded realworld beat.
  */
 function DemoPart({
   state,
@@ -74,26 +103,43 @@ function DemoPart({
   dispatch: Dispatch<LessonAction>
 }) {
   const q = state.question
-  const reduced = useReducedMotion()
   if (!q) return null
   return (
     <StageCenter>
-      <WarehousePage reduced={reduced}>
-        <WarehouseHeader title="Chaotic storage" meta="Live demo" prompt={q.prompt} />
-        <div className="flex flex-1 flex-col py-4">
-          <WarehouseDemo />
-        </div>
-        <div className="mt-auto shrink-0 pt-2">
-          <WarehouseButton onClick={() => dispatch({ type: "continue" })}>Continue</WarehouseButton>
-        </div>
-      </WarehousePage>
+      <div className="mt-7 text-center">
+        <Eyebrow>Hashing</Eyebrow>
+        <h2 className="mt-2 text-xl font-bold text-foreground lg:text-2xl">
+          Find one among many
+        </h2>
+        <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground lg:max-w-sm lg:text-base">
+          You can <span className="concept">scan</span> a list until you reach it, or{" "}
+          <span className="concept" style={{ animationDelay: "650ms" }}>
+            jump
+          </span>{" "}
+          straight to where it lives.
+        </p>
+      </div>
+
+      <div className="flex flex-1 flex-col items-center justify-center py-6">
+        <AbstractDemo />
+      </div>
+
+      <div className="mt-auto">
+        <ContinueButton dispatch={dispatch} />
+      </div>
     </StageCenter>
   )
 }
 
-/* ------------------------------- teach beats ------------------------------- */
+/* ------------------------- teach-hash (interactive) ------------------------ */
 
-function TeachPart({
+/**
+ * Beat 2, the interactive teach (wires the built-but-dark `HashBox` reveal): the
+ * learner steps the letters, the box computes `sum mod B`, and the key flies to
+ * its bin, which then appears in the table below. Animation-driven teaching with
+ * concept glow; ungraded. Reduced motion snaps the landing with no timers.
+ */
+function TeachHashPart({
   state,
   dispatch,
 }: {
@@ -101,81 +147,127 @@ function TeachPart({
   dispatch: Dispatch<LessonAction>
 }) {
   const q = state.question
-  // teach-collision: the second item joins the SAME bin's chain on a step.
-  const [joined, setJoined] = useState(false)
-  if (!q) return null
-  const isCollision = q.kind === "teach-collision"
-
-  // Split the colliding bin's chain into the items already there and the one that
-  // joins, so the step button animates only the newcomer (snaps if reduced).
-  const collideBucket = 4
-  const fullChain = q.table[collideBucket] ?? []
-  const baseChain = fullChain.slice(0, -1)
-  const joiningKey = fullChain[fullChain.length - 1]
-  const collisionTable = joined
-    ? { [collideBucket]: fullChain }
-    : { [collideBucket]: baseChain }
+  const reduced = useReducedMotion() ?? false
+  const [landed, setLanded] = useState(false)
+  if (!q || q.key == null) return null
+  const landedTable = landed ? { [q.bucket]: [q.key] } : {}
 
   return (
     <StageCenter>
-      <div className="mt-7 text-center">
-        <p className="text-xs font-medium uppercase tracking-wide text-lilac-strong">
-          Hashing
-        </p>
-        <h2 className="mt-1 text-xl font-bold text-foreground lg:text-2xl">
-          {isCollision ? "Two keys, one bucket" : "One key, one bucket"}
+      <div className="mt-7 text-center animate-fade-in">
+        <Eyebrow>Hashing</Eyebrow>
+        <h2 className="mt-2 text-xl font-bold text-foreground lg:text-2xl">
+          A key knows its own bin
         </h2>
-        <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground lg:max-w-sm lg:text-base">{q.prompt}</p>
+        <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground lg:max-w-sm lg:text-base">
+          A hash turns a <span className="concept">key</span> into a{" "}
+          <span className="concept" style={{ animationDelay: "450ms" }}>
+            location
+          </span>
+          : add the letters, then{" "}
+          <span className="concept" style={{ animationDelay: "900ms" }}>
+            mod the bins
+          </span>
+          .
+        </p>
       </div>
 
       <div className="flex flex-1 flex-col items-center justify-center gap-5 py-6">
-        {isCollision ? (
-          <>
-            <HashTable
-              bucketCount={q.bucketCount}
-              table={collisionTable}
-              mode="display"
-              highlightBucket={collideBucket}
-              newestBucket={joined ? collideBucket : undefined}
-              appendingBucket={joined ? collideBucket : undefined}
-            />
-            {joined ? (
-              <p className="max-w-xs text-center text-sm font-medium text-foreground">
-                {joiningKey} collides with {baseChain.join(", ")}, so it chains onto the end
-                of bin {collideBucket}.
-              </p>
-            ) : (
-              <Button variant="soft" size="sm" onClick={() => setJoined(true)}>
-                Drop the second item
-              </Button>
-            )}
-          </>
-        ) : (
-          <HashTable bucketCount={q.bucketCount} table={q.table} mode="display" />
-        )}
+        <HashBox question={q} reveal onResolved={() => setLanded(true)} />
+        <HashTable
+          bucketCount={q.bucketCount}
+          table={landedTable}
+          mode="display"
+          highlightBucket={landed ? q.bucket : undefined}
+          newestBucket={landed ? q.bucket : undefined}
+          appendingBucket={landed ? q.bucket : undefined}
+          appendEnterOffset={{ y: -28 }}
+          reducedMotion={reduced}
+        />
       </div>
 
       <div className="mt-auto">
-        <Button
-          variant="tactile"
-          size="lg"
-          className="w-full"
-          onClick={() => dispatch({ type: "continue" })}
-        >
-          Continue
-        </Button>
+        <ContinueButton dispatch={dispatch} />
       </div>
     </StageCenter>
   )
 }
 
-/* ------------------------------- shared header ------------------------------ */
+/* ----------------------- teach-collision (animated) ----------------------- */
+
+/**
+ * Beat 6, the collision teach: a second key flies into an occupied bin and chains
+ * onto the tail, played over time through the shared `FrameSequence` (the lesson's
+ * signature append animation) with a Replay control. Concept glow; ungraded.
+ */
+function TeachCollisionPart({
+  state,
+  dispatch,
+}: {
+  state: HashTablesState
+  dispatch: Dispatch<LessonAction>
+}) {
+  const q = state.question
+  const reduced = useReducedMotion() ?? false
+  if (!q) return null
+  // The fixture chain is { 4: [cat, sun] }; replay sun joining cat.
+  const collideBucket = 4
+  const fullChain = q.table[collideBucket] ?? ["cat", "sun"]
+  const baseChain = fullChain.slice(0, -1)
+  const joining = fullChain[fullChain.length - 1] ?? "sun"
+  const baseTable = { [collideBucket]: baseChain }
+
+  return (
+    <StageCenter>
+      <div className="mt-7 text-center animate-fade-in">
+        <Eyebrow>Collisions</Eyebrow>
+        <h2 className="mt-2 text-xl font-bold text-foreground lg:text-2xl">
+          Two keys, one bin
+        </h2>
+        <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground lg:max-w-sm lg:text-base">
+          When two keys hash to the <span className="concept">same bin</span>, the bin keeps
+          both in a{" "}
+          <span className="concept" style={{ animationDelay: "650ms" }}>
+            little chain
+          </span>
+          .
+        </p>
+      </div>
+
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 py-6">
+        <HashFlyReplay
+          keyName={joining}
+          table={baseTable}
+          bucketCount={q.bucketCount}
+          reduced={reduced}
+          caption={(landed, bucket) =>
+            landed
+              ? `${joining} collides with ${baseChain.join(", ")}, so it chains onto the end of bin ${bucket}.`
+              : `${joining} also hashes to bin ${bucket}, where ${baseChain.join(", ")} already sits.`
+          }
+        />
+      </div>
+
+      <div className="mt-auto">
+        <ContinueButton dispatch={dispatch} />
+      </div>
+    </StageCenter>
+  )
+}
+
+/* ------------------------------- shared header ----------------------------- */
 
 function BinHeader({ state }: { state: HashTablesState }) {
   const q = state.question
   const quota = partQuotaHash(state)
   const binLabel =
-    q?.bin === "hash" ? "Insert" : q?.bin === "collision" ? "Shared bin" : "Find"
+    q?.bin === "hash"
+      ? "Insert"
+      : q?.bin === "collision"
+        ? "Shared bin"
+        : q?.bin === "design"
+          ? "Design"
+          : "Find"
   return (
     <div className="mt-7">
       {quota && (
@@ -192,6 +284,191 @@ function BinHeader({ state }: { state: HashTablesState }) {
 
 function feedbackCopy(q: HashQuestion) {
   return { prompt: q.prompt, hint: q.hint, nudge: q.nudge, correct: q.correct, why: q.why }
+}
+
+/* -------------------- make-a-hash sandbox (hash-build-demo) ----------------- */
+
+/**
+ * Beat 10, the free-play hash-builder sandbox (ungraded): the learner picks a
+ * combine rule (sum / first letter / length) AND the bucket count, then drops
+ * keys from the pool and watches them land or collide live. It teaches concept 9
+ * by exploration: a hash is a choice, and a weak rule (first letter, length)
+ * piles keys up while summing the whole key spreads them. Reduced-motion safe.
+ */
+function SandboxPart({
+  state,
+  dispatch,
+}: {
+  state: HashTablesState
+  dispatch: Dispatch<LessonAction>
+}) {
+  const q = state.question
+  const reduced = useReducedMotion() ?? false
+  const spec = q?.design
+  const [rule, setRule] = useState<CombineRule>(spec?.defaultRule ?? "sum")
+  const [buckets, setBuckets] = useState<number>(spec?.defaultBuckets ?? 5)
+  const [dropped, setDropped] = useState<string[]>([])
+  if (!q || !spec) return null
+
+  const table = distribute(rule, buckets, dropped)
+  const collisions = collisionCount(table)
+  const allDropped = dropped.length === spec.keys.length
+
+  const drop = (key: string) => {
+    if (dropped.includes(key)) return
+    setDropped((d) => [...d, key])
+  }
+
+  return (
+    <StageCenter>
+      <div className="mt-7 text-center">
+        <Eyebrow>Make a hash</Eyebrow>
+        <h2 className="mt-2 text-xl font-bold text-foreground lg:text-2xl">
+          Your hash, your rules
+        </h2>
+        <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground lg:max-w-sm lg:text-base">
+          A hash is a <span className="concept">choice</span>. Pick how to combine a key and how
+          many bins, drop keys, and watch what{" "}
+          <span className="concept" style={{ animationDelay: "650ms" }}>
+            collides
+          </span>
+          .
+        </p>
+      </div>
+
+      <div className="flex flex-1 flex-col items-center justify-center gap-4 py-5">
+        {/* the key pool: tap to drop a key into the bins */}
+        <div className="flex flex-col items-center gap-1.5">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {allDropped ? "All keys dropped" : "Tap a key to drop it in"}
+          </p>
+          <div className="flex flex-wrap justify-center gap-1.5">
+            {spec.keys.map((key) => {
+              const isDropped = dropped.includes(key)
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  disabled={isDropped}
+                  onClick={() => drop(key)}
+                  className={
+                    "rounded-lg border-2 px-2.5 py-1 text-sm font-bold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-lilac-strong/60 " +
+                    (isDropped
+                      ? "cursor-default border-border bg-muted text-faint"
+                      : "border-lilac-strong/60 bg-card text-foreground hover:bg-lilac-soft")
+                  }
+                >
+                  {key}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <HashBuilder
+          rule={rule}
+          buckets={buckets}
+          ruleOptions={spec.ruleOptions}
+          bucketOptions={spec.bucketOptions}
+          table={table}
+          collisions={collisions}
+          onPickRule={setRule}
+          onPickBuckets={setBuckets}
+          reducedMotion={reduced}
+        />
+      </div>
+
+      <div className="mt-auto flex flex-col gap-3">
+        <div className="flex gap-3">
+          <Button
+            variant="secondary"
+            size="lg"
+            className="flex-1"
+            disabled={dropped.length === 0}
+            onClick={() => setDropped([])}
+          >
+            Clear
+          </Button>
+          <Button
+            variant="soft"
+            size="lg"
+            className="flex-1"
+            disabled={allDropped}
+            onClick={() => setDropped(spec.keys.slice())}
+          >
+            Drop all
+          </Button>
+        </div>
+        <ContinueButton dispatch={dispatch} />
+      </div>
+    </StageCenter>
+  )
+}
+
+/* ----------------------- design challenge (hash-design) -------------------- */
+
+/**
+ * Beat 11, the graded design challenge (the new design bin): the learner designs a
+ * hash (a combine rule + a bucket count) that gives every target key its own bin.
+ * It opens on a deliberately weak choice that still collides; only a rule that
+ * reads the whole key (sum) can separate the keys, the concept-9 payoff. The
+ * engine grades the chosen distribution (zero collisions clears it).
+ */
+function DesignPart({
+  state,
+  dispatch,
+}: {
+  state: HashTablesState
+  dispatch: Dispatch<LessonAction>
+}) {
+  const q = state.question
+  const reduced = useReducedMotion() ?? false
+  const spec = q?.design
+  if (!q || !spec) return null
+  const { feedback, showWhy } = state
+  const terminal = isTerminalHash(state)
+  const rule = state.designRule ?? spec.defaultRule
+  const buckets = state.designBuckets ?? spec.defaultBuckets
+  const table = designDistribution(state) ?? distribute(rule, buckets, spec.keys)
+  const collisions = collisionCount(table)
+
+  return (
+    <StageCenter>
+      <BinHeader state={state} />
+
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 py-4">
+        <p className="max-w-xs text-center text-sm text-muted-foreground">
+          A good hash <span className="concept">spreads keys</span> so each gets its{" "}
+          <span className="concept" style={{ animationDelay: "450ms" }}>
+            own bin
+          </span>
+          .
+        </p>
+        <HashBuilder
+          rule={rule}
+          buckets={buckets}
+          ruleOptions={spec.ruleOptions}
+          bucketOptions={spec.bucketOptions}
+          table={table}
+          collisions={collisions}
+          onPickRule={(r) => dispatch({ type: "select", letter: `rule:${r}` })}
+          onPickBuckets={(b) => dispatch({ type: "select", letter: `buckets:${b}` })}
+          disabled={terminal}
+          reducedMotion={reduced}
+        />
+      </div>
+
+      <FeedbackFooter
+        feedback={feedback}
+        selected={null}
+        canCheck={canCheckHash(state)}
+        showWhy={showWhy}
+        hideFailHint
+        copy={feedbackCopy(q)}
+        dispatch={dispatch}
+      />
+    </StageCenter>
+  )
 }
 
 /* ----------------------------- insert (drag) beats ------------------------- */
@@ -336,8 +613,13 @@ function LocatePart({
   const correct = feedback === "correct"
   const terminal = isTerminalHash(state)
 
+  // Lookup bins are sealed until the learner commits: at idle the contents are
+  // hidden (so the key cannot be read off and the target bin is not "the only
+  // non-empty one"); the real chains, the trace, and the verdict reveal only
+  // post-commit. The learner must hash the key to choose the bin.
+  const sealed = q.bin === "lookup" && !terminal
   const trail = searchTrail(q.key ?? "", q.table, q.bucketCount)
-  const canTrace = q.bin === "lookup" && trail.chain.length > 0
+  const canTrace = q.bin === "lookup" && terminal && trail.chain.length > 0
   // Stop at the hit, or at the chain's end when absent.
   const stopIndex = trail.foundIndex >= 0 ? trail.foundIndex : trail.chain.length - 1
   const traceDone = cursor >= stopIndex
@@ -376,6 +658,7 @@ function LocatePart({
           bucketCount={q.bucketCount}
           table={q.table}
           mode={terminal ? "display" : "tap"}
+          masked={sealed}
           selected={selected}
           highlightBucket={correct ? q.bucket : undefined}
           correctTarget={q.answer}
