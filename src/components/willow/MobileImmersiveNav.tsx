@@ -7,11 +7,11 @@ import { useNavigation } from "@/lib/navigation"
 import { NAV_ITEMS } from "@/lib/navItems"
 
 /**
- * Mobile lesson-flow nav. One dock morphs between a bottom-right three-line icon
- * (condensed, for immersion) and the full navigation pill. Tapping the icon
- * expands it in place; tapping the scrim or navigating re-condenses it. The dock
- * itself carries the chrome (border, blur, shadow) so a single `layout` spring
- * grows it from the corner instead of cross-fading two separate shapes.
+ * Mobile lesson nav. A three-line dock floats in the bottom-right, clear above
+ * the lesson's own bottom CTA. Tapping it reveals a compact nav pill that grows
+ * out of the icon's corner; tapping the scrim or navigating compresses it back
+ * in. The icon and the pill share one bottom-right origin and cross-fade with a
+ * single scale, so there is no width-morph reflow to jitter.
  */
 export function MobileImmersiveNav() {
   const { screen, tab: active, navigate } = useNavigation()
@@ -21,9 +21,15 @@ export function MobileImmersiveNav() {
   // Re-condense when the route changes (advancing a beat, or leaving the lesson).
   useEffect(() => setExpanded(false), [screen])
 
-  const spring = reduce
+  // The dock belongs to the active lesson, where it floats above the lesson's own
+  // bottom CTA. Other immersive routes (completion) keep their own navigation, so
+  // the dock would only overlap their buttons.
+  if (screen.name !== "lesson") return null
+
+  const pop = reduce
     ? { duration: 0 }
-    : { type: "spring" as const, stiffness: 460, damping: 40 }
+    : { type: "spring" as const, stiffness: 420, damping: 30 }
+  const corner = { transformOrigin: "bottom right" as const }
 
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40">
@@ -42,25 +48,21 @@ export function MobileImmersiveNav() {
         )}
       </AnimatePresence>
 
-      <div className="mx-auto flex max-w-md justify-end px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-        <motion.div
-          layout
-          transition={spring}
-          className={cn(
-            "pointer-events-auto flex items-center overflow-hidden border border-border bg-card/90 shadow-card backdrop-blur-md",
-            expanded ? "h-16 w-full rounded-3xl px-2" : "size-14 justify-center rounded-2xl",
-          )}
-        >
-          <AnimatePresence mode="wait" initial={false}>
+      <div className="mx-auto flex max-w-md justify-end px-4 pb-[max(5.5rem,calc(env(safe-area-inset-bottom)+5.5rem))]">
+        {/* Fixed-size anchor so the fab and the (larger) pill share one
+            bottom-right corner without shifting the layout while they swap. */}
+        <div className="pointer-events-auto relative size-14">
+          <AnimatePresence initial={false}>
             {expanded ? (
               <motion.nav
-                key="tabs"
+                key="pill"
                 aria-label="Primary"
-                className="flex w-full items-center justify-around gap-1"
-                initial={reduce ? false : { opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={reduce ? { opacity: 0 } : { opacity: 0 }}
-                transition={{ duration: 0.1 }}
+                style={corner}
+                initial={reduce ? false : { opacity: 0, scale: 0.6 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.6 }}
+                transition={pop}
+                className="absolute bottom-0 right-0 flex items-center gap-1 rounded-3xl border border-border bg-card/95 p-1.5 shadow-card backdrop-blur-md"
               >
                 {NAV_ITEMS.map(({ tab, label, Icon, target }) => {
                   const isActive = tab === active
@@ -71,7 +73,7 @@ export function MobileImmersiveNav() {
                       onClick={() => navigate(target)}
                       aria-current={isActive ? "page" : undefined}
                       className={cn(
-                        "flex flex-1 flex-col items-center gap-1 rounded-2xl py-1.5 text-[11px] font-medium transition-colors",
+                        "flex w-[3.75rem] flex-col items-center gap-1 rounded-2xl py-2 text-[10px] font-medium transition-colors",
                         isActive
                           ? "text-lilac-strong"
                           : "text-muted-foreground hover:text-foreground",
@@ -93,17 +95,18 @@ export function MobileImmersiveNav() {
                 type="button"
                 onClick={() => setExpanded(true)}
                 aria-label="Show navigation"
-                className="flex size-full items-center justify-center text-foreground"
-                initial={reduce ? false : { opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={reduce ? { opacity: 0 } : { opacity: 0 }}
-                transition={{ duration: 0.1 }}
+                style={corner}
+                initial={reduce ? false : { opacity: 0, scale: 0.6 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.6 }}
+                transition={pop}
+                className="absolute inset-0 flex items-center justify-center rounded-2xl border border-border bg-card/90 text-foreground shadow-card backdrop-blur-md"
               >
                 <Menu className="size-5" />
               </motion.button>
             )}
           </AnimatePresence>
-        </motion.div>
+        </div>
       </div>
     </div>
   )
