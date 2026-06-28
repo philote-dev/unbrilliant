@@ -1089,7 +1089,7 @@ function makeIntro(part: "demo" | "teach-array" | "teach-rule" | "teach-extract"
       bin: null,
       mode: "intro",
       prompt:
-        "Discharge the most urgent patient: the last one on the board moves up to the top spot, then sinks past anyone more urgent.",
+      "Discharge the most urgent patient. The last one on the board moves up to the top spot, then sinks past anyone more urgent.",
       heap,
       startHeap: start,
       resultHeap: result,
@@ -1203,7 +1203,7 @@ function makeContrastPlace(seed: number): { question: HeapsQuestion; next: numbe
       sortCost: { word: "scales", count: result.length, unit: "items sorted" },
       hint: "",
       nudge: "It rises only while it beats its parent, and it never reshuffles the whole tree.",
-      correct: `A heap places by shape-then-sift, not by value: ${arrowChain(result)}.`,
+      correct: `A heap places by shape-then-sift, not by value. ${arrowChain(result)}.`,
       why: `A BST would order everything by value (the sorted card). A heap only appends at the next open slot and swaps up while it beats its parent, so ${key} lands at ${arrowChain(result)}, not in sorted order.`,
     },
     next: sh.next,
@@ -1225,7 +1225,7 @@ function makeERExtract(): HeapsQuestion {
     kind: "siftup-skin",
     bin: "siftDown",
     mode: "arrangement",
-    prompt: `Discharge the most urgent patient (severity ${extracted}). Sink the new top: tap it, then its more urgent child, to swap.`,
+    prompt: `Discharge the most urgent patient (severity ${extracted}). Sink the new top by tapping it, then its more urgent child, to swap.`,
     heap,
     startHeap: start,
     resultHeap: result,
@@ -1239,7 +1239,7 @@ function makeERExtract(): HeapsQuestion {
     hint: "",
     nudge: "Promote the more urgent child; keep sinking only while a child outranks the patient on top.",
     correct: `${path.length} ${swapWord(path.length)}, the board settles at ${arrowChain(result)}.`,
-    why: `Discharging the top moves the last patient (${start[0]}) to the top, then they trade down with the more urgent child while that child outranks them: ${arrowChain(result)}.`,
+    why: `Discharging the top moves the last patient (${start[0]}) to the top, then they trade down with the more urgent child while that child outranks them. ${arrowChain(result)}.`,
   }
 }
 
@@ -1258,7 +1258,7 @@ function makeSynthesis(): HeapsQuestion {
     kind: "er-synthesis",
     bin: "synthesis",
     mode: "synthesis",
-    prompt: "Run the ER board: admit the new patient, discharge the most urgent, then re-triage.",
+    prompt: "Run the ER board by admitting the new patient, discharging the most urgent, then re-triaging.",
     heap: start,
     synthesisSteps: steps,
     startHeap: start,
@@ -1269,9 +1269,9 @@ function makeSynthesis(): HeapsQuestion {
     cost: { word: "barely grows", count: steps.length, unit: "ER ops" },
     sortCost: { word: "scales", count: result.length, unit: "items sorted" },
     hint: "",
-    nudge: "One op at a time: admit sifts up, discharge sinks the new top, re-triage re-sifts the changed patient.",
-    correct: `The board holds through every op: ${arrowChain(result)}.`,
-    why: `Admit, discharge, and re-triage each touch only one path: insert sifts up, extract sinks the new top past the more urgent child, and a changed severity re-sifts up or down. The board stays valid throughout, settling at ${arrowChain(result)}.`,
+    nudge: "One op at a time. Admit sifts up, discharge sinks the new top, re-triage re-sifts the changed patient.",
+    correct: `The board holds through every op. ${arrowChain(result)}.`,
+    why: `Admit, discharge, and re-triage each touch only one path. Insert sifts up, extract sinks the new top past the more urgent child, and a changed severity re-sifts up or down. The board stays valid throughout, settling at ${arrowChain(result)}.`,
   }
 }
 
@@ -1295,7 +1295,7 @@ function makeSiftDownDo(
       kind: part,
       bin: "siftDown",
       mode: "arrangement",
-      prompt: `Extract the top (${extracted}). Sink the new root: tap it, then its larger child, to swap.`,
+      prompt: `Extract the top (${extracted}). Sink the new root by tapping it, then its larger child, to swap.`,
       heap,
       startHeap: start,
       resultHeap: result,
@@ -1368,7 +1368,7 @@ function makeWatchedBuild(): HeapsQuestion {
     kind: "watched-build",
     bin: null,
     mode: "intro",
-    prompt: "Watch a heap built from nothing: each key drops in, then climbs while it beats its parent.",
+    prompt: "Watch a heap built from nothing. Each key drops in, then climbs while it beats its parent.",
     heap: result,
     buildKeys: keys,
     startHeap: [],
@@ -1404,7 +1404,7 @@ function makeBuild(): HeapsQuestion {
     answer: heapId(result),
     hint: "",
     nudge: "A new key rises only while it beats its parent. Tap the climbing key, then its parent, to swap.",
-    correct: `You built it: ${arrowChain(result)}. Each key sifted up, never a full reshuffle.`,
+    correct: `You built it. ${arrowChain(result)}. Each key sifted up, never a full reshuffle.`,
     why: `Building inserts one key at a time and sifts each up while it beats its parent. The result is a valid heap, ${arrowChain(
       result,
     )}, without ever sorting the whole row.`,
@@ -1433,7 +1433,7 @@ function makeSameData(): HeapsQuestion {
     correctSlot: slot,
     hint: "",
     nudge: "It isn't placed by value; the cell index matches the node's index exactly.",
-    correct: `Same data, same index: the node is array cell ${slot} (${heap[slot]}).`,
+    correct: `Same data, same index. The node is array cell ${slot} (${heap[slot]}).`,
     why: `The tree is just a view of the array. Node ${slot} and cell ${slot} are the same ${heap[slot]}. A BST might sort by value, but a heap's array packing follows the tree position, not the value.`,
   }
 }

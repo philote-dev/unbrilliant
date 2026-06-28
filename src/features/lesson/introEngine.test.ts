@@ -12,4 +12,10 @@ describe("intro engine checks", () => {
       ])
     }
   })
+
+  it("does not give away the why-organize answer in the hint", () => {
+    const whyCheck = INTRO_CHECKS.find((check) => check.id === "why")
+
+    expect(whyCheck?.hint).not.toMatch(/skip straight|jump straight/i)
+  })
 })

@@ -685,7 +685,7 @@ function LocatePart({
           <p className="text-center text-sm font-medium text-foreground">
             {q.present
               ? `${q.key} is here, in bin ${q.bucket}.`
-              : `${q.key} is not in bin ${q.bucket}: absent.`}
+              : `${q.key} is absent from bin ${q.bucket}.`}
           </p>
         )}
       </div>

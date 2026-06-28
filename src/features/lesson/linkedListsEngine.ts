@@ -534,7 +534,7 @@ function makePlaylistSynthesis(): LLQuestion {
     {
       phase: "reorder",
       prompt: `Move ${D} up to play right after ${X}.`,
-      nudge: `Unlink ${D} first (${B} -> ${E}), then splice it back in save-first: ${D} -> ${B}, then ${X} -> ${D}.`,
+      nudge: `Unlink ${D} first (${B} -> ${E}), then splice it back in save-first. Aim ${D} -> ${B}, then ${X} -> ${D}.`,
       correct: `${D} re-queued - unlink, then relink in the safe order.`,
       writeStart: 3,
       writeEnd: 6,
@@ -546,7 +546,7 @@ function makePlaylistSynthesis(): LLQuestion {
 
   return {
     kind: "playlist",
-    prompt: "Run the playlist: queue a track, drop one, then reorder one.",
+    prompt: "Run the playlist by queuing a track, dropping one, then reordering one.",
     nodes,
     head,
     initialNext: chainNext(nodes),
@@ -559,7 +559,7 @@ function makePlaylistSynthesis(): LLQuestion {
     cost: { word: "free", count: flatWrites.length, unit: "pointer writes" },
     hint: "",
     nudge: "One operation at a time - the queue tells you which.",
-    correct: "Insert, delete, reorder: every edit is a handful of pointer writes.",
+    correct: "Insert, delete, reorder. Every edit is a handful of pointer writes.",
     why: "A playlist is a linked list. Queuing saves-then-splices, dropping bypasses, and reordering is unlink + relink. None of it shifts the whole list - it just re-aims pointers.",
   }
 }
@@ -757,7 +757,7 @@ function makeDoublySplice(): LLQuestion {
     hint: "",
     nudge: "Set the newcomer's own two pointers first, then redirect each neighbour.",
     correct: "Four writes, and the list stays linked both directions.",
-    why: `Save-first still rules: aim ${X}'s own next and prev first (${X}.next -> ${B}, ${X}.prev -> ${A}), then redirect the neighbours (${A}.next -> ${X}, ${B}.prev -> ${X}). Redirect a neighbour too early and you lose the node you still need.`,
+    why: `Save-first still rules. Aim ${X}'s own next and prev first (${X}.next -> ${B}, ${X}.prev -> ${A}), then redirect the neighbours (${A}.next -> ${X}, ${B}.prev -> ${X}). Redirect a neighbour too early and you lose the node you still need.`,
   }
 }
 
@@ -821,8 +821,8 @@ export function insertWriteFrames(q: LLQuestion): RewireFrame[] {
   const spliced = { ...saved, [pointerId(prev)]: NEW_NODE }
   return [
     { workingNext: base, orphaned: [], caption: `${prev} still points at ${at}; ${NEW_NODE} is loose.` },
-    { workingNext: saved, orphaned: [], caption: `Save the rest first: ${NEW_NODE} -> ${at}.` },
-    { workingNext: spliced, orphaned: [], caption: `Then splice: ${prev} -> ${NEW_NODE}. Two writes.` },
+    { workingNext: saved, orphaned: [], caption: `Save the rest first with ${NEW_NODE} -> ${at}.` },
+    { workingNext: spliced, orphaned: [], caption: `Then splice with ${prev} -> ${NEW_NODE}. Two writes.` },
   ]
 }
 
@@ -837,7 +837,7 @@ export function deleteWriteFrames(q: LLQuestion): RewireFrame[] {
     {
       workingNext: bypassed,
       orphaned: orphanedFor(q.nodes, q.head, bypassed),
-      caption: `Bypass it: ${prev} -> ${after}. It falls out of the list.`,
+      caption: `Bypass it with ${prev} -> ${after}. It falls out of the list.`,
     },
   ]
 }

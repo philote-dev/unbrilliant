@@ -390,4 +390,14 @@ describe("Arrays: appendRun (amortized tally)", () => {
   it("is pure: identical args yield identical runs", () => {
     expect(appendRun(8, "double")).toEqual(appendRun(8, "double"))
   })
+
+  it("starting from a full block of 4, 7 more appends cost 12 (double) vs 49 (plusOne)", () => {
+    const dbl = appendRun(7, "double", 4, 4)
+    expect(dbl.totalCopied).toBe(12)
+    expect(dbl.steps.map((s) => s.copied)).toEqual([4, 0, 0, 0, 8, 0, 0])
+
+    const one = appendRun(7, "plusOne", 4, 4)
+    expect(one.totalCopied).toBe(49)
+    expect(one.steps.map((s) => s.copied)).toEqual([4, 5, 6, 7, 8, 9, 10])
+  })
 })

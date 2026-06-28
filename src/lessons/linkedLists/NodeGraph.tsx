@@ -39,10 +39,10 @@ const HOP_FILL_MS = 60
 
 /**
  * The literal-arrow figure, in three modes:
- *  - **demo**: drag a node anywhere inside a roomy, device-sized play area —
+ *  - **demo**: drag a node anywhere inside a roomy, device-sized play area.
  *    arrows re-route, the list is unchanged (position is meaningless; the arrow
  *    is identity). Nodes are clamped to the area so they can't be lost.
- *  - **walk**: tap the next node to walk from the head — each hop lights up; the
+ *  - **walk**: tap the next node to walk from the head. Each hop lights up; the
  *    hop count is the cost (no jumping).
  *  - **rewire**: grab a node's arrow and drag it onto another node. It detaches
  *    on grab, stretches to the cursor, and snaps onto a glowing legal node. Doing
@@ -84,7 +84,7 @@ export function NodeGraph({
   cursor?: number
   /** Colour of the walked path's end node: selecting (active), right, or wrong. */
   cursorTone?: NodeTone
-  /** Index of the correct node (walk) — stamps a dev-only answer hook for the tracer. */
+  /** Index of the correct node (walk). Stamps a dev-only answer hook for the tracer. */
   answerIndex?: number
   /** Forced walk: the ONLY tappable node index (the next hop). Others are inert. */
   frontier?: number
@@ -195,7 +195,7 @@ function DemoGraph({ nodes, reduced }: { nodes: string[]; reduced: boolean }) {
     try {
       e.currentTarget.setPointerCapture?.(ptr)
     } catch {
-      // jsdom / unsupported — window listeners cover the gesture.
+      // jsdom / unsupported. Window listeners cover the gesture.
     }
     const onMove = (ev: PointerEvent) => {
       const d = dragRef.current
@@ -538,7 +538,7 @@ function StructuredGraph({
             )}
           </svg>
 
-          {/* nodes — in rewire mode each node is BOTH the drag handle for its own
+          {/* In rewire mode, each node is BOTH the drag handle for its own
               arrow AND a drop target (grab a node, drag onto another). */}
           {nodes.map((node, i) => {
             const box = boxes.get(node)!
@@ -574,14 +574,14 @@ function StructuredGraph({
             )
           })}
 
-          {/* the new node — rewire only (also a grab handle + drop target) */}
+          {/* The new node, rewire only (also a grab handle + drop target). */}
           {mode === "rewire" && newNode && !orphanSet.has(newNode) && (
             <Positioned box={boxes.get(newNode)!}>
               <RewireNode node={newNode} isNew orderHint={orderHintFor(rewires, newNode)} scale={scale} />
             </Positioned>
           )}
 
-          {/* the new node — replay (read-only) */}
+          {/* The new node, replay (read-only). */}
           {mode === "replay" && newNode && !orphanSet.has(newNode) && (
             <Positioned box={boxes.get(newNode)!}>
               <PlainNode node={newNode} isNew />
@@ -690,7 +690,7 @@ function orderHintFor(
 /**
  * A rewire node: simultaneously the **grab handle for its own arrow** (drag/tap/
  * keyboard arms `p:node`) and a **drop target** (id `node`). Grab a node and drag
- * onto another to re-aim its `next` — no separate connector dots. Talks straight
+ * onto another to re-aim its `next`. No separate connector dots. Talks straight
  * to the shared <RewireSurface> context so drag, tap, and keyboard emit the same
  * `from → to` intent (and the E2E tracer hooks survive on the node itself).
  */
@@ -725,7 +725,7 @@ function RewireNode({
       {...rootProps}
       aria-label={
         armed
-          ? `${node} arrow grabbed — choose a target`
+          ? `${node} arrow grabbed. Choose a target`
           : showLegal
             ? `node ${node}, available target`
             : `node ${node}, drag its arrow to connect`

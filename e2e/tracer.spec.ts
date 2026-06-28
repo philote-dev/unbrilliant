@@ -1,23 +1,65 @@
 import { expect, test, type Page } from "@playwright/test"
 
 /**
- * The single wiring proof: start anonymously → play the redesigned Stacks &
- * Queues flow (demo → teach → predict → real-world → construct, for both
- * structures, then the compare gate) → sign in mid-run (carry-up) → drive to
- * completion → continue into Arrays → reload and confirm the signed-in learner
- * resumes (progress persisted). The winning option always carries a dev-only
- * `data-answer` marker (the redesign removed the TOP/FRONT tell), and construct
- * cards carry `data-push-order` so the tracer pushes them in the correct order.
+ * The single wiring proof: sign in up front, enter the course, and play every
+ * lesson end to end one beat at a time the way a learner would, focusing on the
+ * five redesigned lessons (Linked Lists, Hash Tables, Trees, Heaps, Graphs). Each
+ * lesson is driven to its mastery completion and unlocks the next; a final reload
+ * confirms the signed-in learner resumes (progress persisted). Every winning option
+ * carries a dev-only `data-answer` marker (the redesign removed the visible tell);
+ * the active beats (do-the-sift, forced walks, scripted writes, traces, builds,
+ * edge draws) carry their own dev-only `data-*` hooks so the tracer drives them
+ * deterministically.
+ *
+ * Why sign in BEFORE playing (not mid-run): cross-lesson progression needs durable
+ * progress, and `CourseProgressProvider` overlays only the ACTIVE lesson run, so a
+ * signed-out run forgets earlier lessons once it leaves them. Signing in first also
+ * sidesteps the broken anonymous carry-up: the deployed firestore.rules
+ * `isValidLessonProgress` evaluates `d.completedAt == null` without a
+ * `'completedAt' in d` guard, so the sign-in reconcile write (which omits the field)
+ * is rejected. Starting clean (no anonymous progress to carry up) keeps every
+ * per-lesson save valid, so progress persists and the course unlocks in order.
  */
 
 const EMAIL = `tracer_${Date.now()}@willow.test`
 const PASSWORD = "willow-test-pass"
 const NAME = "Tracer Learner"
 
+/** A generous click timeout so a beat that opens with a short hand-off / draw-on
+ * animation (the hook appears a few hundred ms in) still lands. */
+const ACT = 12_000
+
 async function continueOn(page: Page) {
   const cont = page.getByRole("button", { name: "Continue", exact: true })
   await cont.waitFor({ state: "visible" })
   await cont.click()
+}
+
+/** Move to the next lesson from a completion screen. Signed in there is no
+ * save-progress prompt, but dismiss one if it ever appears, then take the
+ * "Continue to X" CTA. */
+async function nextLesson(page: Page, cta: RegExp) {
+  const maybeLater = page.getByRole("button", { name: "Maybe later", exact: true })
+  if (await maybeLater.isVisible().catch(() => false)) await maybeLater.click()
+  await page.getByRole("button", { name: cta }).click()
+}
+
+/** Stacks & Queues shows a Poly "quick check" after each construct (cp-stacks /
+ * cp-queues). It opens in voice mode, which is unavailable in the headless run, so
+ * fall back to typing: open the keyboard, give any explanation, submit, and tap
+ * Continue on the recap. The AI scorer is unreachable in the emulator-only run, so
+ * the beat resolves straight to the recap. */
+async function polyCheckpoint(page: Page) {
+  // Voice is unavailable headless, so the checkpoint falls back to the keyboard
+  // sheet on its own; if it ever stays in voice mode, reveal the keyboard.
+  const box = page.getByPlaceholder("Type your explanation...")
+  await box.waitFor({ state: "visible", timeout: ACT }).catch(async () => {
+    await page.getByRole("button", { name: "Type instead" }).click()
+    await box.waitFor({ state: "visible", timeout: ACT })
+  })
+  await box.fill("A stack is last in, first out; a queue is first in, first out.")
+  await page.getByRole("button", { name: "Submit", exact: true }).click()
+  await continueOn(page) // the recap → Continue dismisses the checkpoint
 }
 
 /** Free-play demo beat: exercise the structure, then move on. */
@@ -26,7 +68,8 @@ async function playDemo(page: Page, verb: RegExp) {
   await continueOn(page)
 }
 
-/** Predict / real-world / compare: tap the marked winning option, check, continue. */
+/** Predict / real-world / compare: tap the marked winning option (the dev-only
+ * `data-answer` hook, on any element), check, continue. */
 async function answerCell(page: Page) {
   await page.locator('[data-answer="1"]').first().click()
   await page.getByRole("button", { name: "Check" }).click()
@@ -55,8 +98,12 @@ async function buildConstruct(page: Page) {
   await continueOn(page)
 }
 
+/** MCQ-card beats (the shared AnswerCard hook): tap the card marked correct, then
+ * Check + Continue. Covers Arrays predicts, LL predict, Hash collisions, Trees
+ * compare-shape, Heaps contrast-place, and the Graphs match/classify beats (whose
+ * themed option buttons replicate the `answer-card` testid + `data-answer` hook). */
 async function answerArrays(page: Page) {
-  await page.locator('[data-testid="answer-card"][data-answer="1"]').click()
+  await page.locator('[data-testid="answer-card"][data-answer="1"]').first().click()
   await page.getByRole("button", { name: "Check" }).click()
   await continueOn(page)
 }
@@ -69,9 +116,8 @@ async function answerCellTap(page: Page) {
   await continueOn(page)
 }
 
-/** Arrays scan walk (A3): a value search has no shortcut. Start the search at the
- * front, then reveal cells rightward one at a time until the value turns up and
- * the beat auto-commits. The walk self-checks, so there is no Check button. */
+/** Arrays scan walk (A3): a value search has no shortcut. Reveal cells rightward
+ * one at a time until the value turns up and the beat auto-commits (no Check). */
 async function walkScanArrays(page: Page) {
   const cont = page.getByRole("button", { name: "Continue", exact: true })
   await page.getByRole("button", { name: "Reveal cell 0" }).click()
@@ -82,18 +128,10 @@ async function walkScanArrays(page: Page) {
   await continueOn(page)
 }
 
-/** Traverse (Linked Lists L1): the answer is a node — tap the one marked correct
- * (dev-only data-answer hook), then Check. No MCQ cards in this beat. */
-async function answerTraverse(page: Page) {
-  await page.locator('[data-answer="1"]').first().click()
-  await page.getByRole("button", { name: "Check" }).click()
-  await continueOn(page)
-}
-
-/** Rewire beats (Linked Lists insert/delete/playlist): commit each write in the
- * pinned SAFE order via tap — arm a node's arrow, drop it on its correct target —
- * using the dev-only data-write-order / data-rewire-correct-target hooks.
- * (Keyboard parity is covered by the NodeGraph unit test.) */
+/** Rewire beats (Arrays place-cheapest, Linked Lists insert/delete): commit each
+ * write in the pinned SAFE order via tap. Arm a node's arrow (its
+ * data-rewire-source), drop it on its correct target, using the dev-only
+ * data-write-order / data-rewire-correct-target hooks. */
 async function rewireInOrder(page: Page) {
   const markers = page.locator("[data-write-order]")
   const n = await markers.count()
@@ -145,85 +183,198 @@ async function rewireByKeyboard(page: Page) {
   await continueOn(page)
 }
 
-/** Hash key→bucket drop via the KEYBOARD fallback: focus the key, Enter to arm,
- * ArrowDown to the correct bucket (targets register in DOM order 0..B-1), Enter.
- * The correct bucket id is exposed via a dev-only data-hash-correct-bucket hook. */
-async function hashDropByKeyboard(page: Page) {
-  const correct =
-    (await page
-      .locator("[data-hash-correct-bucket]")
-      .getAttribute("data-hash-correct-bucket")) ?? ""
-  await page.locator("[data-rewire-source]").first().focus()
-  await page.keyboard.press("Enter") // arm the key
-  const targets = await page
-    .locator("[data-rewire-target]")
-    .evaluateAll((els) => els.map((e) => e.getAttribute("data-rewire-target")))
-  const idx = targets.indexOf(correct)
-  for (let i = 0; i <= idx; i++) await page.keyboard.press("ArrowDown")
-  await page.keyboard.press("Enter") // drop on the correct bucket
+/* ------------------------------- linked lists ------------------------------ */
+
+/** Traverse / forced walk (Linked Lists L1): only the next hop is tappable, so the
+ * walk is performed, not jumped. Tap the single enabled node in the figure to take
+ * one hop; the target node carries the dev-only data-answer hook on the final hop,
+ * so once it appears tap it and commit with Check. */
+async function walkTraverse(page: Page) {
+  for (let i = 0; i < 10; i++) {
+    const answer = page.locator('[data-testid="node-graph"] [data-answer="1"]')
+    if (await answer.count()) {
+      await answer.first().click()
+      break
+    }
+    // The frontier (next hop) is the only enabled node button in the figure.
+    await page.locator('[data-testid="node-graph"] button:not([disabled])').first().click()
+  }
   await page.getByRole("button", { name: "Check" }).click()
   await continueOn(page)
 }
 
-/** Hash key→bucket drop via tap: arm the key, then tap its correct bucket. */
-async function hashDropByPointer(page: Page) {
-  const correct =
-    (await page
-      .locator("[data-hash-correct-bucket]")
-      .getAttribute("data-hash-correct-bucket")) ?? ""
-  await page.locator("[data-rewire-source]").first().click() // arm via tap
-  await page.locator(`[data-rewire-target="${correct}"]`).click() // drop
+/** The playlist synthesis (Linked Lists, one graded slot, many writes): perform the
+ * scripted insert -> delete -> reorder writes strictly in order. The next write's
+ * source row carries data-write-order="1" plus its data-rewire-correct-target, so
+ * arm that source and drop on the target, repeating until the queue is built. */
+async function playlistSynthesis(page: Page) {
+  const cont = page.getByRole("button", { name: "Continue", exact: true })
+  for (let i = 0; i < 10; i++) {
+    if (await cont.isVisible().catch(() => false)) break
+    const marker = page.locator('[data-write-order="1"]').first()
+    await marker.waitFor({ state: "visible", timeout: ACT })
+    const target = (await marker.getAttribute("data-rewire-correct-target")) ?? ""
+    const srcId = (await marker.locator("xpath=..").getAttribute("data-rewire-source")) ?? ""
+    await page.locator(`[data-rewire-source="${srcId}"]`).first().click()
+    await page.locator(`[data-rewire-target="${target}"]`).first().click()
+  }
+  await continueOn(page)
+}
+
+/** Contrast two-step (Linked Lists contrast-insert / contrast-reach): make the
+ * de-cued pick (marked correct), Check to advance, then answer the graded why-MCQ
+ * (also marked correct) and Check. */
+async function contrastTwoStep(page: Page) {
+  await page.locator('[data-testid="answer-card"][data-answer="1"]').first().click() // pick
+  await page.getByRole("button", { name: "Check" }).click()
+  await page.getByText(/Now, why/).waitFor({ state: "visible", timeout: ACT }) // why phase
+  await page.locator('[data-testid="answer-card"][data-answer="1"]').first().click() // why-MCQ
   await page.getByRole("button", { name: "Check" }).click()
   await continueOn(page)
 }
 
-/** Trees descend (find / insert / real-world / contrast): tap the marked correct
- * next step until Check enables, then check. The dev-only data-answer hook moves
- * to the next correct node/ghost each render (and, for the contrast beat, walks
- * the sorted list first, then descends the BST). */
+/** Doubly splice (Linked Lists): tap the four write chips in the SAFE order (the
+ * newcomer's own pointers first, then redirect each neighbour). The chips are
+ * scrambled on screen, so tap them by their write label; a wrong order only nudges. */
+async function doublySplice(page: Page) {
+  for (const re of [/X\.next/, /X\.prev/, /A\.next/, /B\.prev/]) {
+    await page.getByRole("button", { name: re }).click()
+  }
+  await continueOn(page)
+}
+
+/** Doubly backward walk (Linked Lists): start at the tail and follow prev one hop
+ * at a time (only the next hop is tappable). The DoublyChain has no answer hook, so
+ * read the target letter from the prompt and tap the enabled node until it is the
+ * target, then commit with Check. */
+async function walkDoublyBackward(page: Page) {
+  const heading = await page.getByRole("heading", { name: /Walk back to/ }).innerText()
+  const answer = heading.match(/back to ([A-Z])/)?.[1] ?? null
+  for (let i = 0; i < 8; i++) {
+    const enabled = page.locator('[data-testid="doubly-graph"] button:not([disabled])').first()
+    await enabled.waitFor({ state: "visible", timeout: ACT })
+    const text = (await enabled.innerText()).trim()
+    await enabled.click()
+    if (text === answer) break
+  }
+  await page.getByRole("button", { name: "Check" }).click()
+  await continueOn(page)
+}
+
+/* ------------------------------- hash tables ------------------------------- */
+
+/** Hash insert / stow (drag): scan the key, then drop it on the bin its hash points
+ * to. The figure exposes the correct bin via data-hash-correct-bucket; arm the lone
+ * draggable source and drop on that bin's data-rewire-target, then Check. Covers
+ * hash-cat, hash-dog, and the warehouse realworld payoff. */
+async function hashDrag(page: Page) {
+  const correct =
+    (await page.locator("[data-hash-correct-bucket]").getAttribute("data-hash-correct-bucket")) ?? ""
+  await page.locator("[data-rewire-source]").first().click() // arm the key / package
+  await page.locator(`[data-rewire-target="${correct}"]`).click() // drop on its bin
+  await page.getByRole("button", { name: "Check" }).click()
+  await continueOn(page)
+}
+
+/** Hash design challenge (Hash Tables): pick a combine rule that reads the whole key
+ * (Sum the letters) and a bucket count that spreads the target keys (5), so no keys
+ * collide, then Check. The opening choice (first-letter, 5 bins) deliberately
+ * collides. */
+async function hashDesign(page: Page) {
+  await page.getByRole("button", { name: "Sum the letters" }).click()
+  await page.getByRole("button", { name: "5", exact: true }).click()
+  await page.getByRole("button", { name: "Check" }).click()
+  await continueOn(page)
+}
+
+/* ---------------------------------- trees --------------------------------- */
+
+/** Trees descend / sequence / contrast (every tap-the-correct-step beat): tap the
+ * single marked correct next step until Check enables, then Check. The dev-only
+ * data-answer hook moves to the next correct node / ghost slot / in-order frontier
+ * each render (and, for the contrast beat, walks the sorted list before the BST
+ * descend). Covers find-hit/miss, insert, find-big, the frontier-gated sequences,
+ * the bracket realworld, and the list-vs-tree contrast. */
 async function treeDescend(page: Page) {
   const check = page.getByRole("button", { name: "Check" })
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < 18; i++) {
     if (!(await check.isDisabled())) break
-    await page.locator('[data-answer="1"]').first().click()
+    const ans = page.locator('[data-answer="1"]')
+    if ((await ans.count()) === 0) break
+    await ans.first().click()
   }
   await check.click()
   await continueOn(page)
 }
 
-/** Trees in-order sequence: tap nodes in ascending data-inorder-rank (the unique
- * left→node→right order), independent of the compact pixel layout. */
-async function treeSequence(page: Page) {
-  const ranks = await page
-    .locator("[data-inorder-rank]")
-    .evaluateAll((els) => els.map((e) => Number(e.getAttribute("data-inorder-rank"))))
-  for (const r of [...ranks].sort((a, b) => a - b)) {
-    await page.locator(`[data-inorder-rank="${r}"]`).click()
+/** Trees build-the-BST (build-bst-1 / build-bst-2): grow the tree by descending each
+ * key to its empty slot and dropping it in. Each correct next step (a child to step
+ * to, or the ghost slot to drop into) carries the data-answer hook; tap it until the
+ * tree is grown and the Continue button appears (the build commits via taps, never
+ * Check). */
+async function buildBst(page: Page) {
+  const cont = page.getByRole("button", { name: "Continue", exact: true })
+  for (let i = 0; i < 40; i++) {
+    if (await cont.isVisible().catch(() => false)) break
+    await page.locator('[data-answer="1"]').first().click({ timeout: ACT })
   }
-  await page.getByRole("button", { name: "Check" }).click()
+  await continueOn(page)
+}
+
+/* ---------------------------------- heaps --------------------------------- */
+
+/** Heaps do-the-sift / build / synthesis (every swap-performed beat): perform each
+ * correct swap by tapping the node, then its swap target, until the heap rule holds
+ * and the Continue button appears. The two cells of the next correct swap carry the
+ * dev-only data-sift-from / data-sift-to hooks (on both the dual-view array cells
+ * and the ER triage cells); extract beats play a short hand-off first, so the
+ * generous click timeout waits the hooks in. */
+async function doTheSift(page: Page) {
+  const cont = page.getByRole("button", { name: "Continue", exact: true })
+  for (let i = 0; i < 16; i++) {
+    if (await cont.isVisible().catch(() => false)) break
+    await page.locator("[data-sift-from]").first().click({ timeout: ACT })
+    await page.locator("[data-sift-to]").first().click({ timeout: ACT })
+  }
   await continueOn(page)
 }
 
 /** Heaps index-map / same-data: tap the slot marked correct (dev-only
- * data-heap-correct-slot), then check. */
+ * data-heap-correct-slot), then Check. */
 async function answerHeapSlot(page: Page) {
   await page.locator("[data-heap-correct-slot]").first().click()
   await page.getByRole("button", { name: "Check" }).click()
   await continueOn(page)
 }
 
-/** Graphs tap-the-neighbors multi-select: tap every node marked correct (dev-only
- * data-answer), then check — the verdict is set equality on the selection. */
+/* --------------------------------- graphs --------------------------------- */
+
+/** Graphs tap-the-neighbors multi-select (read-list, read-degree): tap every node
+ * marked correct (dev-only data-answer), then Check. The verdict is set equality on
+ * the selection. */
 async function tapNeighbors(page: Page) {
-  const nodes = page.locator('[data-answer="1"]')
+  const nodes = page.locator('[data-testid="graph-canvas"] [data-answer="1"]')
   const n = await nodes.count()
   for (let i = 0; i < n; i++) await nodes.nth(i).click()
   await page.getByRole("button", { name: "Check" }).click()
   await continueOn(page)
 }
 
-/** Graphs draw-the-missing-edge via tap: arm the correct source node (its dev-only
- * data-graph-correct-target names the target node), drop on that node, then check. */
+/** Graphs trace (read-path, read-trace-far): walk the edges node to node along a
+ * known reachable path. Only the current node's neighbors are tappable buttons
+ * (aria-label "node X"); tap each step in turn, and reaching the target settles the
+ * beat (no Check). */
+async function traceWalk(page: Page, path: string[]) {
+  const canvas = page.locator('[data-testid="graph-canvas"]')
+  for (const n of path) {
+    await canvas.getByRole("button", { name: `node ${n}`, exact: true }).click({ timeout: ACT })
+  }
+  await continueOn(page)
+}
+
+/** Graphs draw-the-missing-edge via tap (draw-edge, draw-transit): arm the correct
+ * source node (its dev-only data-graph-correct-target names the target node), drop
+ * on that node, then Check. */
 async function drawGraphEdge(page: Page) {
   const src = page.locator("[data-graph-correct-target]").first()
   const target = (await src.getAttribute("data-graph-correct-target")) ?? ""
@@ -233,46 +384,85 @@ async function drawGraphEdge(page: Page) {
   await continueOn(page)
 }
 
-test("vision → browse → enter course → play → sign in (carry-up) → complete → resume", async ({
+/** Graphs build-the-line synthesis: draw every missing track until the live network
+ * matches the ghost plan. The figure has no per-edge hook, so read the remaining
+ * tracks off the live "Tracks still to lay" status, then draw each pair (arm the
+ * source station, drop on the target station). The build commits by drawing (no
+ * Check); when it matches the plan the Continue button appears. */
+async function buildLine(page: Page) {
+  let text = ""
+  const status = page.getByText(/Tracks still to lay/)
+  if (await status.count()) text = (await status.first().textContent()) ?? ""
+  let pairs = [...text.matchAll(/([A-Z]) to ([A-Z])/g)].map((m) => [m[1], m[2]])
+  // Safety net: the curated METRO plan's missing tracks, if the status can't be read.
+  if (pairs.length === 0) pairs = [["A", "M"], ["B", "H"], ["D", "G"], ["D", "J"]]
+  for (const [u, v] of pairs) {
+    await page.locator(`[data-rewire-source="${u}"]`).first().click()
+    await page.locator(`[data-rewire-target="${v}"]`).first().click()
+  }
+  await continueOn(page)
+}
+
+test("enter course → play intro, S&Q, Arrays, and the five redesigned lessons to mastery", async ({
   page,
 }) => {
   await page.goto("/")
 
-  // First-run vision hero → pick a course → enter Data Structures, start.
-  await page.getByRole("button", { name: "Choose a course" }).click()
-  await page.getByRole("button", { name: /Data Structures/ }).click()
-  await page.getByRole("button", { name: "Start", exact: true }).click()
-
-  // Stack (signed out): demo → teach → predict → real-world → construct.
-  await playDemo(page, /Push/)
-  await continueOn(page) // stack teach
-  await answerCell(page) // stack predict
-  await answerCell(page) // stack real-world (undo)
-  await buildConstruct(page) // stack construct
-
-  // A third of the way in the nudge is up: sign in mid-run so the stack progress
-  // carries up. Done between beats (not mid-construct) so the run state is settled.
-  await page.getByRole("button", { name: "Sign in" }).click()
+  // Sign in up front (before any progress) via Settings, so the broken anonymous
+  // carry-up never runs and every later per-lesson save persists for real.
+  const nav = page.getByRole("navigation")
+  await nav.getByRole("button", { name: "Settings", exact: true }).click()
+  await page.getByRole("button", { name: /Sign in to save your progress/ }).click()
   await page.getByPlaceholder("Email address").fill(EMAIL)
   await page.getByPlaceholder("Password").fill(PASSWORD)
   await page.getByPlaceholder("Display name").fill(NAME)
   await page.getByRole("button", { name: "Create account" }).click()
 
-  // Queue (signed in): demo → teach → predict → real-world → construct.
+  // Back on Settings (signed in) → Home → vision hero → pick the course, start.
+  await nav.getByRole("button", { name: "Home", exact: true }).click()
+  await page.getByRole("button", { name: "Choose a course" }).click()
+  await page.getByRole("button", { name: /Data Structures/ }).click()
+  await page.getByRole("button", { name: "Start", exact: true }).click()
+
+  // Introduction lesson (the schema-activation opener that now gates Lesson 1):
+  // an animated welcome, three reading pages, then four checks (three job MCQs and
+  // the "which finds it faster" object pick). Completing it unlocks Stacks & Queues.
+  await page.getByRole("button", { name: "Begin" }).click() // welcome hero
+  await continueOn(page) // page 1: look at your phone
+  await continueOn(page) // page 2: why bother organizing
+  await page.getByRole("button", { name: "Start the questions" }).click() // page 3: the three jobs
+  await answerArrays(page) // check: store (save a Wi-Fi password)
+  await answerArrays(page) // check: sort (contacts A to Z)
+  await answerArrays(page) // check: categorize (photo albums)
+  await page.getByRole("button", { name: "Alphabetized" }).click() // why: the faster object
+  await page.getByRole("button", { name: "Check" }).click()
+  await continueOn(page) // commits the last check → completes the intro
+  await expect(page.getByText("You mastered Introduction.")).toBeVisible()
+  await nextLesson(page, /Continue to Stacks & Queues/)
+
+  // Stacks & Queues: demo → teach → predict → real-world → construct, for the stack
+  // then the queue (each construct followed by a Poly quick-check), then the compare
+  // gate (classify + contrast).
+  await playDemo(page, /Push/)
+  await continueOn(page) // stack teach
+  await answerCell(page) // stack predict
+  await answerCell(page) // stack real-world (undo)
+  await buildConstruct(page) // stack construct
+  await polyCheckpoint(page) // cp-stacks quick-check
+
   await playDemo(page, /Enqueue/)
   await continueOn(page) // queue teach
   await answerCell(page) // queue predict
   await answerCell(page) // queue real-world (printer)
   await buildConstruct(page) // queue construct
+  await polyCheckpoint(page) // cp-queues quick-check
 
-  // Compare gate: classify, then contrast.
-  await answerCell(page) // classify
-  await answerCell(page) // contrast
+  await answerCell(page) // compare: classify
+  await answerCell(page) // compare: contrast
 
-  // Completion → the CTA leads into the now-unlocked Arrays.
   await expect(page.getByText("Lesson complete")).toBeVisible()
   await expect(page.getByText("You mastered Stacks & Queues.")).toBeVisible()
-  await page.getByRole("button", { name: /Continue to Arrays/ }).click()
+  await nextLesson(page, /Continue to Arrays/)
 
   // Arrays (rebuild): play-access → jump → scan → play-mutate → insert → delete →
   // place-cheapest → realworld → teach-grow → grow → grow-summary. 7 graded beats.
@@ -288,82 +478,107 @@ test("vision → browse → enter course → play → sign in (carry-up) → com
   await answerArrays(page) // grow (pick the cleanest fix: double + copy)
   await continueOn(page) // grow-summary (average-cost teach) → completes the lesson
 
-  // Arrays completion — a real two-lesson progression.
   await expect(page.getByText("You mastered Arrays.")).toBeVisible()
 
-  // Continue into the now-unlocked Linked Lists and play all ten beats.
-  await page.getByRole("button", { name: /Continue to Linked Lists/ }).click()
-  await continueOn(page) // node demo
+  // Linked Lists (12 beats): node-demo → teach → traverse (forced walk) →
+  // rewire-insert → rewire-delete → predict → playlist synthesis →
+  // contrast-insert → contrast-reach → doubly-demo → doubly-splice → doubly-walk.
+  await nextLesson(page, /Continue to Linked Lists/)
+  await continueOn(page) // node-demo
   await continueOn(page) // teach
-  await answerTraverse(page) // traverse (L1) — tap the target node
-  await rewireByKeyboard(page) // insert (L2) — via the keyboard fallback
-  await rewireInOrder(page) // delete (L3)
-  await answerArrays(page) // predict-the-break (L4)
-  await rewireInOrder(page) // playlist (real-world)
-  await answerArrays(page) // array-vs-list insert (L5)
-  await answerArrays(page) // array-vs-list reach (L5)
-  await page.getByRole("button", { name: "Finish lesson" }).click() // doubly coda
+  await walkTraverse(page) // traverse (forced hop-walk)
+  await rewireByKeyboard(page) // rewire-insert (save-first, via the keyboard fallback)
+  await rewireInOrder(page) // rewire-delete (bypass)
+  await answerArrays(page) // predict-the-break (animated orphaning MCQ)
+  await playlistSynthesis(page) // playlist (insert → delete → reorder)
+  await contrastTwoStep(page) // array-vs-list insert (pick → why-MCQ)
+  await contrastTwoStep(page) // array-vs-list reach (pick → why-MCQ)
+  await continueOn(page) // doubly-demo (two-way sandbox)
+  await doublySplice(page) // doubly-splice (4 ordered writes)
+  await walkDoublyBackward(page) // doubly-walk (backward forced walk) → completes
   await expect(page.getByText("You mastered Linked Lists.")).toBeVisible()
 
-  // Continue into the now-unlocked Hash Tables and play all twelve beats.
-  await page.getByRole("button", { name: /Continue to Hash Tables/ }).click()
-  await continueOn(page) // demo
-  await continueOn(page) // teach: key → location
-  await hashDropByKeyboard(page) // hash cat → bucket (keyboard fallback)
-  await answerCell(page) // hash cat again (tap-locate, same bucket)
-  await hashDropByPointer(page) // hash dog → bucket
-  await continueOn(page) // teach: collisions chain
-  await answerCell(page) // collide sun
-  await answerCell(page) // collide ant
-  await answerCell(page) // collide pig
-  await answerCell(page) // lookup found
-  await answerCell(page) // lookup absent
-  await hashDropByPointer(page) // contacts real-world
+  // Hash Tables (14 beats): abstract demo → interactive teach → hash-cat (drag) →
+  // hash-cat-again (fresh key, tap) → hash-dog (drag) → teach-collision →
+  // collide ×3 → hash-builder sandbox → hash-design → lookup-found → lookup-absent
+  // → warehouse realworld.
+  await nextLesson(page, /Continue to Hash Tables/)
+  await continueOn(page) // demo (abstract two-scenario sandbox)
+  await continueOn(page) // teach-hash (interactive HashBox)
+  await hashDrag(page) // hash-cat → its bin
+  await answerCell(page) // hash-cat-again (tap the computed bin)
+  await hashDrag(page) // hash-dog → its bin
+  await continueOn(page) // teach-collision (chaining)
+  await answerArrays(page) // collide sun
+  await answerArrays(page) // collide ant
+  await answerArrays(page) // collide pig
+  await continueOn(page) // hash-build-demo (rule + bucket sandbox)
+  await hashDesign(page) // hash-design (pick a rule + bucket count that spreads)
+  await answerCell(page) // lookup found (tap the computed bin; decoys + sealed)
+  await answerCell(page) // lookup absent (tap the computed bin)
+  await hashDrag(page) // warehouse realworld (stow in its bin)
   await expect(page.getByText("You mastered Hash Tables.")).toBeVisible()
 
-  // Continue into the now-unlocked Trees (BST) and play all eleven beats.
-  await page.getByRole("button", { name: /Continue to Trees/ }).click()
+  // Trees (16 beats): demo → teach-descend → find-hit/miss → insert →
+  // watched-build → build-bst ×2 → find-big → teach-inorder → sequence ×3 →
+  // realworld bracket → compare-shape → contrast-list.
+  await nextLesson(page, /Continue to Trees/)
   await continueOn(page) // tree demo (free-play descend)
   await continueOn(page) // teach: compare & descend
   await treeDescend(page) // find-hit
-  await treeDescend(page) // find-miss (falls off → ghost)
+  await treeDescend(page) // find-miss (falls off → ghost slot)
   await treeDescend(page) // insert (descend to the ghost slot)
+  await continueOn(page) // watched-build (a BST grown key by key)
+  await buildBst(page) // build-bst-1 (grow it yourself)
+  await buildBst(page) // build-bst-2 (a different shape)
+  await treeDescend(page) // find-big (deep path in a large tree)
   await continueOn(page) // teach: in-order
-  await treeSequence(page) // sequence-a
-  await treeSequence(page) // sequence-b (compact ≠ pixel order)
-  await treeDescend(page) // real-world higher/lower
-  await answerArrays(page) // compare-shape (balanced vs stick)
+  await treeDescend(page) // sequence-a (frontier-gated in-order)
+  await treeDescend(page) // sequence-b (zigzag)
+  await treeDescend(page) // sequence-c (larger shape)
+  await treeDescend(page) // realworld (tournament bracket)
+  await answerArrays(page) // compare-shape (de-cued: balanced vs stick)
   await treeDescend(page) // contrast-list (walk the list, then descend)
   await expect(page.getByText("You mastered Trees.")).toBeVisible()
 
-  // Continue into the now-unlocked Heaps and play all twelve beats.
-  await page.getByRole("button", { name: /Continue to Heaps/ }).click()
-  await continueOn(page) // heap demo (dual view)
+  // Heaps (16 beats): demo → teach-array → teach-rule → siftup ×2 (do-the-sift) →
+  // watched-build → build-a-heap → teach-extract → siftdown ×2 → ER extract skin →
+  // map-child → map-parent → contrast-place → contrast-samedata → ER synthesis.
+  await nextLesson(page, /Continue to Heaps/)
+  await continueOn(page) // demo (free-play insert sandbox)
   await continueOn(page) // teach: lives in an array
   await continueOn(page) // teach: the heap rule
-  await answerArrays(page) // sift-up predict
-  await answerArrays(page) // sift-up leaderboard skin
-  await continueOn(page) // teach: extract top
-  await answerArrays(page) // sift-down predict
-  await answerArrays(page) // sift-down deeper
-  await answerHeapSlot(page) // index-map: larger child
-  await answerHeapSlot(page) // index-map: parent
-  await answerArrays(page) // contrast: heap vs BST placement
+  await doTheSift(page) // siftup-1 (perform the swaps up)
+  await doTheSift(page) // siftup-2 (bigger heap)
+  await continueOn(page) // watched-build (a heap built from nothing)
+  await doTheSift(page) // build-a-heap (sift each inserted key)
+  await continueOn(page) // teach: extract top (ER monitor)
+  await doTheSift(page) // siftdown-1 (sink the new root)
+  await doTheSift(page) // siftdown-2 (deeper)
+  await doTheSift(page) // ER extract skin (discharge the most urgent)
+  await answerHeapSlot(page) // map-child (tap the larger child's slot)
+  await answerHeapSlot(page) // map-parent (tap the parent's slot)
+  await answerArrays(page) // contrast: heap vs BST placement (arrangement card)
   await answerHeapSlot(page) // contrast: tree node ⇔ array cell
+  await doTheSift(page) // ER synthesis (admit + discharge + re-triage) → completes
   await expect(page.getByText("You mastered Heaps.")).toBeVisible()
 
-  // Continue into the now-unlocked Graphs and play all twelve beats.
-  await page.getByRole("button", { name: /Continue to Graphs/ }).click()
-  await continueOn(page) // graph demo (drag a node, nothing changes)
+  // Graphs (14 beats): demo → teach → read-list → read-degree → trace near →
+  // trace far → match-list → draw-demo → draw-edge → draw-transit →
+  // build-the-line → redraw-demo → same-graph → tree-or-not.
+  await nextLesson(page, /Continue to Graphs/)
+  await continueOn(page) // demo (drag a node, the data does not move)
   await continueOn(page) // teach: adjacency is the data
   await tapNeighbors(page) // read connection list
   await tapNeighbors(page) // read degree
-  await answerArrays(page) // path? (yes/no)
+  await traceWalk(page, ["B", "D"]) // read-path trace (A → D)
+  await traceWalk(page, ["C", "E", "F"]) // read-trace-far (A → F)
   await answerArrays(page) // which adjacency list matches? (MCQ)
-  await continueOn(page) // draw-edges demo
-  await drawGraphEdge(page) // draw the missing edge
-  await drawGraphEdge(page) // transit skin: add the connection
-  await continueOn(page) // redraw demo
+  await continueOn(page) // draw-demo
+  await drawGraphEdge(page) // draw the missing edge (B–D)
+  await drawGraphEdge(page) // transit skin: route the missing track (C–D)
+  await buildLine(page) // build-the-line (draw the missing tracks to the plan)
+  await continueOn(page) // redraw-demo (same network, new layout)
   await answerArrays(page) // same graph? (classify)
   await answerArrays(page) // tree or graph? (classify)
   await expect(page.getByText("You mastered Graphs.")).toBeVisible()

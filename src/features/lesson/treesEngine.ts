@@ -464,7 +464,7 @@ export function watchedBuildFrames(keys: number[]): BuildFrame[] {
     const parent = d.missingParentId ? nodeById(before, d.missingParentId) : null
     const side = d.missingSide ?? "left"
     const caption = parent
-      ? `${key} ${key < parent.key ? "is less than" : "is greater than"} ${parent.key}: it attaches ${side}.`
+      ? `${key} ${key < parent.key ? "is less than" : "is greater than"} ${parent.key}, so it attaches ${side}.`
       : `${key} attaches.`
     frames.push({ tree, highlightIds: [...d.path, newId], newId, key, caption })
   }
@@ -776,11 +776,11 @@ function makeBuild(part: "build-bst-1" | "build-bst-2"): TreesQuestion {
     tree: result,
     buildKeys: keys.slice(),
     title: "Grow the tree",
-    prompt: "Insert each key: descend by compare, then drop it in the empty slot it lands in.",
+    prompt: "Insert each key by descending with comparisons, then dropping it in the empty slot it lands in.",
     hint: "",
     nudge: "Compare the incoming key at each node, step toward its side, then drop it in the empty slot.",
     correct: `You grew the tree, key by key. In-order it reads ${inorderKeys(result).join(", ")}.`,
-    why: `Each key descended by compare and attached at the first empty slot, never reshuffling what was already placed. The shape comes from the insert order; the in-order reading is always sorted: ${inorderKeys(
+    why: `Each key descended by compare and attached at the first empty slot, never reshuffling what was already placed. The shape comes from the insert order, and the in-order reading is always sorted as ${inorderKeys(
       result,
     ).join(", ")}.`,
   }
@@ -805,7 +805,7 @@ function makeDescend(part: "find-hit" | "find-miss" | "insert" | "realworld"): T
       hint: "",
       nudge: "Compare 10 with the node, then step toward it. Don't skip around.",
       correct: "Found 10 in 3 comparisons. Each step dropped half the tree.",
-      why: "8 → 12 → 10: at each node you compare and discard the side that can't hold 10. Three steps, even if the tree were huge.",
+      why: "The path is 8 → 12 → 10. At each node you compare and discard the side that can't hold 10. Three steps, even if the tree were huge.",
     }
   }
   if (part === "find-miss") {
@@ -825,7 +825,7 @@ function makeDescend(part: "find-hit" | "find-miss" | "insert" | "realworld"): T
       hint: "",
       nudge: "Keep comparing. If the child you need is empty, 7 isn't here.",
       correct: "7 would sit right of 6, but that slot is empty, 7 is absent.",
-      why: "8 → 4 → 6: 7 > 6 needs a right child, but there is none. The empty slot is the proof 7 isn't in the tree.",
+      why: "The path is 8 → 4 → 6. Since 7 > 6 needs a right child and there is none, the empty slot proves 7 isn't in the tree.",
     }
   }
   if (part === "insert") {
@@ -846,7 +846,7 @@ function makeDescend(part: "find-hit" | "find-miss" | "insert" | "realworld"): T
       hint: "",
       nudge: "Compare 5 at each node and step down; tap the empty slot it lands in.",
       correct: "5 attaches left of 6. The slot the search falls into.",
-      why: "8 → 4 → 6: 5 < 6 needs a left child, which is empty. That empty slot is exactly where 5 belongs.",
+      why: "The path is 8 → 4 → 6. Since 5 < 6 needs a left child and that child is empty, the empty slot is exactly where 5 belongs.",
     }
   }
   // realworld: the tournament BRACKET. Target 6 takes a MIXED path (advance left
@@ -868,7 +868,7 @@ function makeDescend(part: "find-hit" | "find-miss" | "insert" | "realworld"): T
       hint: "",
     nudge: "Compare the seed at each matchup, then advance toward it; do not jump around.",
     correct: "Found the 6 seed in three rounds, half the bracket eliminated each round.",
-    why: "A bracket search is a BST descend: 8 → 4 → 6, halving the field every round. That is why even a huge bracket resolves in a few rounds.",
+    why: "A bracket search is a BST descend through 8 → 4 → 6, halving the field every round. That is why even a huge bracket resolves in a few rounds.",
   }
 }
 
@@ -917,26 +917,26 @@ function makeSequence(part: "sequence-a" | "sequence-b" | "sequence-c"): TreesQu
   if (part === "sequence-a") {
     return {
       ...shared,
-      prompt: "Tap the nodes in order: left subtree, node, right subtree. Only the next one lights up.",
+      prompt: "Tap the nodes in order by visiting the left subtree, then the node, then the right subtree. Only the next one lights up.",
       hint: "",
       nudge: "Apply left → node → right. The picture isn't laid out in sorted order.",
       correct: "That's the in-order traversal. It comes out sorted.",
-      why: `Left → node → right recovers the sorted order: ${keys.join(", ")}. The order isn't stored in the layout; the rule recovers it.`,
+      why: `Left → node → right recovers the sorted order of ${keys.join(", ")}. The order isn't stored in the layout; the rule recovers it.`,
     }
   }
   if (part === "sequence-b") {
     return {
       ...shared,
-      prompt: "Same rule, new shape: tap the nodes in in-order order.",
+      prompt: "Same rule, new shape. Tap the nodes in in-order order.",
       hint: "",
       nudge: "Run left → node → right; the pixels aren't in sorted order.",
-      correct: `In-order again gives sorted: ${keys.join(", ")}.`,
-      why: `However the tree is drawn, left → node → right yields the sorted keys: ${keys.join(", ")}.`,
+      correct: `In-order again gives sorted order as ${keys.join(", ")}.`,
+      why: `However the tree is drawn, left → node → right yields the sorted keys ${keys.join(", ")}.`,
     }
   }
   return {
     ...shared,
-    prompt: "A bigger tree, same rule: tap the nodes in in-order order.",
+    prompt: "A bigger tree, same rule. Tap the nodes in in-order order.",
     hint: "",
     nudge: "Left → node → right, even with more nodes; the layout isn't the order.",
     correct: `In-order on the larger tree still reads sorted: ${keys.join(", ")}.`,
@@ -984,9 +984,9 @@ function makeCompare(seed: number): { question: TreesQuestion; next: number } {
       altCost: stickCost,
       prompt: "Both trees hold the same numbers. To find the largest, which is true?",
       hint: "",
-      nudge: "They read the same in-order, but compare the shapes: which one keeps dropping half?",
-      correct: "Tree A wins: it halves to the value in 3 steps while Tree B walks all 7.",
-      why: "Both read 2, 4, 6, 8, 10, 12, 14 in-order, so the same numbers and the same sorted output. But Tree B is a linked list in disguise: finding 14 walks every node (7 steps), while balanced Tree A drops half each step and gets there in 3. Same data, very different cost.",
+      nudge: "They read the same in-order, but compare the shapes. Which one keeps dropping half?",
+      correct: "Tree A wins. It halves to the value in 3 steps while Tree B walks all 7.",
+      why: "Both read 2, 4, 6, 8, 10, 12, 14 in-order, so the same numbers and the same sorted output. But Tree B is a linked list in disguise. Finding 14 walks every node (7 steps), while balanced Tree A drops half each step and gets there in 3. Same data, very different cost.",
     },
     next: sh.next,
   }

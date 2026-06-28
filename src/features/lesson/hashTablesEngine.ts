@@ -452,7 +452,7 @@ function makeIntro(kind: "demo" | "teach-hash" | "teach-collision"): HashQuestio
     kind === "demo"
       ? "Two ways to find one item among many. Try each and watch the cost."
       : kind === "teach-hash"
-        ? "A hash turns a key into its location: add the letters, then mod the bins."
+        ? "A hash turns a key into its location. Add the letters, then mod the bins."
         : "Two keys, one bin. That's a collision. The bin keeps both, in a little chain."
   return {
     kind,
@@ -552,7 +552,7 @@ function makeHash(part: "hash-cat" | "hash-cat-again" | "hash-dog"): HashQuestio
     bin: "hash",
     mode: drag ? "drag" : "tap",
     prompt: again
-      ? `A brand-new key: ${key}. Run the rule. Which bin does it land in?`
+      ? `${key} is a brand-new key. Run the rule. Which bin does it land in?`
       : drag
         ? `Scan ${key}, then stow it in its bin.`
         : `Scan ${key}. Which bin?`,
@@ -571,10 +571,10 @@ function makeHash(part: "hash-cat" | "hash-cat-again" | "hash-dog"): HashQuestio
     hint: "",
     nudge: `Add the letter values, then take the remainder when you divide by ${BUCKET_COUNT}.`,
     correct: again
-      ? `${keySum(key)} mod ${BUCKET_COUNT} = ${bucket}. Same key, same bin: ${key} always lands in bin ${bucket}.`
+      ? `${keySum(key)} mod ${BUCKET_COUNT} = ${bucket}. Same key, same bin. ${key} always lands in bin ${bucket}.`
       : `${keySum(key)} mod ${BUCKET_COUNT} = ${bucket}, ${key} lives in bin ${bucket}.`,
     why: again
-      ? `A hash is deterministic: ${key}'s letters always sum to ${keySum(key)}, and ${keySum(key)} mod ${BUCKET_COUNT} is always ${bucket}. Run it once or a hundred times, ${key} lands in bin ${bucket}, which is why a lookup can jump straight there.`
+      ? `A hash is deterministic. ${key}'s letters always sum to ${keySum(key)}, and ${keySum(key)} mod ${BUCKET_COUNT} is always ${bucket}. Run it once or a hundred times, ${key} lands in bin ${bucket}, which is why a lookup can jump straight there.`
       : `${[...key].map((c) => letterValue(c)).join(" + ")} = ${keySum(key)}; ${keySum(key)} mod ${BUCKET_COUNT} = ${bucket}.`,
   }
 }
@@ -617,8 +617,8 @@ function makeCollision(
       scanCost: null,
       hint: "",
       nudge: "The old item stays. The new one links onto the end of the chain.",
-      correct: `Right, ${key} chains onto the end: ${chainText(appended)}.`,
-      why: `A collision doesn't replace or reject. The bin holds a mini linked list, so ${key} is appended: ${chainText(appended)}. (Jumping to another bin is a different scheme we're not using.)`,
+      correct: `Right, ${key} chains onto the end after ${chainText(chain)}.`,
+      why: `A collision doesn't replace or reject. The bin holds a mini linked list, so ${key} is appended after ${chainText(chain)}. (Jumping to another bin is a different scheme we're not using.)`,
     },
     next: sh.next,
   }
@@ -688,7 +688,7 @@ function makeRealworld(): HashQuestion {
     scanCost: null,
     hint: "",
     nudge: `Run the rule on ${key}; the remainder is the bin number.`,
-    correct: `${keySum(key)} mod ${BUCKET_COUNT} = ${bucket}: ${key}'s package goes in bin ${bucket}, pulled in one jump.`,
+    correct: `${keySum(key)} mod ${BUCKET_COUNT} = ${bucket}. ${key}'s package goes in bin ${bucket}, pulled in one jump.`,
     why: `Chaotic storage hashes the code to a bin, so stowing a package and finding it are both one jump, never a walk down every aisle.`,
   }
 }

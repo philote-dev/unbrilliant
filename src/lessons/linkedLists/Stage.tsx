@@ -901,7 +901,7 @@ function DoublyFooter({
         </div>
       ) : (
         <p className="text-center text-sm text-muted-foreground lg:text-base">
-          Tap the writes in the safe order: the newcomer's own pointers first.
+          Tap the writes in the safe order, with the newcomer's own pointers first.
         </p>
       )}
     </div>

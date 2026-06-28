@@ -273,7 +273,7 @@ function ReadMultiSelectPart({ state, dispatch }: PartProps) {
           terminal={terminal}
         />
         <p className="text-sm font-medium text-foreground">
-          {isDegree ? "Degree so far: " : "Selected: "}
+          {isDegree ? "Degree so far " : "Selected "}
           <span className="tabular-nums font-bold text-lilac-strong">{selectedNodes.length}</span>
         </p>
         <AdjacencyPanel nodes={q.nodes} adj={q.adj} highlightNodes={panelHighlight} />
@@ -765,7 +765,7 @@ function BuildLinePart({ state, dispatch }: PartProps) {
         <p role="status" aria-live="polite" className="sr-only">
           {terminal
             ? "The live network now matches the plan."
-            : `Tracks still to lay: ${remainingEdges.map(([u, v]) => `${u} to ${v}`).join(", ")}.`}
+            : `Tracks still to lay include ${remainingEdges.map(([u, v]) => `${u} to ${v}`).join(", ")}.`}
         </p>
       </MetroScene>
     </StageCenter>

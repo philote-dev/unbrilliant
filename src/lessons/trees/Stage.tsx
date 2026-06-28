@@ -714,7 +714,7 @@ function ContrastPart({
         {!correct && (
           <>
             <div className="flex flex-col items-center gap-1.5">
-              <MutedLabel>Sorted list: walk every node</MutedLabel>
+            <MutedLabel>Sorted list walks every node</MutedLabel>
               <SortedChain
                 keys={q.chain}
                 cursor={state.chainCursor}

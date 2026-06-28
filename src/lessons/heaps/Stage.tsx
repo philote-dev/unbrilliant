@@ -237,7 +237,7 @@ function replayFrames(op: HeapMotionOp): ReplayFrame[] {
   const sift =
     swaps === 0
       ? `No swaps needed. Final arrangement ${final.join(", ")}.`
-      : `${swaps} swap${swaps === 1 ? "" : "s"}: it settles at ${final.join(", ")}.`
+      : `${swaps} swap${swaps === 1 ? "" : "s"}. It settles at ${final.join(", ")}.`
 
   return frames.map((frame, idx) => {
     if (op.kind === "extract" && idx === 0) {
@@ -724,10 +724,10 @@ function DoTheSiftPart({
 
   const srLabel = solved
     ? q.correct
-    : `Working heap: ${beat.heap.join(", ")}. ${
+    : `Working heap ${beat.heap.join(", ")}. ${
         isExtract
-          ? "Sink the root: tap it, then its larger child."
-          : "Lift the new node: tap it, then its parent."
+          ? "Sink the root by tapping it, then its larger child."
+          : "Lift the new node by tapping it, then its parent."
       }`
 
   return (
@@ -1164,19 +1164,19 @@ function synthesisCopy(phase: SynthesisPhase | null): { caption: string; instruc
   if (phase === "admit")
     return {
       caption: "A new patient arrives. Tap them, then a neighbour they outrank, to lift them up.",
-      instruction: "Admit: lift the new patient to their rank.",
+      instruction: "Admit by lifting the new patient to their rank.",
     }
   if (phase === "discharge")
     return {
       caption:
         "The most urgent is discharged. Tap the patient now on top, then their more urgent child, to sink them.",
-      instruction: "Discharge: sink the new top into place.",
+      instruction: "Discharge by sinking the new top into place.",
     }
   if (phase === "retriage")
     return {
       caption:
         "A patient was re-assessed. Tap them, then the neighbour they should trade with, to re-sort the board.",
-      instruction: "Re-triage: re-sift the re-assessed patient.",
+      instruction: "Re-triage by re-sifting the re-assessed patient.",
     }
   return { caption: "The board holds through every operation.", instruction: "" }
 }
@@ -1255,7 +1255,7 @@ function ERSynthesisPart({
   const { caption, instruction } = synthesisCopy(phase)
   const srLabel = solved
     ? q.correct
-    : `ER board: ${figureHeap.join(", ")}. ${instruction}`
+    : `ER board ${figureHeap.join(", ")}. ${instruction}`
 
   return (
     <motion.div
@@ -1579,7 +1579,7 @@ function WatchedBuildPart({
                 heap={frame.heap}
                 highlightSlots={watchedHighlight(frame)}
                 reducedMotion={reduced}
-                srLabel={`Building the heap: ${frame.heap.join(", ")}.`}
+                srLabel={`Building the heap with ${frame.heap.join(", ")}.`}
               />
               <p className="max-w-xs text-center text-xs text-muted-foreground">
                 {watchedCaption(frame)}

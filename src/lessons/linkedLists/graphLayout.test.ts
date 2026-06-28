@@ -32,7 +32,7 @@ function endpoints(d: string): { start: Pt; end: Pt } {
   }
 }
 
-describe("graphLayout — row placement", () => {
+describe("graphLayout row placement", () => {
   it("lays nodes left→right on one row", () => {
     const boxes = rowBoxes(["A", "B", "C", "D"])
     const xs = ["A", "B", "C", "D"].map((id) => boxes.get(id)!.x)
@@ -49,7 +49,7 @@ describe("graphLayout — row placement", () => {
   })
 })
 
-describe("graphLayout — circular-edge anchoring & continuity", () => {
+describe("graphLayout circular-edge anchoring & continuity", () => {
   it("anchors a straight arrow on both rims and stops the shaft behind the tip", () => {
     const boxes = rowBoxes(["A", "B"])
     const a = boxes.get("A")!
@@ -98,7 +98,7 @@ describe("graphLayout — circular-edge anchoring & continuity", () => {
   })
 })
 
-describe("graphLayout — directArrow (freely placed nodes)", () => {
+describe("graphLayout directArrow (freely placed nodes)", () => {
   it("anchors edge-to-edge along the center line, whatever the angle", () => {
     const from = { x: 20, y: 20, w: NODE_W, h: NODE_W }
     const to = { x: 200, y: 160, w: NODE_W, h: NODE_W }

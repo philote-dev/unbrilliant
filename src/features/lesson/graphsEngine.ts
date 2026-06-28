@@ -650,7 +650,7 @@ function makeReadDegree(): GraphsQuestion {
     hint: "",
     nudge: `Count only ${focus}'s direct connections. Tap exactly those nodes.`,
     correct: `${focus} has degree ${set.length}. It connects to ${set.join(", ")}.`,
-    why: `${focus}'s row is ${set.join(", ")}, so its degree is the size of that set: ${set.length}.`,
+    why: `${focus}'s row is ${set.join(", ")}, so its degree is the size of that set. The answer is ${set.length}.`,
   })
 }
 
@@ -693,7 +693,7 @@ function makeBuildLine(): GraphsQuestion {
     bin: "build",
     mode: "build",
     transit: true,
-    prompt: "Finish the network: draw the missing tracks so the live map matches the plan.",
+    prompt: "Finish the network by drawing the missing tracks so the live map matches the plan.",
     nodes: METRO_PLAN_NODES,
     adj: METRO_PLAN_ADJ,
     shownAdj: METRO_ACTIVE_ADJ,
@@ -861,11 +861,11 @@ export function makeSameGraph(
       hint: "",
       nudge: "Ignore where the stations sit. Check whether the same pairs of stations connect.",
       correct: same
-        ? "Same network: the connections match, only the layout changed."
-        : "Different: one connection changed, so it is a different network.",
+        ? "Same network. The connections match, and only the layout changed."
+        : "Different. One connection changed, so it is a different network.",
       why: same
         ? "Both maps have the identical set of segments; bending the map into a diagram never changes the network."
-        : "The diagram is missing the D to E segment, so its route set differs: a different network.",
+        : "The diagram is missing the D to E segment, so its route set differs. It is a different network.",
     }),
     next,
   }
@@ -890,7 +890,7 @@ export function makeTreeOrNot(
       options: result,
       answer: tree ? "tree" : "graph",
       hint: "",
-      nudge: "Look for a cycle: can you start at a node and get back to it without repeating an edge?",
+      nudge: "Look for a cycle. Can you start at a node and get back to it without repeating an edge?",
       correct: tree
         ? "A tree. No cycles, exactly one path between any two nodes."
         : "A general graph. It has a cycle, so it's not a tree.",
