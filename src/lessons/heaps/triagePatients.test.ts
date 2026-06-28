@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest"
 
-import { patientFor, triageLevel } from "./triagePatients"
+import { patientFor, triageLevel, triageTier } from "./triagePatients"
 
 /**
  * The ER patient data is pure and deterministic: a heap of distinct keys becomes
@@ -47,5 +47,17 @@ describe("triagePatients (deterministic ER data)", () => {
       const names = heap.map((v) => patientFor(v, heap).name)
       expect(new Set(names).size).toBe(heap.length)
     }
+  })
+
+  it("bands urgency levels into real-world triage tiers (the identity-quirk fix)", () => {
+    // The most urgent is Critical, the next couple Serious, the rest Stable. Tiers
+    // depend only on the rank, so a re-triaged patient simply moves tiers instead of
+    // becoming a different person (the name/icon are what change with the key).
+    expect(triageTier(1).id).toBe("critical")
+    expect(triageTier(2).id).toBe("serious")
+    expect(triageTier(3).id).toBe("serious")
+    expect(triageTier(4).id).toBe("stable")
+    expect(triageTier(9).id).toBe("stable")
+    expect(triageTier(1).label).toBe("Critical")
   })
 })
