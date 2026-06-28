@@ -6,6 +6,7 @@ import { currentSegment } from "@/features/trials/trialModule"
 import { ClientScene } from "./ClientScene"
 import { DesignBoard } from "./DesignBoard"
 import { PredictionReview } from "./PredictionReview"
+import { RetrospectivePanel } from "./RetrospectivePanel"
 import { StressTestPanel } from "./StressTestPanel"
 import { TrialGate } from "./TrialGate"
 import { TrialTopBar } from "./TrialTopBar"
@@ -32,7 +33,7 @@ export function TrialPlayer() {
         <TrialTopBar />
         <ClientScene prompt={segment.clientPrompt} skin={mission.clientSkin} />
         {state.phase === "complete" ? (
-          <CompletePanel />
+          <RetrospectivePanel />
         ) : segment.grading === "prediction" ? (
           // Final-review segments own both their design (predict) and verdict
           // (replay) phases; the capability board/panel handle every other segment.
@@ -69,34 +70,5 @@ function StressTest() {
       onContinue={() => dispatch({ type: "advance" })}
       onRevise={() => dispatch({ type: "revise" })}
     />
-  )
-}
-
-/** Placeholder completion; the full retrospective + boost arrive later. */
-function CompletePanel() {
-  return (
-    <section className="rounded-3xl border border-border bg-card p-6 text-center shadow-card">
-      <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-success-soft text-success-foreground">
-        <svg
-          viewBox="0 0 24 24"
-          className="size-6"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={2.4}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M5 12.5 10 17l9-10" />
-        </svg>
-      </div>
-      <h2 className="mt-4 text-lg font-semibold text-foreground">
-        Trial complete
-      </h2>
-      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-        You worked through every segment. The full retrospective and mastery
-        boost arrive in a later update.
-      </p>
-    </section>
   )
 }

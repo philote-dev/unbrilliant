@@ -60,5 +60,7 @@ export interface TrialSpec {
   title: string
   /** concept ids boosted on clean completion */
   exercisedConcepts: string[]
+  /** completion-screen copy: what the learner's designs taught them. */
+  retrospective?: string
   missions: MissionSpec[]
 }

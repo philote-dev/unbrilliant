@@ -1,37 +1,40 @@
-import type { ReactNode } from "react"
+import { useCallback, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
-import {
-  TrialRunProvider,
-  useTrialRun,
-} from "@/features/trials/TrialRunProvider"
-import { currentSegment } from "@/features/trials/trialModule"
+import { useConceptReviews } from "@/features/progress/ConceptReviewProvider"
+import { TrialRunProvider } from "@/features/trials/TrialRunProvider"
+import type { TrialSpec } from "@/features/trials/types"
 import { useNavigation } from "@/lib/navigation"
 
 import { getTrial } from "./registry"
-
-// Stable no-op so TrialRunProvider's autosave/completion effect deps don't churn
-// each render. The real clean-pass mastery boost is wired into completion in a
-// later phase; for now the host just needs the run to mount.
-const noop = () => {}
+import { TrialPlayer } from "./ui/TrialPlayer"
 
 /**
- * Routes a trialId to its run, mirroring `LessonHost`: a thin shell that resolves
- * the registry singleton spec and mounts the provider, with no grading of its
- * own. The body here is a placeholder, replaced by the real `TrialPlayer` in
- * Phase 3. Not yet reachable from navigation: the `navigation.tsx` / `App.tsx`
- * route is deferred behind unrelated in-flight work.
+ * Routes a trialId to its run, mirroring `LessonHost`: resolve the registry
+ * singleton spec, mount the run provider, and render the player. On completion it
+ * promotes each exercised concept once (the clean-pass-scaled mastery boost),
+ * routed through the concept-review write path. Anonymous runs no-op the boost.
  */
 export function TrialHost({ trialId }: { trialId: string }) {
   const spec = getTrial(trialId)
+  const { reinforce } = useConceptReviews()
+
+  const onTrialComplete = useCallback(
+    (completed: TrialSpec, cleanPass: boolean) => {
+      for (const conceptId of completed.exercisedConcepts) {
+        reinforce(conceptId, cleanPass)
+      }
+    },
+    [reinforce],
+  )
 
   if (!spec) {
     return <TrialNotFound trialId={trialId} />
   }
 
   return (
-    <TrialRunProvider spec={spec} onTrialComplete={noop}>
-      <TrialPlaceholder />
+    <TrialRunProvider spec={spec} onTrialComplete={onTrialComplete}>
+      <TrialPlayer />
     </TrialRunProvider>
   )
 }
@@ -48,35 +51,6 @@ function TrialNotFound({ trialId }: { trialId: string }) {
       <Button variant="soft" className="mt-5" onClick={back}>
         Go back
       </Button>
-    </CenteredCard>
-  )
-}
-
-/**
- * Minimal presentational stand-in for the Phase 3 `TrialPlayer`. Reads the run
- * through `useTrialRun` so it stays honest about where the engine currently is.
- */
-function TrialPlaceholder() {
-  const { spec, state } = useTrialRun()
-  const mission = spec.missions[state.missionIndex]
-  const segment = currentSegment(state)
-
-  return (
-    <CenteredCard>
-      <p className="text-xs font-semibold uppercase tracking-wide text-lilac-strong">
-        {spec.title}
-      </p>
-      <h1 className="mt-2 text-lg font-semibold text-foreground">
-        Trial player arrives in the next phase
-      </h1>
-      <dl className="mt-4 space-y-1 text-sm text-muted-foreground">
-        <div>
-          mission: <span className="font-mono text-foreground">{mission.id}</span>
-        </div>
-        <div>
-          segment: <span className="font-mono text-foreground">{segment.id}</span>
-        </div>
-      </dl>
     </CenteredCard>
   )
 }

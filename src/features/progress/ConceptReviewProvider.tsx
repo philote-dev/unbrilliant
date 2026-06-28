@@ -17,6 +17,7 @@ import {
   newReview,
   type ConceptReview,
 } from "@/features/progress/conceptReview"
+import { reinforceCheckpoint } from "@/features/trials/reinforceCheckpoint"
 import type { ConceptId } from "@/features/progress/concepts"
 
 /**
@@ -28,6 +29,11 @@ import type { ConceptId } from "@/features/progress/concepts"
 interface ConceptReviewValue {
   reviews: ReadonlyMap<ConceptId, ConceptReview>
   recordReview: (conceptId: ConceptId, correct: boolean) => void
+  /**
+   * Trial checkpoint boost: promotes a concept one rung on a clean pass (else
+   * refreshes recency), bypassing the massed-practice rule. Signed-in only.
+   */
+  reinforce: (conceptId: ConceptId, cleanPass: boolean) => void
 }
 
 const ConceptReviewContext = createContext<ConceptReviewValue | null>(null)
@@ -81,9 +87,27 @@ export function ConceptReviewProvider({ children }: { children: ReactNode }) {
     [user, repo],
   )
 
+  const reinforce = useCallback(
+    (conceptId: ConceptId, cleanPass: boolean) => {
+      const uid = user?.uid
+      if (!uid) return // signed-in only
+      const now = Date.now()
+      setReviews((prev) => {
+        const base = prev.get(conceptId) ?? newReview(conceptId, now)
+        const nextRow = reinforceCheckpoint(base, { at: now, cleanPass })
+        // Optimistic, idempotent (merge setDoc); fire-and-forget like recordReview.
+        void repo.saveConceptReview(uid, nextRow).catch(() => {})
+        const next = new Map(prev)
+        next.set(conceptId, nextRow)
+        return next
+      })
+    },
+    [user, repo],
+  )
+
   const value = useMemo<ConceptReviewValue>(
-    () => ({ reviews, recordReview }),
-    [reviews, recordReview],
+    () => ({ reviews, recordReview, reinforce }),
+    [reviews, recordReview, reinforce],
   )
 
   return (

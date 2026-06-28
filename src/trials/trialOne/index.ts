@@ -1,6 +1,7 @@
 import type { TrialSpec } from "@/features/trials/types"
 
 import { missionA } from "./missionA"
+import { trialOneRetrospective } from "./retrospective"
 
 export { missionA } from "./missionA"
 export { trialOneRetrospective } from "./retrospective"
@@ -24,5 +25,6 @@ export const trialOneSpec: TrialSpec = {
     "linked-lists:traverse",
     "linked-lists:playlist",
   ],
+  retrospective: trialOneRetrospective,
   missions: [missionA],
 }
