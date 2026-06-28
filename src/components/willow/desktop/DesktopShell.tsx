@@ -1,25 +1,21 @@
-import { useEffect, useState, type ReactNode } from "react"
-import { Menu } from "lucide-react"
+import type { ReactNode } from "react"
+import { motion, useReducedMotion } from "motion/react"
 
 import { cn } from "@/lib/utils"
 import { SideNav } from "@/components/willow/desktop/SideNav"
+import { CollapsedReveal } from "@/components/willow/desktop/CollapsedReveal"
+import { useNavChrome } from "@/components/willow/NavChromeProvider"
+
+/** Matches --willow-sidebar-w (260px). Animated to 0 when collapsed. */
+const RAIL_W = 260
 
 /**
- * The `lg`+ layout: a persistent left SideNav beside a centered, capped main
- * column. The rail can be hidden via its three-line button; when hidden a small
- * floating control brings it back. The collapsed choice persists across screens
- * and reloads. Below `lg`, AppShell renders the mobile column instead.
+ * The `lg`+ layout: a collapsible left SideNav beside a centered, capped main
+ * column. The rail's width animates between RAIL_W and 0 so the content reflows
+ * as one. While collapsed, CollapsedReveal provides a reopen icon and an
+ * edge-peek sliver. Collapse state comes from NavChromeProvider (manual pref +
+ * route immersion). Below `lg`, AppShell renders the mobile column instead.
  */
-const COLLAPSE_KEY = "willow.sidebar.collapsed"
-
-function readCollapsed(): boolean {
-  try {
-    return localStorage.getItem(COLLAPSE_KEY) === "1"
-  } catch {
-    return false
-  }
-}
-
 export function DesktopShell({
   children,
   className,
@@ -27,35 +23,29 @@ export function DesktopShell({
   children: ReactNode
   className?: string
 }) {
-  const [collapsed, setCollapsed] = useState(readCollapsed)
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(COLLAPSE_KEY, collapsed ? "1" : "0")
-    } catch {
-      // localStorage may be unavailable; the toggle still works for the session.
-    }
-  }, [collapsed])
+  const { collapsed, open, close } = useNavChrome()
+  const reduce = useReducedMotion()
 
   return (
     <div className="flex min-h-svh w-full bg-background">
-      {!collapsed && <SideNav onCollapse={() => setCollapsed(true)} />}
+      <motion.div
+        className="relative shrink-0 overflow-hidden"
+        initial={false}
+        animate={{ width: collapsed ? 0 : RAIL_W }}
+        transition={reduce ? { duration: 0 } : { duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+        aria-hidden={collapsed}
+      >
+        <div style={{ width: RAIL_W }} className="h-full">
+          <SideNav onCollapse={close} />
+        </div>
+      </motion.div>
+
+      {collapsed && <CollapsedReveal onOpen={open} reduce={!!reduce} />}
+
       <main className="relative flex min-w-0 flex-1 flex-col">
-        {collapsed && (
-          <button
-            type="button"
-            onClick={() => setCollapsed(false)}
-            aria-label="Show sidebar"
-            title="Show sidebar"
-            className="fixed left-4 top-4 z-50 flex size-10 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground shadow-card transition-colors hover:bg-muted hover:text-foreground"
-          >
-            <Menu className="size-5" />
-          </button>
-        )}
         <div
           className={cn(
             "mx-auto flex w-full max-w-[var(--willow-content-max)] flex-1 flex-col px-8 py-8",
-            collapsed && "pt-16",
             className,
           )}
         >
