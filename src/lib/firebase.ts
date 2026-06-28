@@ -19,6 +19,8 @@ import {
   type Functions,
 } from "firebase/functions"
 
+import { emulatorConfigFromEnv } from "@/lib/firebaseEmulatorConfig"
+
 /**
  * Firebase wiring. In development we ALWAYS talk to the local emulators using a
  * `demo-` project id — the Firebase SDK treats demo projects as offline-only, so
@@ -27,9 +29,14 @@ import {
  */
 const useEmulator =
   import.meta.env.DEV || import.meta.env.VITE_USE_EMULATOR === "true"
+const emulatorConfig = emulatorConfigFromEnv(import.meta.env)
 
 const firebaseConfig = useEmulator
-  ? { apiKey: "demo-key", authDomain: "localhost", projectId: "demo-willow" }
+  ? {
+      apiKey: "demo-key",
+      authDomain: "localhost",
+      projectId: emulatorConfig.projectId,
+    }
   : {
       apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
       authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -64,8 +71,16 @@ export const functions: Functions = getFunctions(app)
 // Guard against double-connect across Vite HMR / re-imports.
 const g = globalThis as unknown as { __willowEmulatorsConnected?: boolean }
 if (useEmulator && !g.__willowEmulatorsConnected) {
-  connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true })
-  connectFirestoreEmulator(db, "127.0.0.1", 8080)
-  connectFunctionsEmulator(functions, "127.0.0.1", 5001)
+  connectAuthEmulator(auth, emulatorConfig.authUrl, { disableWarnings: true })
+  connectFirestoreEmulator(
+    db,
+    emulatorConfig.firestoreHost,
+    emulatorConfig.firestorePort,
+  )
+  connectFunctionsEmulator(
+    functions,
+    emulatorConfig.functionsHost,
+    emulatorConfig.functionsPort,
+  )
   g.__willowEmulatorsConnected = true
 }

@@ -18,7 +18,17 @@ const NUDGE_AFTER_FRACTION = 1 / 3
  * and the active lesson module's Stage. All lesson-specific rendering lives in
  * the module's Stage; this shell only drives the shared frame and completion nav.
  */
-export function LessonPlayer({ lessonId }: { lessonId: string }) {
+export function LessonPlayer({
+  lessonId,
+  onComplete,
+  onClose,
+  hideSignInNudge = false,
+}: {
+  lessonId: string
+  onComplete?: () => void
+  onClose?: () => void
+  hideSignInNudge?: boolean
+}) {
   const { navigate, back } = useNavigation()
   const { user } = useAuth()
   const { immersive, menuOpen } = useNavChrome()
@@ -28,8 +38,13 @@ export function LessonPlayer({ lessonId }: { lessonId: string }) {
 
   const completed = module.completed(state)
   useEffect(() => {
-    if (completed) navigate({ name: "complete", lessonId })
-  }, [completed, lessonId, navigate])
+    if (!completed) return
+    if (onComplete) {
+      onComplete()
+      return
+    }
+    navigate({ name: "complete", lessonId })
+  }, [completed, lessonId, navigate, onComplete])
 
   // Each new lesson re-prompts: a dismissal only silences the nudge for the
   // current lesson, so a signed-out learner is asked again ~a third into the next.
@@ -42,7 +57,7 @@ export function LessonPlayer({ lessonId }: { lessonId: string }) {
   // before one existed; by a third in there are real wins worth saving.
   const investedEnough =
     module.filledParts(state) >= module.totalParts * NUDGE_AFTER_FRACTION
-  const showNudge = !user && !nudgeDismissed && investedEnough
+  const showNudge = !hideSignInNudge && !user && !nudgeDismissed && investedEnough
   const Stage = module.Stage
 
   // On phones during a lesson the tab bar condenses to a corner cell. Open, the
@@ -69,7 +84,7 @@ export function LessonPlayer({ lessonId }: { lessonId: string }) {
         totalParts={module.totalParts}
         filledParts={module.filledParts(state)}
         tier={comboToTier(module.combo(state))}
-        onClose={back}
+        onClose={onClose ?? back}
       />
 
       {showNudge && (

@@ -22,9 +22,13 @@ export type NavChromeAction =
   | { type: "close" }
   | { type: "toggle" }
 
-/** The lesson flow is immersive: the lesson route (incl. retrieval warm-up) and completion. */
+/** The lesson flow is immersive: normal lessons, playtests, and completion. */
 export function isImmersive(screen: Screen): boolean {
-  return screen.name === "lesson" || screen.name === "complete"
+  return (
+    screen.name === "lesson" ||
+    screen.name === "playtest" ||
+    screen.name === "complete"
+  )
 }
 
 export function initNavChrome(opts: {

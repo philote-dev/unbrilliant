@@ -5,6 +5,7 @@ import "./index.css"
 import App from "@/App"
 import { ThemeProvider } from "@/lib/theme"
 import { NavigationProvider } from "@/lib/navigation"
+import { initialScreenFromLocation } from "@/lib/initialScreen"
 import { AuthProvider } from "@/lib/auth"
 import { ConceptReviewProvider } from "@/features/progress/ConceptReviewProvider"
 import { LessonRunProvider } from "@/features/lesson/useLessonRun"
@@ -14,7 +15,7 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ThemeProvider>
       <AuthProvider>
-        <NavigationProvider initial={{ name: "home" }}>
+        <NavigationProvider initial={initialScreenFromLocation()}>
           <ConceptReviewProvider>
             <LessonRunProvider>
               <CourseProgressProvider>

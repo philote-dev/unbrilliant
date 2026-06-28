@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { render, screen } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 
 // Drive the player off a fake lesson module so we control the live combo and how
 // far in the learner is. Auth stays signed-out (the nudge only shows to guests).
@@ -70,5 +71,16 @@ describe("LessonPlayer sign-in nudge", () => {
     h.module.filledParts = () => 0
     render(<LessonPlayer lessonId="arrays" />)
     expect(screen.queryByText(/save your progress/i)).not.toBeInTheDocument()
+  })
+
+  it("uses a custom close handler when one is provided", async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+
+    render(<LessonPlayer lessonId="arrays" onClose={onClose} />)
+    await user.click(screen.getByRole("button", { name: /close lesson/i }))
+
+    expect(onClose).toHaveBeenCalledOnce()
+    expect(h.back).not.toHaveBeenCalled()
   })
 })
