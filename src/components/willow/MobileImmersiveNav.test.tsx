@@ -45,12 +45,15 @@ import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 
 import { NavigationProvider } from "@/lib/navigation"
+import { NavChromeProvider } from "@/components/willow/NavChromeProvider"
 import { MobileImmersiveNav } from "./MobileImmersiveNav"
 
 function mount() {
   return render(
     <NavigationProvider initial={{ name: "lesson", lessonId: "arrays" }}>
-      <MobileImmersiveNav />
+      <NavChromeProvider>
+        <MobileImmersiveNav />
+      </NavChromeProvider>
     </NavigationProvider>,
   )
 }

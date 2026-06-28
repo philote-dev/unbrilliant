@@ -5,6 +5,7 @@ import {
   useEffect,
   useMemo,
   useReducer,
+  useState,
   type ReactNode,
 } from "react"
 
@@ -34,6 +35,13 @@ interface NavChromeValue {
   toggle: () => void
   open: () => void
   close: () => void
+  /**
+   * Mobile-only: whether the immersive lesson nav is expanded into the full tab
+   * bar. Shared here so the lesson chrome can shift its CTA up to make room while
+   * the dock renders the bar. Auto-resets on every route change.
+   */
+  menuOpen: boolean
+  setMenuOpen: (open: boolean) => void
 }
 
 const NavChromeContext = createContext<NavChromeValue | null>(null)
@@ -51,10 +59,18 @@ export function NavChromeProvider({ children }: { children: ReactNode }) {
     initNavChrome,
   )
 
+  const [menuOpen, setMenuOpen] = useState(false)
+
   const immersiveNow = isImmersive(screen)
   useEffect(() => {
     dispatch({ type: immersiveNow ? "enterImmersive" : "exitImmersive" })
   }, [immersiveNow])
+
+  // The mobile lesson menu is transient: any route change (advancing a beat or
+  // leaving the lesson) collapses it back to the icon.
+  useEffect(() => {
+    setMenuOpen(false)
+  }, [screen])
 
   useEffect(() => {
     try {
@@ -75,8 +91,10 @@ export function NavChromeProvider({ children }: { children: ReactNode }) {
       toggle,
       open,
       close,
+      menuOpen,
+      setMenuOpen,
     }),
-    [state, toggle, open, close],
+    [state, toggle, open, close, menuOpen],
   )
 
   return <NavChromeContext value={value}>{children}</NavChromeContext>

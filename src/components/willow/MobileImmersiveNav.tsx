@@ -1,46 +1,41 @@
-import { useEffect, useState } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { Menu } from "lucide-react"
 
-import { cn } from "@/lib/utils"
 import { useNavigation } from "@/lib/navigation"
-import { NAV_ITEMS } from "@/lib/navItems"
+import { useNavChrome } from "@/components/willow/NavChromeProvider"
+import { BottomNav } from "@/components/willow/BottomNav"
 
 /**
- * Mobile lesson nav. A three-line dock floats in the bottom-right, clear above
- * the lesson's own bottom CTA. Tapping it reveals a compact nav pill that grows
- * out of the icon's corner; tapping the scrim or navigating compresses it back
- * in. The icon and the pill share one bottom-right origin and cross-fade with a
- * single scale, so there is no width-morph reflow to jitter.
+ * Mobile lesson nav. Closed, it is a three-line icon sitting in the bottom-right,
+ * level with the lesson's own Continue button (the lesson chrome reserves a small
+ * gutter for it). Opening slides the normal tab bar up across the bottom while the
+ * lesson's CTA lifts to sit above it, exactly the resting layout the tab bar has
+ * on every other screen. The shared open state lives in NavChromeProvider so the
+ * chrome and this dock move together.
  */
 export function MobileImmersiveNav() {
-  const { screen, tab: active, navigate } = useNavigation()
+  const { screen } = useNavigation()
+  const { menuOpen, setMenuOpen } = useNavChrome()
   const reduce = useReducedMotion()
-  const [expanded, setExpanded] = useState(false)
 
-  // Re-condense when the route changes (advancing a beat, or leaving the lesson).
-  useEffect(() => setExpanded(false), [screen])
-
-  // The dock belongs to the active lesson, where it floats above the lesson's own
-  // bottom CTA. Other immersive routes (completion) keep their own navigation, so
-  // the dock would only overlap their buttons.
+  // The dock belongs to the active lesson; other immersive routes keep their own
+  // navigation, so the dock would only cover their buttons.
   if (screen.name !== "lesson") return null
 
-  const pop = reduce
+  const spring = reduce
     ? { duration: 0 }
-    : { type: "spring" as const, stiffness: 420, damping: 30 }
-  const corner = { transformOrigin: "bottom right" as const }
+    : { type: "spring" as const, stiffness: 460, damping: 40 }
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40">
+    <>
       <AnimatePresence>
-        {expanded && (
+        {menuOpen && (
           <motion.button
             key="scrim"
             type="button"
             aria-label="Close navigation"
-            onClick={() => setExpanded(false)}
-            className="pointer-events-auto fixed inset-0 -z-10"
+            onClick={() => setMenuOpen(false)}
+            className="fixed inset-0 z-40 bg-foreground/5"
             initial={reduce ? false : { opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -48,66 +43,41 @@ export function MobileImmersiveNav() {
         )}
       </AnimatePresence>
 
-      <div className="mx-auto flex max-w-md justify-end px-4 pb-[max(5.5rem,calc(env(safe-area-inset-bottom)+5.5rem))]">
-        {/* Fixed-size anchor so the fab and the (larger) pill share one
-            bottom-right corner without shifting the layout while they swap. */}
-        <div className="pointer-events-auto relative size-14">
-          <AnimatePresence initial={false}>
-            {expanded ? (
-              <motion.nav
-                key="pill"
-                aria-label="Primary"
-                style={corner}
-                initial={reduce ? false : { opacity: 0, scale: 0.6 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.6 }}
-                transition={pop}
-                className="absolute bottom-0 right-0 flex items-center gap-1 rounded-3xl border border-border bg-card/95 p-1.5 shadow-card backdrop-blur-md"
-              >
-                {NAV_ITEMS.map(({ tab, label, Icon, target }) => {
-                  const isActive = tab === active
-                  return (
-                    <button
-                      key={tab}
-                      type="button"
-                      onClick={() => navigate(target)}
-                      aria-current={isActive ? "page" : undefined}
-                      className={cn(
-                        "flex w-[3.75rem] flex-col items-center gap-1 rounded-2xl py-2 text-[10px] font-medium transition-colors",
-                        isActive
-                          ? "text-lilac-strong"
-                          : "text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      <Icon
-                        className="size-5"
-                        strokeWidth={isActive ? 2.4 : 2}
-                        fill={isActive ? "var(--lilac)" : "none"}
-                      />
-                      {label}
-                    </button>
-                  )
-                })}
-              </motion.nav>
-            ) : (
-              <motion.button
-                key="fab"
+      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50">
+        <AnimatePresence initial={false} mode="popLayout">
+          {menuOpen ? (
+            <motion.div
+              key="bar"
+              className="pointer-events-auto mx-auto max-w-md px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+              initial={reduce ? false : { y: 28, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={reduce ? { opacity: 0 } : { y: 28, opacity: 0 }}
+              transition={spring}
+            >
+              <BottomNav />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="fab"
+              className="mx-auto flex max-w-md justify-end px-5 pb-6"
+              style={{ transformOrigin: "bottom right" }}
+              initial={reduce ? false : { opacity: 0, scale: 0.6 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.6 }}
+              transition={spring}
+            >
+              <button
                 type="button"
-                onClick={() => setExpanded(true)}
+                onClick={() => setMenuOpen(true)}
                 aria-label="Show navigation"
-                style={corner}
-                initial={reduce ? false : { opacity: 0, scale: 0.6 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.6 }}
-                transition={pop}
-                className="absolute inset-0 flex items-center justify-center rounded-2xl border border-border bg-card/90 text-foreground shadow-card backdrop-blur-md"
+                className="pointer-events-auto flex size-14 items-center justify-center rounded-2xl border border-border bg-card/90 text-foreground shadow-card backdrop-blur-md"
               >
                 <Menu className="size-5" />
-              </motion.button>
-            )}
-          </AnimatePresence>
-        </div>
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
-    </div>
+    </>
   )
 }

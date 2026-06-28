@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react"
 
+import { cn } from "@/lib/utils"
 import { useNavigation } from "@/lib/navigation"
 import { useAuth } from "@/lib/auth"
 import { LessonTopBar } from "@/components/willow/LessonTopBar"
 import { SignInNudge } from "@/components/willow/SignInNudge"
 import { comboToTier, isOnStreak } from "@/components/willow/Flame"
+import { useNavChrome } from "@/components/willow/NavChromeProvider"
+import { useIsDesktop } from "@/hooks/useMediaQuery"
 import { useLessonRun } from "@/features/lesson/useLessonRun"
 
 /** How far into a lesson (as a fraction of its beats) before the sign-in nudge appears. */
@@ -18,6 +21,8 @@ const NUDGE_AFTER_FRACTION = 1 / 3
 export function LessonPlayer({ lessonId }: { lessonId: string }) {
   const { navigate, back } = useNavigation()
   const { user } = useAuth()
+  const { immersive, menuOpen } = useNavChrome()
+  const isDesktop = useIsDesktop()
   const { state, dispatch, module } = useLessonRun()
   const [nudgeDismissed, setNudgeDismissed] = useState(false)
 
@@ -40,8 +45,24 @@ export function LessonPlayer({ lessonId }: { lessonId: string }) {
   const showNudge = !user && !nudgeDismissed && investedEnough
   const Stage = module.Stage
 
+  // On phones during a lesson the tab bar condenses to a corner dock. Closed, the
+  // CTA gives up a right gutter so the three-line icon sits beside it; open, the
+  // CTA lifts so the full tab bar can rest across the bottom. The padding animates
+  // so the Continue button glides between the two positions.
+  const mobileImmersive = !isDesktop && immersive
+  const immersivePad = mobileImmersive
+    ? menuOpen
+      ? "pr-5 pb-[max(5.5rem,calc(env(safe-area-inset-bottom)+5.5rem))]"
+      : "pr-[5.5rem] pb-6"
+    : "pr-5 pb-6"
+
   return (
-    <div className="flex min-h-svh flex-col px-5 pb-6 pt-6 lg:mx-auto lg:min-h-0 lg:w-full lg:max-w-[var(--willow-lesson-max)] lg:flex-1">
+    <div
+      className={cn(
+        "flex min-h-svh flex-col pl-5 pt-6 transition-[padding] duration-300 ease-out motion-reduce:transition-none lg:mx-auto lg:min-h-0 lg:w-full lg:max-w-[var(--willow-lesson-max)] lg:flex-1",
+        immersivePad,
+      )}
+    >
       <LessonTopBar
         totalParts={module.totalParts}
         filledParts={module.filledParts(state)}

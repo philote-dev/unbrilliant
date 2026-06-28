@@ -23,6 +23,21 @@ vi.mock("@/lib/navigation", () => ({
 vi.mock("@/features/lesson/useLessonRun", () => ({
   useLessonRun: () => ({ state: {}, dispatch: vi.fn(), module: h.module }),
 }))
+vi.mock("@/components/willow/NavChromeProvider", () => ({
+  useNavChrome: () => ({
+    collapsed: false,
+    immersive: true,
+    toggle: vi.fn(),
+    open: vi.fn(),
+    close: vi.fn(),
+    menuOpen: false,
+    setMenuOpen: vi.fn(),
+  }),
+}))
+vi.mock("@/hooks/useMediaQuery", () => ({
+  useIsDesktop: () => false,
+  useMediaQuery: () => false,
+}))
 
 import { LessonPlayer } from "./LessonPlayer"
 
