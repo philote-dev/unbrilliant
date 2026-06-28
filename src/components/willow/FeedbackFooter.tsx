@@ -88,7 +88,7 @@ export function FeedbackFooter({
               }
             />
           )}
-          <div className="flex gap-3">
+          <div className="willow-cta-row flex gap-3">
             <Button
               variant="secondary"
               size="lg"

@@ -45,21 +45,23 @@ export function LessonPlayer({ lessonId }: { lessonId: string }) {
   const showNudge = !user && !nudgeDismissed && investedEnough
   const Stage = module.Stage
 
-  // On phones during a lesson the tab bar condenses to a corner dock. Closed, the
-  // CTA gives up a right gutter so the three-line icon sits beside it; open, the
-  // CTA lifts so the full tab bar can rest across the bottom. The padding animates
-  // so the Continue button glides between the two positions.
+  // On phones during a lesson the tab bar condenses to a corner cell. Open, the
+  // whole column lifts so the centered tab bar can rest across the bottom (like
+  // every other screen); closed, only the primary CTA gives up a right gutter for
+  // the cell (the `.lesson-cta`/`-tuck` classes drive that in index.css), so the
+  // centered lesson body never shifts. The vertical lift lives here; the
+  // horizontal tuck is on the CTA itself.
   const mobileImmersive = !isDesktop && immersive
-  const immersivePad = mobileImmersive
-    ? menuOpen
-      ? "pr-5 pb-[max(5.5rem,calc(env(safe-area-inset-bottom)+5.5rem))]"
-      : "pr-[5.5rem] pb-6"
-    : "pr-5 pb-6"
+  const immersivePad =
+    mobileImmersive && menuOpen
+      ? "pb-[max(5.5rem,calc(env(safe-area-inset-bottom)+5.5rem))]"
+      : "pb-6"
 
   return (
     <div
       className={cn(
-        "flex min-h-svh flex-col pl-5 pt-6 transition-[padding] duration-300 ease-out motion-reduce:transition-none lg:mx-auto lg:min-h-0 lg:w-full lg:max-w-[var(--willow-lesson-max)] lg:flex-1",
+        "lesson-cta flex min-h-svh flex-col px-5 pt-6 transition-[padding] duration-300 ease-out motion-reduce:transition-none lg:mx-auto lg:min-h-0 lg:w-full lg:max-w-[var(--willow-lesson-max)] lg:flex-1",
+        mobileImmersive && !menuOpen && "lesson-cta-tuck",
         immersivePad,
       )}
     >

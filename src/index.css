@@ -398,3 +398,33 @@
     opacity: 0.8;
   }
 }
+
+/* Mobile immersive lesson nav: when the corner nav cell is closed it sits level
+   with the lesson's primary CTA, so the CTA (and the fail Why/Reattempt row) gives
+   up a right gutter to make room. We tuck ONLY the CTA, never the surrounding
+   body, so centered lesson content never shifts. The shrink animates the CTA's
+   own width (to calc(100% - gutter)) so it glides in and back out without ever
+   overflowing. Scoped to `.lesson-cta` so app-wide tactile buttons are
+   unaffected; only full-width in-lesson CTAs are targeted. */
+.lesson-cta [data-variant="tactile"].w-full {
+  /* Block-level so the shrunk CTA left-aligns (ignoring any centered text in the
+     wrapper) and the gutter lands on the right, beside the corner cell. */
+  display: flex;
+  transition: width 0.3s ease;
+}
+.lesson-cta-tuck [data-variant="tactile"].w-full {
+  width: calc(100% - 5.5rem);
+}
+.lesson-cta .willow-cta-row {
+  transition: padding-inline-end 0.3s ease;
+}
+.lesson-cta-tuck .willow-cta-row {
+  padding-inline-end: 5.5rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lesson-cta [data-variant="tactile"].w-full,
+  .lesson-cta .willow-cta-row {
+    transition: none;
+  }
+}

@@ -1,22 +1,43 @@
+import { useLayoutEffect, useRef, useState } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { Menu } from "lucide-react"
 
+import { cn } from "@/lib/utils"
 import { useNavigation } from "@/lib/navigation"
 import { useNavChrome } from "@/components/willow/NavChromeProvider"
-import { BottomNav } from "@/components/willow/BottomNav"
+import { NAV_ITEMS } from "@/lib/navItems"
+
+/** Width of the expanded tab pill (4 tabs); the closed cell is the square below. */
+const OPEN_W = 280
+const CELL = 56
 
 /**
- * Mobile lesson nav. Closed, it is a three-line icon sitting in the bottom-right,
- * level with the lesson's own Continue button (the lesson chrome reserves a small
- * gutter for it). Opening slides the normal tab bar up across the bottom while the
- * lesson's CTA lifts to sit above it, exactly the resting layout the tab bar has
- * on every other screen. The shared open state lives in NavChromeProvider so the
- * chrome and this dock move together.
+ * Mobile lesson nav: one dock that morphs between a centered tab pill (open) and a
+ * three-line cell pinned to the bottom-right corner (closed). The morph animates
+ * real width plus an x-offset, so closing reads as the pill *sliding to the right*
+ * and shrinking into the cell (then the lesson's CTA settles in beside it), and
+ * opening grows it back to centered. The icon and tabs are both always mounted and
+ * crossfaded (no mount/unmount), which kills the flicker; animating real width
+ * (not a layout/scale) keeps the shrink continuous, which kills the snap.
  */
 export function MobileImmersiveNav() {
-  const { screen } = useNavigation()
+  const { screen, tab: active, navigate } = useNavigation()
   const { menuOpen, setMenuOpen } = useNavChrome()
   const reduce = useReducedMotion()
+
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const [wrapW, setWrapW] = useState(0)
+
+  useLayoutEffect(() => {
+    const el = wrapRef.current
+    if (!el) return
+    const measure = () => setWrapW(el.clientWidth)
+    measure()
+    if (typeof ResizeObserver === "undefined") return
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   // The dock belongs to the active lesson; other immersive routes keep their own
   // navigation, so the dock would only cover their buttons.
@@ -24,7 +45,14 @@ export function MobileImmersiveNav() {
 
   const spring = reduce
     ? { duration: 0 }
-    : { type: "spring" as const, stiffness: 460, damping: 40 }
+    : { type: "spring" as const, stiffness: 440, damping: 38 }
+  // Quick content crossfade, nudged so the layer that is leaving clears before the
+  // box reaches its new size, and the arriving layer lands as it settles.
+  const fadeIn = reduce ? { duration: 0 } : { duration: 0.16, delay: 0.08 }
+  const fadeOut = reduce ? { duration: 0 } : { duration: 0.12 }
+
+  // Open: shift the right-anchored dock left so the OPEN_W pill is centered.
+  const openX = -Math.max(0, (wrapW - OPEN_W) / 2)
 
   return (
     <>
@@ -43,40 +71,69 @@ export function MobileImmersiveNav() {
         )}
       </AnimatePresence>
 
-      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50">
-        <AnimatePresence initial={false} mode="popLayout">
-          {menuOpen ? (
-            <motion.div
-              key="bar"
-              className="pointer-events-auto mx-auto max-w-md px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
-              initial={reduce ? false : { y: 28, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={reduce ? { opacity: 0 } : { y: 28, opacity: 0 }}
-              transition={spring}
+      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+        <div ref={wrapRef} className="relative mx-auto h-14 max-w-md">
+          <motion.div
+            className="pointer-events-auto absolute bottom-0 right-0 h-14 overflow-hidden rounded-3xl border border-border bg-card/90 shadow-card backdrop-blur-md"
+            initial={false}
+            animate={{ width: menuOpen ? OPEN_W : CELL, x: menuOpen ? openX : 0 }}
+            transition={spring}
+          >
+            {/* Tabs layer: fixed at the open width and right-anchored, so a shrink
+                clips it into the corner. Crossfaded, never unmounted. */}
+            <motion.nav
+              aria-label="Primary"
+              aria-hidden={!menuOpen}
+              className="absolute inset-y-0 right-0 flex items-center gap-1 px-1.5"
+              style={{ width: OPEN_W, pointerEvents: menuOpen ? "auto" : "none" }}
+              initial={false}
+              animate={{ opacity: menuOpen ? 1 : 0 }}
+              transition={menuOpen ? fadeIn : fadeOut}
             >
-              <BottomNav />
-            </motion.div>
-          ) : (
-            <motion.div
-              key="fab"
-              className="mx-auto flex max-w-md justify-end px-5 pb-6"
-              style={{ transformOrigin: "bottom right" }}
-              initial={reduce ? false : { opacity: 0, scale: 0.6 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.6 }}
-              transition={spring}
+              {NAV_ITEMS.map(({ tab, label, Icon, target }) => {
+                const isActive = tab === active
+                return (
+                  <button
+                    key={tab}
+                    type="button"
+                    tabIndex={menuOpen ? 0 : -1}
+                    onClick={() => navigate(target)}
+                    aria-current={isActive ? "page" : undefined}
+                    className={cn(
+                      "flex flex-1 flex-col items-center gap-1 rounded-2xl py-1.5 text-[11px] font-medium transition-colors",
+                      isActive
+                        ? "text-lilac-strong"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    <Icon
+                      className="size-5"
+                      strokeWidth={isActive ? 2.4 : 2}
+                      fill={isActive ? "var(--lilac)" : "none"}
+                    />
+                    {label}
+                  </button>
+                )
+              })}
+            </motion.nav>
+
+            {/* Icon layer: the corner cell. Crossfaded opposite the tabs. */}
+            <motion.button
+              type="button"
+              aria-label="Show navigation"
+              aria-hidden={menuOpen}
+              tabIndex={menuOpen ? -1 : 0}
+              onClick={() => setMenuOpen(true)}
+              className="absolute inset-y-0 right-0 grid w-14 place-items-center text-foreground"
+              style={{ pointerEvents: menuOpen ? "none" : "auto" }}
+              initial={false}
+              animate={{ opacity: menuOpen ? 0 : 1 }}
+              transition={menuOpen ? fadeOut : fadeIn}
             >
-              <button
-                type="button"
-                onClick={() => setMenuOpen(true)}
-                aria-label="Show navigation"
-                className="pointer-events-auto flex size-14 items-center justify-center rounded-2xl border border-border bg-card/90 text-foreground shadow-card backdrop-blur-md"
-              >
-                <Menu className="size-5" />
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
+              <Menu className="size-5" />
+            </motion.button>
+          </motion.div>
+        </div>
       </div>
     </>
   )
