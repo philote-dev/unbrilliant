@@ -18,6 +18,7 @@ describe("reinforceCheckpoint", () => {
   it("clean pass promotes one rung and refreshes due date", () => {
     const r = reinforceCheckpoint(base({ level: 1 }), { at: 10_000, cleanPass: true })
     expect(r.level).toBe(2)
+    expect(r.seen).toBe(4)
     expect(r.lastSeenAt).toBe(10_000)
     expect(r.dueAt).toBeGreaterThan(10_000)
   })
@@ -30,5 +31,6 @@ describe("reinforceCheckpoint", () => {
     const r = reinforceCheckpoint(base({ level: 1 }), { at: 10_000, cleanPass: false })
     expect(r.level).toBe(1)
     expect(r.lastSeenAt).toBe(10_000)
+    expect(r.dueAt).toBeGreaterThan(10_000)
   })
 })

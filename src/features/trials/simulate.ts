@@ -24,12 +24,15 @@ export function simulateLine(ops: LineOp[]): LineResult {
     } else if (op.t === "leaveMiddle") {
       history.push({ action: "leaveMiddle", before: [...line] })
       line = line.filter((x) => x !== op.id)
-    } else {
+    } else if (op.t === "undo") {
       const h = history.pop()
       if (h) {
         lastUndoReversed = h.action
         line = h.before
       }
+    } else {
+      const _exhaustive: never = op
+      throw new Error(`unknown line op: ${JSON.stringify(_exhaustive)}`)
     }
   }
   return { front: line[0] ?? null, line, lastUndoReversed }

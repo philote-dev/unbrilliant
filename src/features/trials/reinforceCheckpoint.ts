@@ -21,5 +21,6 @@ export function reinforceCheckpoint(
       graduated: level >= MAX_LEVEL,
     }
   }
+  // correctStreak is intentionally left unchanged here: unlike applyReview, a checkpoint boost is not a spaced rep.
   return { ...r, seen, lastSeenAt: ev.at, dueAt: ev.at + gapForLevel(r.level) }
 }
