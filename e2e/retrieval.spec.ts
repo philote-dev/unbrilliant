@@ -97,7 +97,7 @@ async function signIn(page: Page): Promise<void> {
   if (await splash.isVisible().catch(() => false)) await splash.click().catch(() => {})
 
   const nav = page.getByRole("navigation")
-  await nav.getByRole("button", { name: "Profile", exact: true }).click()
+  await nav.getByRole("button", { name: "Settings", exact: true }).click()
   await page.getByRole("button", { name: "Sign in to save your progress" }).click()
   await page.getByPlaceholder("Email address").fill(EMAIL)
   await page.getByPlaceholder("Password").fill(PASSWORD)

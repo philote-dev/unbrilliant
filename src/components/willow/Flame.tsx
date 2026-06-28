@@ -27,6 +27,15 @@ export function comboToTier(combo: number): FlameTier {
 }
 
 /**
+ * Whether a combo counts as a real "on a roll" streak: the on-fire flame is lit
+ * (tier >= 1, i.e. two-plus correct in a row). Single source of truth so the
+ * sign-in prompts only claim a streak when there genuinely is one.
+ */
+export function isOnStreak(combo: number): boolean {
+  return comboToTier(combo) > 0
+}
+
+/**
  * Build a flame silhouette in the 24×24 box, base anchored at `baseY`, centered
  * on `cx`. A teardrop with a single cubic per side meeting at a movable tip, and
  * a rounded base. `tipDX` slides the tip; `sway` bows the edges; `h`/`w` size it;

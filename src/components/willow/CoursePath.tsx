@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { Check, Lock } from "lucide-react"
+import { Check, Lock, RotateCcw } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -9,6 +9,7 @@ export interface PathNode {
   id: string
   name: string
   state: PathNodeState
+  /** A completed lesson that has decayed into the rusty band (spiky-POV review). */
   needsReview?: boolean
 }
 
@@ -151,15 +152,23 @@ export function CoursePath({ nodes, onSelect, className }: PathLayoutProps) {
                   "focus-visible:ring-2 focus-visible:ring-lilac-strong/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                   "group-hover:scale-110",
                   enterable ? "cursor-pointer" : "cursor-default",
-                  node.state === "completed" && "bg-lilac-strong text-white",
+                  node.state === "completed" &&
+                    !node.needsReview &&
+                    "bg-lilac-strong text-white",
+                  node.state === "completed" &&
+                    node.needsReview &&
+                    "bg-warning text-warning-foreground",
                   node.state === "current" &&
                     "bg-lilac-strong text-white ring-4 ring-lilac-strong/20",
                   node.state === "available" && "border-2 border-lilac-strong/55 bg-card",
                   node.state === "locked" && "border border-border bg-muted",
                 )}
               >
-                {node.state === "completed" && (
+                {node.state === "completed" && !node.needsReview && (
                   <Check className="size-4 text-white" strokeWidth={3} />
+                )}
+                {node.state === "completed" && node.needsReview && (
+                  <RotateCcw className="size-4 text-warning-foreground" strokeWidth={2.75} />
                 )}
                 {node.state === "current" && (
                   <span className="size-2.5 rounded-full bg-white" />

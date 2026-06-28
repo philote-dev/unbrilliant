@@ -1,4 +1,10 @@
-import { BarChart3, BookOpen, Home, User, type LucideIcon } from "lucide-react"
+import {
+  BarChart3,
+  BookOpen,
+  Home,
+  Settings,
+  type LucideIcon,
+} from "lucide-react"
 
 import type { Screen, Tab } from "@/lib/navigation"
 
@@ -19,5 +25,10 @@ export const NAV_ITEMS: NavItem[] = [
     Icon: BarChart3,
     target: { name: "progress" },
   },
-  { tab: "profile", label: "Profile", Icon: User, target: { name: "profile" } },
+  {
+    tab: "settings",
+    label: "Settings",
+    Icon: Settings,
+    target: { name: "settings" },
+  },
 ]

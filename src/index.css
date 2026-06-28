@@ -69,6 +69,16 @@
   --willow-sidebar-w: 260px; /* persistent left rail width */
   --willow-content-max: 1440px; /* centered main cap on ultrawide */
   --willow-lesson-max: 1240px; /* narrower cap for lesson readability */
+
+  /* Mastery-willow plate. The willow art is watercolor on a luminous paper
+     ground, so it always sits on a light "specimen plate" (the art is unchanged
+     in both themes). Light keeps the plate near-invisible so the willow still
+     floats on the page; dark turns it into a softly lit, lilac-ringed panel so a
+     light ground reads as intentional, not a stray white box. */
+  --willow-plate-bg: #f7f4fb; /* the paper ground (matches the baked art bg) */
+  --willow-plate-ring: color-mix(in srgb, var(--lilac-strong) 12%, transparent);
+  --willow-plate-shadow: var(--shadow-soft);
+  --willow-plate-vignette: transparent; /* paper is already on a light page */
 }
 
 .dark {
@@ -114,6 +124,20 @@
   --shadow-card: 0 0 0 1px rgba(180, 167, 231, 0.05),
     0 12px 44px -22px rgba(0, 0, 0, 0.8);
   --shadow-pop: 0 18px 50px -16px rgba(0, 0, 0, 0.85);
+
+  /* The willow plate becomes a lit specimen on near-black: a lilac hairline ring
+     bridges the light-paper edge, and a soft lilac bloom (plus depth shadow)
+     makes it read as deliberately lit rather than a misplaced white rectangle. */
+  --willow-plate-ring: color-mix(in srgb, var(--lilac-strong) 30%, transparent);
+  --willow-plate-shadow: 0 20px 55px -22px rgba(0, 0, 0, 0.8),
+    0 0 64px -16px color-mix(in srgb, var(--lilac-strong) 32%, transparent);
+  /* keeps the canopy center bright while the paper's edges fall into the room,
+     so it reads as lit paper rather than a flat white card. */
+  --willow-plate-vignette: radial-gradient(
+    118% 118% at 50% 40%,
+    transparent 60%,
+    rgba(7, 9, 14, 0.36) 100%
+  );
 }
 
 /* Expose Willow tokens as Tailwind v4 utilities (bg-lilac, text-lilac-strong, …) */
@@ -319,6 +343,32 @@
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* Mastery-willow "specimen plate": frames the watercolor on its light paper
+   ground so it works on any theme. The art is opaque and fills the plate, so the
+   plate's own background only shows before the art paints; the chrome (radius,
+   ring, shadow/bloom) is what the eye reads, and it is themed via the
+   --willow-plate-* tokens above. See src/components/willow/MasteryWillow.tsx. */
+.willow-plate {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.5rem;
+  background: var(--willow-plate-bg);
+  border: 1px solid var(--willow-plate-ring);
+  box-shadow: var(--willow-plate-shadow);
+}
+
+/* The "lit paper" vignette, painted over the art's outer margin. Transparent in
+   light mode (the paper already sits on a light page); in dark mode it darkens
+   the edges so the bright ground melts into the surrounding near-black. */
+.willow-plate::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: var(--willow-plate-vignette);
 }
 
 /* Mastery willow sparkles (see src/components/willow/MasteryWillow.tsx). Defined

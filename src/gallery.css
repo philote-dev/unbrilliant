@@ -1,0 +1,12 @@
+/*
+ * Gallery-only stylesheet.
+ *
+ * Pulls in the full app CSS (tokens + Tailwind utilities), then registers the
+ * dev gallery folder as a Tailwind source. `src/dev` is gitignored, so
+ * Tailwind's automatic scan skips it and any prototype-only arbitrary class
+ * (e.g. `w-[390px]`, `rounded-[2rem]`, `text-[10.5px]`) would never be
+ * generated. `@source` opts it back in for the gallery build only; production
+ * (which imports `index.css` directly) stays free of dev-only utilities.
+ */
+@import "./index.css";
+@source "./dev";

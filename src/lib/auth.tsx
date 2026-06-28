@@ -34,6 +34,7 @@ type AuthContextValue = {
     displayName: string,
   ) => Promise<void>
   signInWithEmail: (email: string, password: string) => Promise<void>
+  updateDisplayName: (displayName: string) => Promise<void>
   signOut: () => Promise<void>
 }
 
@@ -69,6 +70,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     async signInWithEmail(email, password) {
       await signInWithEmailAndPassword(auth, email, password)
+    },
+    async updateDisplayName(displayName) {
+      const current = auth.currentUser
+      if (!current) return
+      const trimmed = displayName.trim()
+      await updateProfile(current, { displayName: trimmed })
+      // onAuthStateChanged won't refire for a profile-only update, so reflect it now.
+      setUser((prev) => (prev ? { ...prev, displayName: trimmed } : prev))
     },
     async signOut() {
       await fbSignOut(auth)

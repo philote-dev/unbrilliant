@@ -31,7 +31,7 @@ export function HeapPath({ nodes, onSelect, className }: PathLayoutProps) {
                   "flex size-8 items-center justify-center rounded-md text-[11px] font-bold outline-none transition-transform hover:scale-110",
                   "focus-visible:ring-2 focus-visible:ring-lilac-strong/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                   node.state === "current" && "ring-2 ring-lilac-strong/30",
-                  nodeSurface(node.state),
+                  nodeSurface(node.state, node.needsReview),
                   enterable ? "cursor-pointer" : "cursor-default",
                 )}
               >

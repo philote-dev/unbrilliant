@@ -52,15 +52,15 @@ test("desktop shell: sidebar nav + command palette", async ({ page }) => {
   await page.goto("/")
 
   const nav = page.getByRole("navigation")
-  for (const label of ["Home", "Learn", "Progress", "Profile"]) {
+  for (const label of ["Home", "Learn", "Progress", "Settings"]) {
     await expect(nav.getByRole("button", { name: label, exact: true })).toBeVisible()
   }
 
   await nav.getByRole("button", { name: "Progress", exact: true }).click()
   await expect(page.getByRole("heading", { name: "Your progress" })).toBeVisible()
 
-  await nav.getByRole("button", { name: "Profile", exact: true }).click()
-  await expect(page.getByRole("heading", { name: "Profile" })).toBeVisible()
+  await nav.getByRole("button", { name: "Settings", exact: true }).click()
+  await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible()
 
   // Command palette: open, filter, close.
   await page.getByRole("button", { name: /Search/ }).click()

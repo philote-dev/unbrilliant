@@ -4,7 +4,7 @@ import { useNavigation } from "@/lib/navigation"
 import { useAuth } from "@/lib/auth"
 import { LessonTopBar } from "@/components/willow/LessonTopBar"
 import { SignInNudge } from "@/components/willow/SignInNudge"
-import { comboToTier } from "@/components/willow/Flame"
+import { comboToTier, isOnStreak } from "@/components/willow/Flame"
 import { useLessonRun } from "@/features/lesson/useLessonRun"
 
 /** How far into a lesson (as a fraction of its beats) before the sign-in nudge appears. */
@@ -51,10 +51,10 @@ export function LessonPlayer({ lessonId }: { lessonId: string }) {
 
       {showNudge && (
         <SignInNudge
+          onStreak={isOnStreak(module.combo(state))}
           onSignIn={() =>
             navigate({
               name: "signin",
-              reason: "Sign in to save your progress.",
               intent: "save",
             })
           }

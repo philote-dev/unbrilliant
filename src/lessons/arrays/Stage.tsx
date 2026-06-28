@@ -962,18 +962,18 @@ function GrowSummaryPart({ dispatch }: { dispatch: Dispatch<LessonAction> }) {
   const prefersReduced = useReducedMotion()
   const reduced = prefersReduced ?? false
   return (
-    <StageCenter maxWidthClass="max-w-xl">
+    <StageCenter maxWidthClass="max-w-2xl">
       <div className="mt-8 text-center animate-fade-in">
         <Eyebrow>Dynamic arrays</Eyebrow>
-        <h2 className="mt-3 text-balance text-3xl font-bold tracking-tight text-foreground lg:text-5xl">
-          It's all about the average cost
+        <h2 className="mt-3 text-balance text-2xl font-bold tracking-tight text-foreground lg:text-4xl">
+          It's the average that counts
         </h2>
       </div>
 
-      <div className="flex flex-1 flex-col items-center justify-center gap-7 py-6">
+      <div className="flex flex-1 flex-col items-center justify-center gap-6 py-6">
         <GrowSummary />
         <motion.p
-          className="mx-auto max-w-md text-pretty text-center text-xl leading-relaxed text-foreground/90 lg:text-2xl"
+          className="mx-auto max-w-md text-pretty text-center text-base leading-relaxed text-foreground/90 lg:text-lg"
           initial={reduced ? false : { opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={reduced ? { duration: 0 } : { delay: SUMMARY_REVEAL.explain, duration: 0.5 }}

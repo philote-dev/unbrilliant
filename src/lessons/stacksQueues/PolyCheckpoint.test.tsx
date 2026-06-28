@@ -100,9 +100,34 @@ describe("PolyCheckpoint (voice mode)", () => {
       <PolyCheckpoint {...deps({ voice: true, speakText, createTranscriber: fake.create })} />,
     )
     await waitFor(() =>
-      expect(speakText).toHaveBeenCalledWith("In your own words, explain stacks."),
+      expect(speakText).toHaveBeenCalledWith(
+        "In your own words, explain stacks.",
+        expect.any(AbortSignal),
+      ),
     )
     await waitFor(() => expect(fake.transcriber.start).toHaveBeenCalled())
+  })
+
+  it("cancels Poly's in-flight speech when the checkpoint unmounts", async () => {
+    // The bug: a checkpoint's TTS could resolve/play after navigation (e.g. landing
+    // on the completion screen), so Poly "talked" from the previous segment. The
+    // checkpoint must abort the speech turn on unmount.
+    let captured: AbortSignal | undefined
+    const speakText = vi.fn((_text: string, signal?: AbortSignal) => {
+      captured = signal
+      // Never resolves: simulates a fetch/playback still in flight at unmount.
+      return new Promise<void>(() => {})
+    })
+    const fake = makeFakeTranscriber()
+    const { unmount } = render(
+      <PolyCheckpoint
+        {...deps({ voice: true, speakText, createTranscriber: fake.create })}
+      />,
+    )
+    await waitFor(() => expect(speakText).toHaveBeenCalled())
+    expect(captured?.aborted).toBe(false)
+    unmount()
+    expect(captured?.aborted).toBe(true)
   })
 
   it("renders the live transcript and scores it on Done", async () => {

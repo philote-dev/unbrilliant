@@ -52,6 +52,7 @@ docs/*
 # Dev gallery (gallery.html + src/dev/) is local dev tooling: not tracked, and not
 # a production build input (only index.html is built). Run it via `npm run gallery`.
 gallery.html
+trials.html
 src/dev/
 
 # Cloud Functions build output

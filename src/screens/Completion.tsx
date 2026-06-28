@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { WillowLogo, WillowMark } from "@/components/willow/Logo"
 import { Flame } from "@/components/willow/Flame"
+import { savePromptSubtitle } from "@/components/willow/savePrompt"
 import { CompletionChecks } from "@/components/willow/CompletionChecks"
 import { SignInPrompt } from "@/components/willow/SignInPrompt"
 import { useCourseProgress } from "@/features/progress/CourseProgressProvider"
@@ -22,7 +23,7 @@ const COMPLETION_CHECKS: Record<string, string[]> = {
 export function Completion({ lessonId }: { lessonId: string }) {
   const { navigate } = useNavigation()
   const { user } = useAuth()
-  const { progressByLesson, refresh } = useCourseProgress()
+  const { progressByLesson, refresh, streak } = useCourseProgress()
   const [promptDismissed, setPromptDismissed] = useState(false)
   const [promptReady, setPromptReady] = useState(false)
 
@@ -50,6 +51,10 @@ export function Completion({ lessonId }: { lessonId: string }) {
     (n) => n.state === "current" || n.state === "available",
   )
   const checks = COMPLETION_CHECKS[lessonId] ?? []
+
+  // Subtitle for the save pop-up: honest about the streak, and never repeats the
+  // "Save your progress" title it sits under.
+  const saveBody = savePromptSubtitle(streak.current)
 
   return (
     <div className="flex min-h-svh flex-1 flex-col items-center px-6 pb-10 pt-8 lg:mx-auto lg:min-h-0 lg:max-w-md">
@@ -123,11 +128,10 @@ export function Completion({ lessonId }: { lessonId: string }) {
 
       {!user && promptReady && !promptDismissed && (
         <SignInPrompt
-          body={`Sign in to keep your streak and save ${lessonName(lessonId)}.`}
+          body={saveBody}
           onSignIn={() =>
             navigate({
               name: "signin",
-              reason: "Sign in to save your progress.",
               intent: "save",
             })
           }

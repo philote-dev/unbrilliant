@@ -1,4 +1,4 @@
-import { Search } from "lucide-react"
+import { Menu, Search } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { useNavigation } from "@/lib/navigation"
@@ -23,7 +23,7 @@ import {
  * current lesson), and a pinned footer with the streak, account, and theme.
  * Shown only at `lg`+ via the DesktopShell; the mobile BottomNav is unchanged.
  */
-export function SideNav() {
+export function SideNav({ onCollapse }: { onCollapse?: () => void }) {
   const { navigate, tab: active } = useNavigation()
   const { user } = useAuth()
   const { progressByLesson, courseProgress, currentCourseId, streak } =
@@ -38,14 +38,27 @@ export function SideNav() {
 
   return (
     <aside className="sticky top-0 flex h-svh w-[var(--willow-sidebar-w)] shrink-0 flex-col border-r border-border bg-card px-4 py-6">
-      <button
-        type="button"
-        onClick={() => navigate({ name: "home" })}
-        className="flex items-center rounded-2xl px-2 py-1 text-left transition-colors hover:bg-muted"
-        aria-label="Willow home"
-      >
-        <WillowLogo size="md" />
-      </button>
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => navigate({ name: "home" })}
+          className="flex flex-1 items-center rounded-2xl px-2 py-1 text-left transition-colors hover:bg-muted"
+          aria-label="Willow home"
+        >
+          <WillowLogo size="md" />
+        </button>
+        {onCollapse && (
+          <button
+            type="button"
+            onClick={onCollapse}
+            title="Hide sidebar"
+            aria-label="Hide sidebar"
+            className="flex size-9 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <Menu className="size-5" />
+          </button>
+        )}
+      </div>
 
       <button
         type="button"
@@ -123,7 +136,7 @@ export function SideNav() {
           <button
             type="button"
             onClick={() =>
-              navigate(user ? { name: "profile" } : { name: "signin" })
+              navigate(user ? { name: "settings" } : { name: "signin" })
             }
             className="flex min-w-0 flex-1 items-center gap-2 rounded-2xl px-3 py-2 text-left transition-colors hover:bg-muted"
           >

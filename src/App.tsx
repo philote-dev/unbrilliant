@@ -10,7 +10,6 @@ import { SignIn } from "@/screens/SignIn"
 import { LessonHost } from "@/lessons/LessonHost"
 import { Completion } from "@/screens/Completion"
 import { Progress } from "@/screens/Progress"
-import { Profile } from "@/screens/Profile"
 import { Settings } from "@/screens/Settings"
 
 // Poly Lab is a dev-only diagnostics screen. Gating its import behind
@@ -25,7 +24,6 @@ const NAV_SCREENS = new Set<Screen["name"]>([
   "courses",
   "course",
   "progress",
-  "profile",
   "settings",
 ])
 
@@ -38,15 +36,13 @@ function renderScreen(screen: Screen) {
     case "course":
       return <CourseDetail courseId={screen.courseId} />
     case "signin":
-      return <SignIn reason={screen.reason} intent={screen.intent} />
+      return <SignIn intent={screen.intent} />
     case "lesson":
       return <LessonHost key={screen.lessonId} lessonId={screen.lessonId} />
     case "complete":
       return <Completion lessonId={screen.lessonId} />
     case "progress":
       return <Progress />
-    case "profile":
-      return <Profile />
     case "settings":
       return <Settings />
     case "poly-lab":

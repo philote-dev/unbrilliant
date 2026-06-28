@@ -3,6 +3,8 @@ import { Eye, EyeOff, Lock, Mail, User } from "lucide-react"
 
 import { useNavigation } from "@/lib/navigation"
 import { useAuth } from "@/lib/auth"
+import { useCourseProgress } from "@/features/progress/CourseProgressProvider"
+import { savePromptSubtitle } from "@/components/willow/savePrompt"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { WillowLogo } from "@/components/willow/Logo"
@@ -53,14 +55,9 @@ function authMessage(e: unknown): string {
   }
 }
 
-export function SignIn({
-  reason,
-  intent = "save",
-}: {
-  reason?: string
-  intent?: "save" | "unlock"
-}) {
+export function SignIn({ intent = "save" }: { intent?: "save" | "unlock" }) {
   const { back, replace } = useNavigation()
+  const { streak } = useCourseProgress()
   const { signInWithGoogle, signUpWithEmail, signInWithEmail } = useAuth()
   const [showPw, setShowPw] = useState(false)
   const [email, setEmail] = useState("")
@@ -118,7 +115,7 @@ export function SignIn({
           Save your progress
         </h1>
         <p className="mt-1.5 text-center text-[15px] text-muted-foreground">
-          {reason ?? "Sign in to keep your streak and unlock more lessons."}
+          {savePromptSubtitle(streak.current)}
         </p>
 
         <div className="mt-6 rounded-3xl border border-border bg-card p-5 shadow-card">

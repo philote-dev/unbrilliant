@@ -37,7 +37,7 @@ export interface PolyCheckpointProps {
   requestProbe?: (req: ProbeRequest) => Promise<ProbeResponse>
   saveExplanation?: (uid: string, rec: ExplanationRecord) => Promise<void>
   voice?: boolean
-  speakText?: (text: string) => Promise<void>
+  speakText?: (text: string, signal?: AbortSignal) => Promise<void>
   createTranscriber?: (opts: {
     onUpdate: (t: TranscriptUpdate) => void
     onError?: (e: unknown) => void
@@ -144,24 +144,26 @@ export function PolyCheckpoint({
   }
 
   // One voice turn: Poly speaks the question, then the mic opens. Re-runs when
-  // the question, mode, or phase changes; the cleanup cancels an in-flight turn
-  // and releases the mic, which keeps StrictMode's double-invoke safe (the first
-  // pass is cancelled and the second pass starts listening cleanly).
+  // the question, mode, or phase changes; the cleanup aborts an in-flight turn
+  // (stopping any TTS that is still fetching or playing) and releases the mic. The
+  // abort is what keeps Poly from talking on the next screen if this checkpoint
+  // unmounts mid-sentence (e.g. the lesson completes), and keeps StrictMode's
+  // double-invoke safe (the first pass is cancelled, the second starts clean).
   useEffect(() => {
     if (mode !== "voice" || phase !== "answering") return
-    let cancelled = false
+    const turn = new AbortController()
     setVoiceError(false)
     setVoicePhase("speaking")
     void (async () => {
       try {
-        await speakText(question)
+        await speakText(question, turn.signal)
       } catch {
         // ignore: autoplay/network; open the mic regardless
       }
-      if (!cancelled) startListening()
+      if (!turn.signal.aborted) startListening()
     })()
     return () => {
-      cancelled = true
+      turn.abort()
       stopListening()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -34,8 +34,8 @@ export const accuracyEmpty: AccuracyVM = { correct: 0, attempted: 0 }
 export const lifetimePopulated: LifetimeVM = { attempted: 1240, correct: 1042 }
 export const lifetimeEmpty: LifetimeVM = { attempted: 0, correct: 0 }
 
-export const lessonsMasteredPopulated: LessonsMasteredVM = { completed: 4, total: 7 }
-export const lessonsMasteredEmpty: LessonsMasteredVM = { completed: 0, total: 7 }
+export const lessonsMasteredPopulated: LessonsMasteredVM = { completed: 5, total: 8 }
+export const lessonsMasteredEmpty: LessonsMasteredVM = { completed: 0, total: 8 }
 
 export const masteryPopulated: MasteryVM = { mastery: 0.72 }
 export const masteryEmpty: MasteryVM = { mastery: 0 }

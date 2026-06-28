@@ -1,11 +1,16 @@
-import { useMemo, useState, type ReactNode } from "react"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
 import {
   ChevronLeft,
   FlaskConical,
   HeartPulse,
+  HelpCircle,
+  Layers,
   Lightbulb,
   MessageSquareText,
   RefreshCw,
+  ScanSearch,
+  ShieldCheck,
+  Sparkles,
 } from "lucide-react"
 
 import { useNavigation } from "@/lib/navigation"
@@ -13,6 +18,7 @@ import { useAuth } from "@/lib/auth"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { PolyCheckpoint } from "@/lessons/stacksQueues/PolyCheckpoint"
+import { diagnoseBufferTrace, type Step } from "@/features/poly/diagnose"
 import {
   polyHealthCheck,
   requestHint,
@@ -33,12 +39,28 @@ async function mockHealth(): Promise<HealthResult> {
   return { ok: true, model: "gpt-4o-mini (mock)", reply: "pong", uid: null }
 }
 
+type TraceStep = Step
+
 interface HintScenario {
   id: string
   label: string
   discipline: Discipline
   goalExit: string[]
+  /** The flattened push order sent to the current (order-only) hint engine. */
   pushed: string[]
+  /**
+   * Optional multi-step framing. When present the panel renders the question
+   * prompt, the arrival stream, and the learner's operation trace instead of a
+   * single "Learner built" row. This is the complex, hard-to-tabulate case we
+   * use to fine-tune the engine; `pushed` still carries the flattened order the
+   * current `HintArgs` can express.
+   */
+  complex?: {
+    prompt: string
+    arrival: string[]
+    trace: TraceStep[]
+    producedExit: string[]
+  }
   mockHints: string[]
   staticFallback: string
 }
@@ -80,6 +102,39 @@ const HINT_SCENARIOS: HintScenario[] = [
       "So close. Look at the very first card you placed at the bottom. For your goal order, which letter must come out first, and so where does it need to sit?",
     ],
     staticFallback: "The card you want out first must be the last one you put on.",
+  },
+  {
+    // The complex case: not a single push order but an interleaved run of pushes
+    // and pops. The same skill (stackConstruct) is violated in a way no fixed
+    // skill->proposition row can name, because the mistake is *when* they popped,
+    // not *what* they stacked. This is the fine-tuning target.
+    id: "stack-buffer-permutation",
+    label: "Stack as a buffer (multi-step)",
+    discipline: "stack",
+    goalExit: ["B", "A", "D", "C"],
+    pushed: ["A", "B", "C", "D"],
+    complex: {
+      prompt:
+        "Items arrive A, B, C, D. Using one stack as a buffer (push from the stream, pop to the output), make the output read B, A, D, C.",
+      arrival: ["A", "B", "C", "D"],
+      trace: [
+        { op: "push", item: "A" },
+        { op: "push", item: "B" },
+        { op: "push", item: "C" },
+        { op: "push", item: "D" },
+        { op: "pop" },
+        { op: "pop" },
+        { op: "pop" },
+        { op: "pop" },
+      ],
+      producedExit: ["D", "C", "B", "A"],
+    },
+    mockHints: [
+      "You loaded every item in before taking any out, so the first one you can hand back is whatever you pushed last. Your target wants the second arrival out first: what would have to happen the moment it lands?",
+      "Walk it one move at a time. Right after the second item goes on, it is sitting on top and it is exactly who your output needs next, so what is the cheapest moment to take it?",
+    ],
+    staticFallback:
+      "Pop while you push: take an item out as soon as it reaches the top in the order you need.",
   },
 ]
 
@@ -152,6 +207,7 @@ export function PolyLab() {
       <div className="mt-5 flex flex-col gap-4">
         <HealthPanel mode={mode} />
         <HintPanel mode={mode} />
+        <StuckSystemPanel mode={mode} />
         <CheckpointPanel mode={mode} uid={user?.uid ?? null} />
       </div>
     </div>
@@ -305,6 +361,66 @@ function CardChips({ items, label }: { items: string[]; label: string }) {
   )
 }
 
+function TraceChips({
+  trace,
+  highlight = -1,
+  pulse = false,
+}: {
+  trace: TraceStep[]
+  highlight?: number
+  pulse?: boolean
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {trace.map((s, i) => (
+        <span
+          key={i}
+          className={cn(
+            "rounded-md px-2 py-1 text-[11px] font-semibold transition-all",
+            s.op === "push"
+              ? "bg-lilac-soft text-lilac-strong"
+              : "bg-muted text-muted-foreground",
+            i === highlight &&
+              "ring-2 ring-amber-500 ring-offset-1 ring-offset-background",
+            i === highlight && pulse && "animate-pulse",
+          )}
+        >
+          {s.op === "push" ? `push ${s.item}` : "pop"}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+function ComplexScenarioCard({
+  scenario,
+  complex,
+}: {
+  scenario: HintScenario
+  complex: NonNullable<HintScenario["complex"]>
+}) {
+  return (
+    <div className="mt-4 space-y-3 rounded-2xl border border-border bg-muted/40 p-3">
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-semibold uppercase tracking-wide text-faint">
+          {scenario.discipline} &middot; multi-step
+        </span>
+        <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-600">
+          hard to tabulate
+        </span>
+      </div>
+      <p className="text-sm text-foreground">{complex.prompt}</p>
+      <CardChips label="Arrives" items={complex.arrival} />
+      <div className="flex items-start gap-2">
+        <span className="w-28 shrink-0 pt-1 text-xs text-muted-foreground">Learner did</span>
+        <TraceChips trace={complex.trace} />
+      </div>
+      <CardChips label="Produced" items={complex.producedExit} />
+      <CardChips label="Goal" items={scenario.goalExit} />
+    </div>
+  )
+}
+
 function HintPanel({ mode }: { mode: Mode }) {
   const [idx, setIdx] = useState(0)
   const [hints, setHints] = useState<string[]>([])
@@ -377,13 +493,25 @@ function HintPanel({ mode }: { mode: Mode }) {
         ))}
       </div>
 
-      <div className="mt-4 space-y-2 rounded-2xl border border-border bg-muted/40 p-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-faint">
-          {scenario.discipline} construct
+      {scenario.complex ? (
+        <ComplexScenarioCard scenario={scenario} complex={scenario.complex} />
+      ) : (
+        <div className="mt-4 space-y-2 rounded-2xl border border-border bg-muted/40 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-faint">
+            {scenario.discipline} construct
+          </p>
+          <CardChips label="Goal: leaves as" items={scenario.goalExit} />
+          <CardChips label="Learner built" items={scenario.pushed} />
+        </div>
+      )}
+
+      {scenario.complex && mode === "live" && (
+        <p className="mt-2 text-[11px] leading-relaxed text-faint">
+          Live note: the current engine receives only the flattened push order, not
+          the step trace, so its hint cannot see <em>when</em> the learner popped.
+          That gap is the fine-tuning target.
         </p>
-        <CardChips label="Goal: leaves as" items={scenario.goalExit} />
-        <CardChips label="Learner built" items={scenario.pushed} />
-      </div>
+      )}
 
       <div className="mt-4 space-y-2">
         {hints.map((h, i) => (
@@ -416,11 +544,301 @@ function HintPanel({ mode }: { mode: Mode }) {
   )
 }
 
+/* ----------------- Additive stuck-help: two prototypes ----------------- */
+
+// The complex, multi-step beat both prototypes sit on. The learner loaded all
+// four items in, then popped all four out, so the output came back reversed.
+const BUFFER = {
+  arrival: ["A", "B", "C", "D"],
+  goal: ["B", "A", "D", "C"],
+  trace: [
+    { op: "push", item: "A" },
+    { op: "push", item: "B" },
+    { op: "push", item: "C" },
+    { op: "push", item: "D" },
+    { op: "pop" },
+    { op: "pop" },
+    { op: "pop" },
+    { op: "pop" },
+  ] as Step[],
+  // The lesson's own authored hint. Shown first in both forms, never replaced.
+  staticHint:
+    "You can only take from the top, and only the most recent item is there. Plan when to take, not just when to add.",
+}
+
+// A basic, one-step beat: the static hint is enough, and Poly only steps in if
+// the learner stalls (an idle timeout), with a plain nudge. No diagnosis.
+const BASIC = {
+  prompt: "A line forms: A joins, then B, then C. Who gets served first?",
+  staticHint: "Think about who has been waiting the longest.",
+  stuckHint: "No rush. Picture the very front of the line: who got there before anyone else?",
+  idleSeconds: 6,
+}
+
+const ORDINALS = ["zeroth", "first", "second", "third", "fourth", "fifth", "sixth", "seventh"]
+const ordinal = (n: number): string => ORDINALS[n] ?? `${n}th`
+
+function AuthoredHint({ label, text }: { label: string; text: string }) {
+  return (
+    <div className="rounded-xl border border-border bg-card px-3 py-2">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-faint">{label}</p>
+      <p className="mt-1 text-sm text-foreground">{text}</p>
+    </div>
+  )
+}
+
+function PolyExtra({
+  text,
+  angle = false,
+  verified = false,
+}: {
+  text: string
+  angle?: boolean
+  verified?: boolean
+}) {
+  return (
+    <div className="rounded-xl border border-lilac-strong/40 bg-lilac-soft/50 px-3 py-2">
+      <div className="mb-1 flex items-center gap-1.5">
+        <Sparkles className="size-3.5 text-lilac-strong" />
+        <span className="text-xs font-semibold text-lilac-strong">
+          {angle ? "Poly · another angle" : "Poly · extra nudge"}
+        </span>
+        {verified && (
+          <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">
+            <ShieldCheck className="size-3" />
+            checked, no giveaway
+          </span>
+        )}
+      </div>
+      <p className="text-sm text-foreground">{text}</p>
+    </div>
+  )
+}
+
+function FlowNote({ children }: { children: ReactNode }) {
+  return <p className="text-[11px] leading-relaxed text-faint">{children}</p>
+}
+
+function FallbackNote({ text }: { text: string }) {
+  return (
+    <p className="rounded-xl border border-dashed border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+      {text}
+    </p>
+  )
+}
+
+function BasicStuck() {
+  const [left, setLeft] = useState(BASIC.idleSeconds)
+  const [stuck, setStuck] = useState(false)
+
+  useEffect(() => {
+    if (stuck) return
+    if (left <= 0) {
+      setStuck(true)
+      return
+    }
+    const t = setTimeout(() => setLeft((n) => n - 1), 1000)
+    return () => clearTimeout(t)
+  }, [left, stuck])
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-2xl border border-border bg-muted/30 p-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-faint">basic &middot; one step</p>
+        <p className="mt-1 text-sm text-foreground">{BASIC.prompt}</p>
+      </div>
+      <AuthoredHint label="Your hint (on a wrong answer)" text={BASIC.staticHint} />
+      {!stuck ? (
+        <div className="flex items-center gap-2 rounded-xl border border-dashed border-border px-3 py-2">
+          <span className="text-xs text-muted-foreground">
+            Poly stays quiet. It only steps in if the learner stalls.
+          </span>
+          <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-faint">
+            {left}s
+          </span>
+        </div>
+      ) : (
+        <PolyExtra text={BASIC.stuckHint} />
+      )}
+      <div>
+        <Button
+          variant="secondary"
+          size="default"
+          onClick={() => {
+            setLeft(BASIC.idleSeconds)
+            setStuck(false)
+          }}
+        >
+          <RefreshCw className="size-4" />
+          Replay
+        </Button>
+      </div>
+      <FlowNote>
+        Basic beats lean on your authored hint. The extra Poly nudge only appears after a stall (demo
+        counts the idle seconds; in the lesson it is silent). No diagnosis, no answer sent.
+      </FlowNote>
+    </div>
+  )
+}
+
+type BPhase = "idle" | "scanning" | "located" | "verifying" | "done"
+
+type LiveState = { status: "idle" | "pending" | "ok" | "empty" | "error"; hint: string | null }
+
+function ComplexStuck({ mode }: { mode: Mode }) {
+  const [phase, setPhase] = useState<BPhase>("idle")
+  const [live, setLive] = useState<LiveState>({ status: "idle", hint: null })
+  const diagnosis = useMemo(
+    () => diagnoseBufferTrace(BUFFER.arrival, BUFFER.goal, BUFFER.trace),
+    [],
+  )
+
+  useEffect(() => {
+    const next: Partial<Record<BPhase, [BPhase, number]>> = {
+      scanning: ["located", 1000],
+      located: ["verifying", 1100],
+      verifying: ["done", 800],
+    }
+    const step = next[phase]
+    if (!step) return
+    const t = setTimeout(() => setPhase(step[0]), step[1])
+    return () => clearTimeout(t)
+  }, [phase])
+
+  // Live mode runs the real engine: client diagnose -> polyHint(prompt) -> the
+  // server verifier. A null hint means the verifier rejected a giveaway.
+  const start = () => {
+    setPhase("scanning")
+    if (mode === "live" && diagnosis) {
+      setLive({ status: "pending", hint: null })
+      requestHint({
+        stageId: "stacks-and-queues",
+        skill: "stackConstruct",
+        discipline: "stack",
+        learnerOrder: BUFFER.arrival,
+        attempt: BUFFER.trace.map((s) => (s.op === "push" ? `push ${s.item}` : "pop")),
+        diagnosis: { kind: diagnosis.kind, stepNumber: diagnosis.stepNumber },
+      })
+        .then((r) => setLive({ status: r.hint ? "ok" : "empty", hint: r.hint }))
+        .catch(() => setLive({ status: "error", hint: null }))
+    } else {
+      setLive({ status: "idle", hint: null })
+    }
+  }
+
+  const reset = () => {
+    setPhase("idle")
+    setLive({ status: "idle", hint: null })
+  }
+
+  const located = phase === "located" || phase === "verifying" || phase === "done"
+  const running = phase !== "idle" && phase !== "done"
+  const highlight = located && diagnosis ? diagnosis.firstWrongIndex : -1
+  const mockHint = diagnosis
+    ? `Your ${ordinal(diagnosis.stepNumber)} move is the turning point. You added another item, but ` +
+      "something your output needed was already on top, within reach. What could you do at that exact " +
+      "moment instead?"
+    : "That line actually works, keep going."
+
+  return (
+    <div className="space-y-3">
+      <div className="space-y-2 rounded-2xl border border-border bg-muted/30 p-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-faint">
+          stack &middot; multi-step buffer
+        </p>
+        <p className="text-sm text-foreground">
+          Items arrive A, B, C, D. Use one stack as a buffer to output B, A, D, C. The learner loaded
+          all four in, then popped all four out.
+        </p>
+        <CardChips label="Arrives" items={BUFFER.arrival} />
+        <CardChips label="Goal" items={BUFFER.goal} />
+      </div>
+      <AuthoredHint label="Your hint (on a wrong answer)" text={BUFFER.staticHint} />
+      {(running || phase === "done") && (
+        <div className="space-y-2 rounded-xl border border-border bg-muted/40 p-3">
+          <div className="flex items-center gap-1.5">
+            <ScanSearch className="size-3.5 text-lilac-strong" />
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-faint">
+              Poly reads your moves
+            </span>
+          </div>
+          <TraceChips trace={BUFFER.trace} highlight={highlight} pulse={phase === "located"} />
+          {phase === "scanning" && (
+            <p className="text-xs text-muted-foreground">
+              Replaying your moves against a correct line...
+            </p>
+          )}
+          {located && diagnosis && (
+            <p className="text-xs font-medium text-amber-600">
+              First misstep located: move {diagnosis.stepNumber}.
+            </p>
+          )}
+        </div>
+      )}
+      {phase === "verifying" && (
+        <p className="text-xs text-muted-foreground">Checking the hint for giveaways...</p>
+      )}
+      {phase === "done" &&
+        (mode === "mock" ? (
+          <PolyExtra verified text={mockHint} />
+        ) : live.status === "ok" && live.hint ? (
+          <PolyExtra verified text={live.hint} />
+        ) : live.status === "pending" ? (
+          <p className="text-sm text-muted-foreground">Poly is thinking...</p>
+        ) : live.status === "empty" ? (
+          <FallbackNote text="Poly held back to avoid giving it away. Your static hint stands." />
+        ) : (
+          <FallbackNote text="Poly is unavailable (start the functions emulator, then Live). Your static hint stands." />
+        ))}
+      <div>
+        {phase === "idle" && (
+          <Button variant="tactile" size="default" onClick={start}>
+            <HelpCircle className="size-4" />
+            Stuck? Ask Poly
+          </Button>
+        )}
+        {phase === "done" && (
+          <Button variant="secondary" size="default" onClick={reset}>
+            <RefreshCw className="size-4" />
+            Replay
+          </Button>
+        )}
+      </div>
+      <FlowNote>
+        Complex beats hook a stage lookup to the problem: Poly diagnoses the exact misstep, verifies the
+        hint has no giveaway, then points at that one action and questions it. The answer is never sent.
+      </FlowNote>
+    </div>
+  )
+}
+
+function StuckSystemPanel({ mode }: { mode: Mode }) {
+  const [type, setType] = useState<"basic" | "complex">("complex")
+  return (
+    <DemoCard
+      icon={<Layers className="size-5" />}
+      title="4 · The stuck system (by question type)"
+      desc="One stuck-help, two forms chosen by the question. Basic beats lean on your hints and only nudge after a stall; complex beats diagnose the exact misstep and question it. The answer is never sent."
+    >
+      <Pills
+        options={[
+          { id: "complex", label: "Complex question" },
+          { id: "basic", label: "Basic question" },
+        ]}
+        value={type}
+        onChange={(v) => setType(v as "basic" | "complex")}
+      />
+      <div className="mt-4">
+        {type === "basic" ? <BasicStuck key="basic" /> : <ComplexStuck key="complex" mode={mode} />}
+      </div>
+    </DemoCard>
+  )
+}
+
 function CheckpointPanel({ mode, uid }: { mode: Mode; uid: string | null }) {
   const [concept, setConcept] = useState<Discipline>("stack")
   const [runId, setRunId] = useState(0)
   const [completed, setCompleted] = useState(false)
-  const [voice, setVoice] = useState(false)
 
   const conceptId = concept === "stack" ? "stacks" : "queues"
   const conceptName = concept === "stack" ? "stacks" : "queues"
@@ -436,51 +854,6 @@ function CheckpointPanel({ mode, uid }: { mode: Mode; uid: string | null }) {
           scoreExplanation: mock.score,
           requestProbe: mock.probe,
           saveExplanation: async () => {},
-        }
-      : {}
-
-  // In mock mode, inject fake voice so the toggle is demoable with no key: Poly
-  // "speaks" (a short pause), then a scripted transcriber streams words into the
-  // captions the way the real Realtime feed would. In live mode, omit these so
-  // the checkpoint uses the real TTS + Realtime transcription.
-  const mockVoice =
-    mode === "mock"
-      ? {
-          speakText: async () => {
-            await new Promise((r) => setTimeout(r, 500))
-          },
-          createTranscriber: ({
-            onUpdate,
-          }: {
-            onUpdate: (u: { finalText: string; interimText: string }) => void
-          }) => {
-            const phrase =
-              concept === "stack"
-                ? "last in first out, and only the top is reachable"
-                : "first in first out, you add at the back and take from the front"
-            const words = phrase.split(" ")
-            let i = 0
-            let acc = ""
-            let timer: ReturnType<typeof setInterval> | null = null
-            return {
-              start: async () => {
-                timer = setInterval(() => {
-                  if (i >= words.length) {
-                    if (timer) clearInterval(timer)
-                    timer = null
-                    return
-                  }
-                  const w = words[i++]
-                  onUpdate({ finalText: acc.trim(), interimText: w })
-                  acc = `${acc}${w} `
-                }, 320)
-              },
-              stop: () => {
-                if (timer) clearInterval(timer)
-                timer = null
-              },
-            }
-          },
         }
       : {}
 
@@ -511,17 +884,10 @@ function CheckpointPanel({ mode, uid }: { mode: Mode; uid: string | null }) {
           <RefreshCw className="size-4" />
           Replay
         </Button>
-        <Button
-          variant={voice ? "tactile" : "secondary"}
-          size="default"
-          onClick={() => setVoice((v) => !v)}
-        >
-          {voice ? "Voice on" : "Voice off"}
-        </Button>
       </div>
       <p className="mt-3 text-xs text-faint">
         Mock tip: the first answer leaves a gap (so a probe fires); a second answer covers
-        everything. Toggle Voice on to hear Poly and watch the words stream in.
+        everything.
       </p>
       <div className="mt-4 flex min-h-[380px] flex-col rounded-2xl border border-dashed border-border bg-background/40 p-4">
         {completed ? (
@@ -533,14 +899,12 @@ function CheckpointPanel({ mode, uid }: { mode: Mode; uid: string | null }) {
           </div>
         ) : (
           <PolyCheckpoint
-            key={`${conceptId}-${mode}-${runId}-${voice ? "v" : "t"}`}
+            key={`${conceptId}-${mode}-${runId}`}
             conceptId={conceptId}
             conceptName={conceptName}
             uid={uid}
-            voice={voice}
             onDone={() => setCompleted(true)}
             {...injected}
-            {...mockVoice}
           />
         )}
       </div>

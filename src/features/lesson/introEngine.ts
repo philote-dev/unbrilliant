@@ -99,9 +99,9 @@ export const JOBS = [
 ] as const
 
 const JOB_OPTIONS: IntroOption[] = [
-  { id: "store", label: "Store (keep it to get back later)" },
-  { id: "sort", label: "Sort (put it in order)" },
-  { id: "categorize", label: "Categorize (group like with like)" },
+  { id: "store", label: "Store" },
+  { id: "sort", label: "Sort" },
+  { id: "categorize", label: "Categorize" },
 ]
 
 /** The shared welcome hero, used to open both prototypes. */

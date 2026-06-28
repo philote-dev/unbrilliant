@@ -1,11 +1,20 @@
+import { useEffect, useState } from "react"
+
 import { cn } from "@/lib/utils"
+import { keyWillowFrame } from "./willowCutout"
 
 /**
  * Mastery willow: one painterly willow that stands for the learner's whole
- * journey. Seven glow-free webp frames (sprout to full) crossfade as lessons
- * accrue. The lilac glow and the autumn decay are coded overlays, not baked into
- * the art, so they animate and track vigor and retention without re-exporting
- * frames. Presentational only: all signals arrive as props.
+ * journey. Nine glow-free webp frames (sprout to full), one per lesson count, so
+ * the tree snaps to a single accurate frame per state instead of dissolving two
+ * frames over each other. The lilac glow and the autumn decay are coded overlays,
+ * not baked into the art, so they animate and track vigor and retention without
+ * re-exporting frames. Presentational only: all signals arrive as props.
+ *
+ * The art is watercolor on a luminous paper ground, so it sits on a light
+ * "specimen plate" (`.willow-plate` in src/index.css). The plate is near-invisible
+ * in light mode and a softly lit, lilac-ringed panel in dark mode, so a light
+ * ground always reads as intentional instead of a stray white box on near-black.
  */
 
 const clamp = (x: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, x))
@@ -27,30 +36,32 @@ interface Frame {
   src: string
 }
 
-/** Seven growth frames, evenly spaced across the journey; the last is the full willow. */
+/**
+ * Nine growth frames in increasing fullness; the last is the full willow. With
+ * the eight-lesson course this is one frame per completed-count (0..8), so every
+ * state has its own accurate art. `g2b`/`g5b` are the in-between stages.
+ */
 const FRAMES: Frame[] = [
   { label: "Sprout", src: "/willow-g1.webp" },
   { label: "Sapling", src: "/willow-g2.webp" },
-  { label: "Young", src: "/willow-g3.webp" },
-  { label: "Half", src: "/willow-g4.webp" },
+  { label: "Young", src: "/willow-g2b.webp" },
+  { label: "Taking shape", src: "/willow-g3.webp" },
+  { label: "Half grown", src: "/willow-g4.webp" },
   { label: "Growing", src: "/willow-g5.webp" },
+  { label: "Maturing", src: "/willow-g5b.webp" },
   { label: "Nearly full", src: "/willow-g6.webp" },
   { label: "Full", src: "/willow-g7.webp" },
 ]
 
-/** Lesson count where frame `i` sits: evenly spread across [0, total]. */
-const atOf = (i: number, total: number) => (i * total) / (FRAMES.length - 1)
-
-/** Bracketing frames for a lesson count, plus the crossfade amount between them. */
-function framePair(done: number, total: number): { aIdx: number; bIdx: number; t: number } {
-  if (total <= 0) return { aIdx: 0, bIdx: 0, t: 0 }
+/**
+ * The single frame for a lesson count: snap to the nearest stage (no blending).
+ * With `total + 1` frames it is exactly one frame per count; with any other total
+ * it spreads the frames evenly and rounds, so the tree always shows one image.
+ */
+function frameIndex(done: number, total: number): number {
+  if (total <= 0) return 0
   const d = clamp(done, 0, total)
-  for (let i = 0; i < FRAMES.length - 1; i++) {
-    const lo = atOf(i, total)
-    const hi = atOf(i + 1, total)
-    if (d < hi) return { aIdx: i, bIdx: i + 1, t: hi > lo ? (d - lo) / (hi - lo) : 0 }
-  }
-  return { aIdx: FRAMES.length - 1, bIdx: FRAMES.length - 1, t: 0 }
+  return clamp(Math.round((d / total) * (FRAMES.length - 1)), 0, FRAMES.length - 1)
 }
 
 /* ------------------------------ coded glow -------------------------------- */
@@ -173,13 +184,44 @@ function CanopyDecay({ amount }: { amount: number }) {
 
 /* -------------------------------- the tree -------------------------------- */
 
+/**
+ * In "cutout" mode, resolve the transparent + brightened srcs for every frame so
+ * crossfades stay smooth. Returns `{}` until ready (and always in "plate" mode),
+ * so callers fall back to the original art; keying is cached, so this is cheap.
+ */
+function useKeyedWillowFrames(enabled: boolean): Record<string, string> {
+  const [keyed, setKeyed] = useState<Record<string, string>>({})
+  useEffect(() => {
+    if (!enabled) return
+    let active = true
+    Promise.all(
+      FRAMES.map((f) => keyWillowFrame(f.src).then((url) => [f.src, url] as const)),
+    )
+      .then((pairs) => {
+        if (active) setKeyed(Object.fromEntries(pairs))
+      })
+      .catch(() => {})
+    return () => {
+      active = false
+    }
+  }, [enabled])
+  return keyed
+}
+
 export interface MasteryWillowProps {
   lessonsDone: number
   totalLessons: number
   /** 0..1 memory strength; below 1 the canopy fades + yellows (deprogression) */
   retention?: number
-  width?: number
+  /** Plate width: a px number, or any CSS length (e.g. "100%") to fill its column. */
+  width?: number | string
   glow?: boolean
+  /**
+   * How the art meets the surface behind it. "plate" (default) sets the willow on
+   * a light specimen plate that works in both themes. "cutout" removes the baked
+   * paper and brightens the tree so it sits directly on a dark background.
+   */
+  variant?: "plate" | "cutout"
   className?: string
 }
 
@@ -189,10 +231,11 @@ export function MasteryWillow({
   retention = 1,
   width = 320,
   glow = true,
+  variant = "plate",
   className,
 }: MasteryWillowProps) {
-  const { aIdx, bIdx, t } = framePair(lessonsDone, totalLessons)
-  const stage = FRAMES[t >= 0.5 ? bIdx : aIdx].label.toLowerCase()
+  const idx = frameIndex(lessonsDone, totalLessons)
+  const stage = FRAMES[idx].label.toLowerCase()
   const health = clamp01(retention)
   const growth = totalLessons > 0 ? clamp01(lessonsDone / totalLessons) : 0
   // a mild global dulling; the visible decay signal is the autumn overlay
@@ -200,26 +243,32 @@ export function MasteryWillow({
   const overall = 0.82 + 0.18 * health
   const glowIntensity = glow && totalLessons > 0 ? (0.35 + 0.65 * growth) * health ** 1.3 : 0
 
-  const img = (src: string, opacity: number, z: number) => (
-    <img
-      src={src}
-      alt=""
-      draggable={false}
-      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain", opacity, filter, zIndex: z, transition: "opacity 200ms ease" }}
-    />
-  )
+  const isCutout = variant === "cutout"
+  const keyed = useKeyedWillowFrames(isCutout)
+  // In cutout mode, swap in the keyed (transparent) art once ready; until then
+  // render nothing rather than flash the original light paper.
+  const src = isCutout ? keyed[FRAMES[idx].src] : FRAMES[idx].src
 
   return (
     <div
-      className={cn("relative select-none", className)}
-      style={{ width, aspectRatio: "1024 / 683" }}
+      className={cn(isCutout ? "select-none" : "willow-plate select-none", className)}
+      style={{ width }}
       role="img"
       aria-label={`Mastery willow, ${stage}`}
     >
-      {img(FRAMES[aIdx].src, overall, 0)}
-      {aIdx !== bIdx ? img(FRAMES[bIdx].src, t * overall, 1) : null}
-      <CanopyDecay amount={1 - health} />
-      <CanopyGlow intensity={glowIntensity} />
+      <div className="relative" style={{ width: "100%", aspectRatio: "1024 / 683" }}>
+        {src ? (
+          <img
+            key={src}
+            src={src}
+            alt=""
+            draggable={false}
+            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain", opacity: overall, filter, transition: "opacity 200ms ease" }}
+          />
+        ) : null}
+        <CanopyDecay amount={1 - health} />
+        <CanopyGlow intensity={glowIntensity} />
+      </div>
     </div>
   )
 }

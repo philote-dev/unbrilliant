@@ -64,9 +64,13 @@ export function StacksQueuesStage({
   const { user } = useAuth()
   const [doneCheckpoints, setDoneCheckpoints] = useState<string[]>([])
 
-  const due = CHECKPOINTS.find(
-    (c) => state.partIndex > c.afterIndex && !doneCheckpoints.includes(c.id),
-  )
+  // Once the lesson is complete the player navigates away to the completion
+  // screen; never surface a checkpoint (and its voice) on that final render.
+  const due = state.completed
+    ? undefined
+    : CHECKPOINTS.find(
+        (c) => state.partIndex > c.afterIndex && !doneCheckpoints.includes(c.id),
+      )
   if (due) {
     return (
       <PolyCheckpoint

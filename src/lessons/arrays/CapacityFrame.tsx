@@ -24,7 +24,12 @@ function cellFont(slot: number): number {
   return 10
 }
 
-function Block({
+/** Diameter of a dot-mode item, sized to read as a data point inside its slot. */
+function dotSize(slot: number): number {
+  return Math.max(7, Math.round(slot * 0.55))
+}
+
+export function Block({
   slots,
   fill,
   newAt,
@@ -35,6 +40,9 @@ function Block({
   slot = SLOT,
   baseDelay = 0,
   stagger = 0.08,
+  frameDelay = 0,
+  dot = false,
+  cols,
 }: {
   slots: number
   fill: string[] // labels in the first fill.length slots
@@ -44,51 +52,89 @@ function Block({
   reduced: boolean
   label?: string
   slot?: number
-  baseDelay?: number // hold before this block animates (sequencing / read-the-title)
+  baseDelay?: number // hold before the cells fill (sequencing / read-the-title)
   stagger?: number // per-cell copy delay (raise it to slow the copy down)
+  frameDelay?: number // hold before the frame (label + empty outline) appears
+  dot?: boolean // render each item as a centered dot (no letter), for big blocks
+  cols?: number // wrap cells into rows of this many (a 16-block at cols=8 stacks 2 rows of 8)
 }) {
+  const perRow = cols ?? slots
+  const rowCount = Math.max(1, Math.ceil(slots / perRow))
+  const renderCell = (i: number) => {
+    const value = i < fill.length ? fill[i] : undefined
+    const isNew = newAt === i
+    return (
+      <div
+        key={i}
+        className="box-border flex items-center justify-center border-y-2 border-l-2 last:border-r-2 first:rounded-l-lg last:rounded-r-lg"
+        style={{ width: slot, height: slot }}
+      >
+        <AnimatePresence>
+          {(value !== undefined || isNew) &&
+            (dot ? (
+              // A copied data point: a dot drops into the slot (staggered, so
+              // the copy reads as items streaming across one by one).
+              <motion.span
+                aria-hidden
+                initial={reduced ? false : { opacity: 0, scale: 0.2 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={
+                  reduced
+                    ? { duration: 0 }
+                    : { delay: baseDelay + (copying ? i * stagger : 0), type: "spring", stiffness: 340, damping: 17 }
+                }
+                className={cn(
+                  "block rounded-full",
+                  isNew ? "bg-amber-400" : "bg-lilac-strong",
+                )}
+                style={{ width: dotSize(slot), height: dotSize(slot) }}
+              />
+            ) : (
+              <motion.span
+                initial={reduced ? false : { opacity: 0, scale: 0.5 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={
+                  reduced
+                    ? { duration: 0 }
+                    : { delay: baseDelay + (copying ? i * stagger : 0), type: "spring", stiffness: 360 }
+                }
+                style={{ fontSize: cellFont(slot) }}
+                className={cn(
+                  "flex size-full items-center justify-center rounded-md font-bold",
+                  isNew ? "bg-amber-200 text-amber-900" : "bg-lilac-soft text-foreground",
+                )}
+              >
+                {isNew ? goldLabel : value}
+              </motion.span>
+            ))}
+        </AnimatePresence>
+      </div>
+    )
+  }
   return (
-    <div className="flex flex-col items-center gap-1">
+    <motion.div
+      className="flex flex-col items-center gap-1"
+      initial={reduced || frameDelay === 0 ? false : { opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={reduced ? { duration: 0 } : { delay: frameDelay, duration: 0.5 }}
+    >
       {label && (
         <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
           {label}
         </span>
       )}
-      <div className="flex" style={{ width: slots * slot }}>
-        {Array.from({ length: slots }).map((_, i) => {
-          const value = i < fill.length ? fill[i] : undefined
-          const isNew = newAt === i
+      <div className="flex flex-col items-center gap-1">
+        {Array.from({ length: rowCount }).map((_, r) => {
+          const start = r * perRow
+          const len = Math.min(perRow, slots - start)
           return (
-            <div
-              key={i}
-              className="box-border flex items-center justify-center border-y-2 border-l-2 last:border-r-2 first:rounded-l-lg last:rounded-r-lg"
-              style={{ width: slot, height: slot }}
-            >
-              <AnimatePresence>
-                {(value !== undefined || isNew) && (
-                  <motion.span
-                    initial={reduced ? false : { opacity: 0, scale: 0.5 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={
-                      reduced
-                        ? { duration: 0 }
-                        : { delay: baseDelay + (copying ? i * stagger : 0), type: "spring", stiffness: 360 }
-                    }
-                    style={{ fontSize: cellFont(slot) }}
-                    className={cn(
-                      "flex size-full items-center justify-center rounded-md font-bold",
-                      isNew ? "bg-amber-200 text-amber-900" : "bg-lilac-soft text-foreground",
-                    )}
-                  >
-                    {isNew ? goldLabel : value}
-                  </motion.span>
-                )}
-              </AnimatePresence>
+            <div key={r} className="flex" style={{ width: len * slot }}>
+              {Array.from({ length: len }).map((_, j) => renderCell(start + j))}
             </div>
           )
         })}
       </div>
-    </div>
+    </motion.div>
   )
 }
 
@@ -124,15 +170,24 @@ export function CopyGrow({
   baseDelay?: number
   stagger?: number
 }) {
-  // When delayed (the summary), the full block settles first, then the arrow, then a
-  // beat later the copy plays, so the column reveals top-to-bottom; an un-delayed
-  // reveal stays snappy (the grow verdict).
-  const arrowDelay = baseDelay > 0 ? baseDelay + 0.3 : 0
-  const copyDelay = baseDelay > 0 ? baseDelay + 0.6 : 0
+  // When delayed (the summary), reveal in steps: the full old block first, then the
+  // arrow, then the EMPTY new block is allocated, then the items copy in. An
+  // un-delayed reveal (the grow verdict) stays snappy.
+  const arrowDelay = baseDelay > 0 ? baseDelay + 0.7 : 0
+  const allocateDelay = baseDelay > 0 ? baseDelay + 1.4 : 0
+  const copyDelay = baseDelay > 0 ? baseDelay + 2.2 : 0
   return (
     <div className="flex flex-col items-center gap-1.5">
       <div className="opacity-45">
-        <Block slots={items.length} fill={items} reduced={reduced} label={oldLabel} slot={slot} baseDelay={baseDelay} />
+        <Block
+          slots={items.length}
+          fill={items}
+          reduced={reduced}
+          label={oldLabel}
+          slot={slot}
+          baseDelay={baseDelay}
+          frameDelay={baseDelay}
+        />
       </div>
       <motion.div
         initial={reduced ? false : { opacity: 0 }}
@@ -152,6 +207,7 @@ export function CopyGrow({
         label={newLabel}
         slot={slot}
         baseDelay={copyDelay}
+        frameDelay={allocateDelay}
         stagger={stagger}
       />
     </div>

@@ -12,15 +12,14 @@ export type Screen =
   | { name: "home" }
   | { name: "courses" }
   | { name: "course"; courseId: string }
-  | { name: "signin"; reason?: string; intent?: "save" | "unlock" }
+  | { name: "signin"; intent?: "save" | "unlock" }
   | { name: "lesson"; lessonId: string }
   | { name: "complete"; lessonId: string }
   | { name: "progress" }
-  | { name: "profile" }
   | { name: "settings" }
   | { name: "poly-lab" }
 
-export type Tab = "home" | "learn" | "progress" | "profile"
+export type Tab = "home" | "learn" | "progress" | "settings"
 
 type NavContextValue = {
   screen: Screen
@@ -40,10 +39,9 @@ function tabForScreen(screen: Screen): Tab {
       return "home"
     case "progress":
       return "progress"
-    case "profile":
     case "settings":
     case "signin":
-      return "profile"
+      return "settings"
     default:
       return "learn"
   }
