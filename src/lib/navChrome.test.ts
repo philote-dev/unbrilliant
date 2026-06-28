@@ -73,4 +73,21 @@ describe("navChromeReducer", () => {
       reveal: false,
     })
   })
+
+  it("enterImmersive is a no-op (same reference) when already immersive", () => {
+    const inLesson = navChromeReducer(open, { type: "enterImmersive" })
+    expect(navChromeReducer(inLesson, { type: "enterImmersive" })).toBe(inLesson)
+  })
+
+  it("exitImmersive is a no-op (same reference) when not immersive", () => {
+    expect(navChromeReducer(open, { type: "exitImmersive" })).toBe(open)
+  })
+
+  it("toggle off-immersion works symmetrically (open -> collapsed -> open)", () => {
+    const collapsed = navChromeReducer(open, { type: "toggle" })
+    expect(collapsed.manualCollapsed).toBe(true)
+    const reopened = navChromeReducer(collapsed, { type: "toggle" })
+    expect(reopened.manualCollapsed).toBe(false)
+    expect(railCollapsed(reopened)).toBe(false)
+  })
 })
