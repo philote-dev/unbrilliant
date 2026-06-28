@@ -1,5 +1,6 @@
 import type { LessonProgress } from "@/features/lesson/engine"
 import type { ConceptReview } from "@/features/progress/conceptReview"
+import type { TrialSaveState } from "@/features/trials/saveState"
 
 /**
  * The persistence boundary. The app reads/writes learner progress through this
@@ -73,4 +74,14 @@ export interface ProgressRepository {
   getConceptReviews(uid: string): Promise<ConceptReview[]>
   /** Upsert one review row by conceptId (optimistic, fire-and-forget). */
   saveConceptReview(uid: string, review: ConceptReview): Promise<void>
+  /** Latest persisted durable slice for a Trial campaign, or null if none yet. */
+  getTrialProgress(uid: string, trialId: string): Promise<TrialSaveState | null>
+  /** Upsert a Trial's durable slice (optimistic — callers fire-and-forget). */
+  saveTrialProgress(
+    uid: string,
+    trialId: string,
+    slice: TrialSaveState,
+  ): Promise<void>
+  /** Ids of the Trials this user has completed (durable `completed === true`). */
+  listCompletedTrials(uid: string): Promise<string[]>
 }
