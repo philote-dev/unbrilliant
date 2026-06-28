@@ -40,6 +40,8 @@ interface CourseProgressValue {
   streak: { current: number; longest: number }
   /** Per-day answer activity (persisted log overlaid with this session's deltas). */
   activity: ActivityDay[]
+  /** Ids of Trials the learner has completed (signed-in only; empty otherwise). */
+  completedTrials: ReadonlySet<string>
   /** Mark a course as entered (flips Home to dashboard; persists when signed-in). */
   enterCourse: (courseId: string) => void
   /** Re-read persisted progress (e.g. after completing a lesson). */
@@ -61,6 +63,9 @@ export function CourseProgressProvider({ children }: { children: ReactNode }) {
   const [currentCourseId, setCurrentCourseId] = useState<string | null>(null)
   const [serverStreak, setServerStreak] = useState({ current: 0, longest: 0 })
   const [serverActivity, setServerActivity] = useState<ActivityDay[]>([])
+  const [completedTrials, setCompletedTrials] = useState<Set<string>>(
+    () => new Set(),
+  )
   const [reloadKey, setReloadKey] = useState(0)
 
   const currentCourseIdRef = useRef(currentCourseId)
@@ -75,22 +80,25 @@ export function CourseProgressProvider({ children }: { children: ReactNode }) {
     if (!user) {
       setServer({})
       setServerStreak({ current: 0, longest: 0 })
+      setCompletedTrials(new Set())
       return
     }
     let cancelled = false
     void (async () => {
-      const [doc, entries] = await Promise.all([
+      const [doc, entries, trialIds] = await Promise.all([
         repo.getUser(user.uid),
         Promise.all(
           DATA_STRUCTURES_LESSONS.map(
             async (l) => [l.id, await repo.getProgress(user.uid, l.id)] as const,
           ),
         ),
+        repo.listCompletedTrials(user.uid),
       ])
       if (cancelled) return
       const next: ProgressByLesson = {}
       for (const [id, p] of entries) if (p) next[id] = p
       setServer(next)
+      setCompletedTrials(new Set(trialIds))
       setServerStreak(doc?.streak ?? { current: 0, longest: 0 })
       if (doc?.currentCourseId) {
         setCurrentCourseId(doc.currentCourseId)
@@ -179,6 +187,7 @@ export function CourseProgressProvider({ children }: { children: ReactNode }) {
       currentCourseId,
       streak,
       activity,
+      completedTrials,
       enterCourse,
       refresh,
     }),
@@ -188,6 +197,7 @@ export function CourseProgressProvider({ children }: { children: ReactNode }) {
       currentCourseId,
       streak,
       activity,
+      completedTrials,
       enterCourse,
       refresh,
     ],
