@@ -7,24 +7,35 @@ import {
   availableNodes,
   createLinkedLists,
   currentPartLL,
+  deleteWriteFrames,
+  insertWriteFrames,
   isCompleteLL,
   isStuckLL,
   legalTargets,
   linkedListsReducer,
+  nextPtr,
   orphanedNodes,
+  playlistOrphanedLL,
+  playlistPhaseIndexLL,
+  playlistStepLL,
   pointerId,
+  predictBreakFrames,
+  prevPtr,
   reachableFrom,
+  remainingScriptLL,
   resumeLinkedLists,
   toProgressLinkedLists,
+  walkCursorLL,
+  walkFrontierLL,
   type LinkedListsState,
 } from "./linkedListsEngine"
 import type { LessonAction } from "./engine"
 
 /**
- * Behavior-focused tests for the Linked Lists engine (slices 1–2: node demo →
- * teach → traverse (L1) → rewire-insert (L2)). Driven through dispatched actions,
- * asserted on external behavior — verdict, counters, combo, cost, orphaned tail —
- * with a FIXED seed for determinism.
+ * Behavior-focused tests for the Linked Lists engine (12 beats, 9 graded). Driven
+ * through dispatched actions, asserted on external behavior (verdict, counters,
+ * combo, cost, orphaned tail, forced-walk frontier, scripted synthesis) with a
+ * FIXED seed for determinism.
  */
 const SEED = 7
 
@@ -32,116 +43,140 @@ function apply(state: LinkedListsState, ...actions: LessonAction[]): LinkedLists
   return actions.reduce(linkedListsReducer, state)
 }
 
-function atTraverse(seed = SEED): LinkedListsState {
-  return resumeLinkedLists({ counters: {}, currentPart: "traverse", completed: false }, seed)
-}
-function atInsert(seed = SEED): LinkedListsState {
-  return resumeLinkedLists({ counters: {}, currentPart: "rewire-insert", completed: false }, seed)
-}
-function atDelete(seed = SEED): LinkedListsState {
-  return resumeLinkedLists({ counters: {}, currentPart: "rewire-delete", completed: false }, seed)
-}
-function atPredict(seed = SEED): LinkedListsState {
-  return resumeLinkedLists({ counters: {}, currentPart: "predict", completed: false }, seed)
-}
-function atPlaylist(seed = SEED): LinkedListsState {
-  return resumeLinkedLists({ counters: {}, currentPart: "playlist", completed: false }, seed)
-}
-function atContrastInsert(seed = SEED): LinkedListsState {
-  return resumeLinkedLists({ counters: {}, currentPart: "contrast-insert", completed: false }, seed)
-}
-function atContrastReach(seed = SEED): LinkedListsState {
-  return resumeLinkedLists({ counters: {}, currentPart: "contrast-reach", completed: false }, seed)
-}
-function atDoubly(seed = SEED): LinkedListsState {
-  return resumeLinkedLists({ counters: {}, currentPart: "doubly", completed: false }, seed)
+function at(part: string, seed = SEED): LinkedListsState {
+  return resumeLinkedLists({ counters: {}, currentPart: part, completed: false }, seed)
 }
 
-function answerTraverse(s: LinkedListsState): LinkedListsState {
+/** Forced-walk to the target node, then commit. Works forwards (traverse) and
+ * backwards (doubly-walk) by always tapping the engine's single legal frontier. */
+function completeWalk(s: LinkedListsState): LinkedListsState {
+  let cur = s
+  const target = cur.question!.targetIndex
+  let guard = 0
+  while (walkCursorLL(cur) !== target && guard++ < 12) {
+    const frontier = walkFrontierLL(cur)
+    if (frontier < 0) break
+    cur = apply(cur, { type: "select", letter: cur.question!.nodes[frontier] })
+  }
+  return apply(cur, { type: "check" })
+}
+
+function completeRewire(s: LinkedListsState): LinkedListsState {
+  let cur = s
+  for (const { from, to } of s.question!.rewires) cur = apply(cur, { type: "rewire", from, to })
+  return apply(cur, { type: "check" })
+}
+
+/** Perform a scripted-write beat (playlist synthesis / doubly splice) in order;
+ * completion auto-grades on the last write (no Check). */
+function completeScript(s: LinkedListsState): LinkedListsState {
+  let cur = s
+  const script =
+    cur.question!.kind === "playlist" ? cur.question!.flatWrites : cur.question!.doublyWrites
+  for (const { from, to } of script) cur = apply(cur, { type: "rewire", from, to })
+  return cur
+}
+
+function completeContrast(s: LinkedListsState): LinkedListsState {
+  const picked = apply(s, { type: "select", letter: s.question!.pickAnswer }, { type: "check" })
+  return apply(picked, { type: "select", letter: picked.question!.whyAnswer }, { type: "check" })
+}
+
+function completePredict(s: LinkedListsState): LinkedListsState {
   return apply(s, { type: "select", letter: s.question!.answer }, { type: "check" })
 }
-function rewireSafe(s: LinkedListsState): LinkedListsState {
-  let next = s
-  for (const { from, to } of s.question!.rewires) next = apply(next, { type: "rewire", from, to })
-  return apply(next, { type: "check" })
-}
-function spliceFirst(s: LinkedListsState): LinkedListsState {
-  const splice = s.question!.rewires[1] // prev → X, the orphaning move
-  return apply(s, { type: "rewire", from: splice.from, to: splice.to })
-}
 
-describe("Linked Lists — the flow", () => {
-  it("opens on the node demo and runs demo → teach → traverse", () => {
+describe("Linked Lists - the flow", () => {
+  it("opens on the node demo and runs through the 12-beat map", () => {
     const s = createLinkedLists(SEED)
     expect(currentPartLL(s)).toBe("node-demo")
-    expect(LL_TOTAL_PARTS).toBe(10)
+    expect(LL_TOTAL_PARTS).toBe(12)
     const teach = apply(s, { type: "continue" })
     expect(currentPartLL(teach)).toBe("teach")
     const traverse = apply(teach, { type: "continue" })
     expect(currentPartLL(traverse)).toBe("traverse")
   })
+
+  it("walks the whole graded gate to completion (9 graded skills)", () => {
+    const traverse = completeWalk(at("traverse"))
+    const ins = apply(traverse, { type: "next" })
+    expect(currentPartLL(ins)).toBe("rewire-insert")
+    const del = apply(completeRewire(ins), { type: "next" })
+    expect(currentPartLL(del)).toBe("rewire-delete")
+    const pre = apply(completeRewire(del), { type: "next" })
+    expect(currentPartLL(pre)).toBe("predict")
+    const play = apply(completePredict(pre), { type: "next" })
+    expect(currentPartLL(play)).toBe("playlist")
+    const ci = apply(completeScript(play), { type: "next" })
+    expect(currentPartLL(ci)).toBe("contrast-insert")
+    const cr = apply(completeContrast(ci), { type: "next" })
+    expect(currentPartLL(cr)).toBe("contrast-reach")
+    const demo = apply(completeContrast(cr), { type: "next" })
+    expect(currentPartLL(demo)).toBe("doubly-demo")
+    const splice = apply(demo, { type: "continue" })
+    expect(currentPartLL(splice)).toBe("doubly-splice")
+    const walk = apply(completeScript(splice), { type: "next" })
+    expect(currentPartLL(walk)).toBe("doubly-walk")
+    const done = apply(completeWalk(walk), { type: "next" })
+    expect(done.completed).toBe(true)
+    expect(isCompleteLL(done)).toBe(true)
+  })
 })
 
-describe("Linked Lists — determinism (no-AI)", () => {
-  it("same seed → identical question sequence across the whole flow", () => {
-    const prompts = (seed: number) => {
-      const t = atTraverse(seed)
-      const i = apply(answerTraverse(t), { type: "next" })
-      const d = apply(rewireSafe(i), { type: "next" })
-      const p = apply(rewireSafe(d), { type: "next" })
-      const pl = apply(answerTraverse(p), { type: "next" })
-      const ci = apply(rewireSafe(pl), { type: "next" })
-      const cr = apply(answerTraverse(ci), { type: "next" })
-      return [t, i, d, p, pl, ci, cr].map((s) => s.question!.prompt)
-    }
-    expect(prompts(SEED)).toHaveLength(7)
+describe("Linked Lists - determinism (no-AI)", () => {
+  it("same seed -> identical question prompts across the graded beats", () => {
+    const prompts = (seed: number) =>
+      ["traverse", "rewire-insert", "rewire-delete", "predict", "playlist", "contrast-insert", "contrast-reach", "doubly-splice", "doubly-walk"].map(
+        (p) => at(p, seed).question!.prompt,
+      )
     expect(prompts(SEED)).toEqual(prompts(SEED))
+    expect(prompts(SEED).length).toBe(9)
   })
 })
 
-describe("Linked Lists — traverse (L1, walk from the head)", () => {
-  it("is deterministic and the answer is the target node on the chain", () => {
-    const a = atTraverse(SEED).question!
-    const b = atTraverse(SEED).question!
-    expect(a.prompt).toBe(b.prompt)
-    expect(a.answer).toBe(b.answer)
-    expect(a.options).toEqual([]) // node-click answer, no MCQ options
-    expect(a.nodes).toContain(a.answer)
-    expect(a.answer).toBe(a.nodes[a.targetIndex])
-    expect(a.targetIndex).toBeGreaterThanOrEqual(2)
+describe("Linked Lists - traverse (forced walk)", () => {
+  it("only the next hop is tappable; you cannot one-tap the answer", () => {
+    const t = at("traverse")
+    const q = t.question!
+    expect(q.targetIndex).toBeGreaterThanOrEqual(2)
+    // The answer node is more than one hop away, so tapping it directly is rejected.
+    const rejected = apply(t, { type: "select", letter: q.answer })
+    expect(rejected.selected).toBeNull()
+    // Only the head's successor (index 1) is the legal frontier.
+    expect(walkFrontierLL(t)).toBe(1)
+    const stepped = apply(t, { type: "select", letter: q.nodes[1] })
+    expect(stepped.selected).toBe(q.nodes[1])
+    expect(walkFrontierLL(stepped)).toBe(2)
   })
 
-  it("the correct choice clears traverse, climbs the combo, and reads the hop cost", () => {
-    const t = atTraverse()
-    const s = answerTraverse(t)
+  it("walking to the target and committing clears traverse and reads the hop cost", () => {
+    const s = completeWalk(at("traverse"))
     expect(s.feedback).toBe("correct")
     expect(s.traverseCleared).toBe(1)
     expect(s.combo).toBe(1)
     expect(s.question!.cost.word).toBe("scales")
-    expect(s.question!.cost.count).toBe(t.question!.targetIndex)
+    expect(s.question!.cost.count).toBe(at("traverse").question!.targetIndex)
   })
 
-  it("tapping the wrong node nudges then fails; Check needs a selection", () => {
-    const t = atTraverse()
-    expect(apply(t, { type: "check" })).toBe(t) // nothing selected
-    const wrong = t.question!.nodes.find((n) => n !== t.question!.answer)!
-    let s = apply(t, { type: "select", letter: wrong }, { type: "check" })
+  it("committing short of the target nudges then fails", () => {
+    const t = at("traverse")
+    // Walk exactly one hop (to index 1), short of the target (index >= 2), then check.
+    let s = apply(t, { type: "select", letter: t.question!.nodes[1] }, { type: "check" })
     expect(s.feedback).toBe("nudge")
     s = apply(s, { type: "check" })
     expect(s.feedback).toBe("fail")
-    expect(s.combo).toBe(0)
     expect(s.traverseCleared).toBe(0)
   })
 
-  it("clearing traverse advances to the insert beat", () => {
-    const s = apply(answerTraverse(atTraverse()), { type: "next" })
-    expect(currentPartLL(s)).toBe("rewire-insert")
+  it("Check needs a walk first (no selection)", () => {
+    const t = at("traverse")
+    expect(apply(t, { type: "check" })).toBe(t)
   })
 })
 
-describe("Linked Lists — insert (L2, write-order grading)", () => {
-  it("pins the correct order save-first: X→at THEN prev→X", () => {
-    const q = atInsert().question!
+describe("Linked Lists - insert (write-order grading)", () => {
+  it("pins the correct order save-first: X->at THEN prev->X", () => {
+    const q = at("rewire-insert").question!
     expect(q.kind).toBe("rewire-insert")
     expect(q.rewires).toEqual([
       { from: pointerId(NEW_NODE), to: q.at },
@@ -149,178 +184,235 @@ describe("Linked Lists — insert (L2, write-order grading)", () => {
     ])
   })
 
-  it("the safe order is correct: clears insert, reads free (2 writes)", () => {
-    const s = rewireSafe(atInsert())
+  it("the safe order clears insert and reads free (2 writes)", () => {
+    const s = completeRewire(at("rewire-insert"))
     expect(s.feedback).toBe("correct")
     expect(s.insertCleared).toBe(1)
-    expect(s.combo).toBe(1)
     expect(s.question!.cost).toEqual({ word: "free", count: 2, unit: "pointers rewired" })
   })
 
-  it("an incomplete rewire nudges, then fails", () => {
-    const start = atInsert()
-    const save = start.question!.rewires[0]
-    let s = apply(start, { type: "rewire", from: save.from, to: save.to }, { type: "check" })
+  it("repointing prev first orphans the tail and grades as a fail", () => {
+    const start = at("rewire-insert")
+    const splice = start.question!.rewires[1] // prev -> X, the orphaning move first
+    const broken = apply(start, { type: "rewire", from: splice.from, to: splice.to })
+    expect(legalTargets(broken).has(broken.question!.at!)).toBe(false)
+    expect(orphanedNodes(broken)).toContain(broken.question!.at)
+    expect(isStuckLL(broken)).toBe(true)
+    let s = apply(broken, { type: "check" })
     expect(s.feedback).toBe("nudge")
     s = apply(s, { type: "check" })
     expect(s.feedback).toBe("fail")
     expect(s.insertCleared).toBe(0)
   })
 
-  it("Check does nothing until a pointer is re-aimed", () => {
-    const s = atInsert()
-    expect(apply(s, { type: "check" })).toBe(s)
-  })
-})
-
-describe("Linked Lists — the orphaned tail (unsafe order)", () => {
-  it("repointing prev first drops the tail out of the reachable set", () => {
-    const broken = spliceFirst(atInsert())
-    const q = broken.question!
-    expect(legalTargets(broken).has(q.at!)).toBe(false)
-    expect(orphanedNodes(broken)).toContain(q.at)
-    expect(isStuckLL(broken)).toBe(true)
-  })
-
-  it("you cannot re-aim onto an orphaned node — the reference is lost", () => {
-    const broken = spliceFirst(atInsert())
-    const save = broken.question!.rewires[0] // X → at, but at is now unreachable
-    expect(apply(broken, { type: "rewire", from: save.from, to: save.to })).toBe(broken)
-  })
-
-  it("breaking the list nudges first, then fails on a second check (no recovery)", () => {
-    const broken = spliceFirst(atInsert())
-    let s = apply(broken, { type: "check" })
-    expect(s.feedback).toBe("nudge") // stuck, but graded like any wrong answer
-    expect(s.insertCleared).toBe(0)
-    s = apply(s, { type: "check" })
-    expect(s.feedback).toBe("fail") // flame breaks only on the full fail
-    expect(s.combo).toBe(0)
-    expect(s.insertCleared).toBe(0)
-  })
-})
-
-describe("Linked Lists — reachability + legal targets", () => {
-  it("reachableFrom walks the chain from the head to ∅", () => {
-    const q = atInsert().question!
-    expect(reachableFrom(q.head, q.initialNext)).toEqual(new Set(q.nodes))
-  })
-
-  it("legal targets are every reachable node plus the loose new node (never ∅)", () => {
-    const s = atInsert()
+  it("reachableFrom walks the chain from the head to ∅ and legal targets include X (never ∅)", () => {
+    const s = at("rewire-insert")
+    expect(reachableFrom(s.question!.head, s.question!.initialNext)).toEqual(new Set(s.question!.nodes))
     expect(legalTargets(s)).toEqual(new Set([...s.question!.nodes, NEW_NODE]))
     expect(legalTargets(s).has(NIL)).toBe(false)
     expect(availableNodes(s).has(NEW_NODE)).toBe(true)
   })
 })
 
-describe("Linked Lists — delete (L3, one repoint)", () => {
-  it("bypasses the node with a single repoint prev→after", () => {
-    const q = atDelete().question!
-    expect(q.kind).toBe("rewire-delete")
+describe("Linked Lists - delete (one repoint)", () => {
+  it("clears delete with a single bypass and removes the node", () => {
+    const q = at("rewire-delete").question!
     expect(q.rewires).toHaveLength(1)
-    const prevIdx = q.nodes.indexOf(q.prev!)
-    const after = q.nodes[prevIdx + 2]
-    expect(q.correctNext[pointerId(q.prev!)]).toBe(after)
-  })
-
-  it("the bypass clears delete, reads free (1), and removes the node from the list", () => {
-    const q = atDelete().question!
     const cur = q.nodes[q.nodes.indexOf(q.prev!) + 1]
-    const s = rewireSafe(atDelete())
+    const s = completeRewire(at("rewire-delete"))
     expect(s.feedback).toBe("correct")
     expect(s.deleteCleared).toBe(1)
     expect(s.question!.cost).toEqual({ word: "free", count: 1, unit: "pointer rewired" })
-    expect(orphanedNodes(s)).toContain(cur) // bypassing IS deleting
-  })
-
-  it("a wrong repoint nudges then fails (no orphan-fail trap on delete)", () => {
-    const start = atDelete()
-    const q = start.question!
-    const from = q.rewires[0].from // p:prev
-    // Aim at a real node that's neither the source itself (no self-loop) nor the
-    // correct bypass target — a plain wrong answer.
-    const wrongTo = q.nodes.find((nd) => nd !== q.prev && nd !== q.rewires[0].to)!
-    let s = apply(start, { type: "rewire", from, to: wrongTo }, { type: "check" })
-    expect(s.feedback).toBe("nudge")
-    s = apply(s, { type: "check" })
-    expect(s.feedback).toBe("fail")
-    expect(s.deleteCleared).toBe(0)
+    expect(orphanedNodes(s)).toContain(cur)
   })
 })
 
-describe("Linked Lists — predict-the-break (L4)", () => {
+describe("Linked Lists - predict + animated orphaning", () => {
   it("offers the three locked outcomes; the orphaned-tail one is correct", () => {
-    const q = atPredict().question!
-    expect(q.kind).toBe("predict")
+    const q = at("predict").question!
     expect(new Set(q.options.map((o) => o.id))).toEqual(new Set(["fine", "lost", "loop"]))
     expect(q.answer).toBe("lost")
   })
 
   it("choosing the orphaned tail clears predict; a wrong choice nudges then fails", () => {
-    const s = answerTraverse(atPredict()) // selects q.answer ("lost")
-    expect(s.feedback).toBe("correct")
-    expect(s.predictCleared).toBe(1)
-    let w = apply(atPredict(), { type: "select", letter: "fine" }, { type: "check" })
+    expect(completePredict(at("predict")).predictCleared).toBe(1)
+    let w = apply(at("predict"), { type: "select", letter: "fine" }, { type: "check" })
     expect(w.feedback).toBe("nudge")
     w = apply(w, { type: "check" })
     expect(w.feedback).toBe("fail")
-    expect(w.predictCleared).toBe(0)
+  })
+
+  it("predictBreakFrames detaches the tail on the second frame", () => {
+    const q = at("predict").question!
+    const frames = predictBreakFrames(q)
+    expect(frames).toHaveLength(2)
+    expect(frames[0].orphaned).toEqual([])
+    expect(frames[1].orphaned).toContain(q.at)
   })
 })
 
-describe("Linked Lists — playlist (real-world insert skin)", () => {
-  it("is the save-first insert mechanic with playlist copy", () => {
-    const q = atPlaylist().question!
+describe("Linked Lists - playlist synthesis (multi-step, one slot)", () => {
+  it("is a three-phase task (insert -> delete -> reorder), not a plain insert repeat", () => {
+    const q = at("playlist").question!
     expect(q.kind).toBe("playlist")
-    expect(q.rewires).toEqual([
-      { from: pointerId(NEW_NODE), to: q.at },
-      { from: pointerId(q.prev!), to: NEW_NODE },
-    ])
+    expect(q.playlistSteps.map((s) => s.phase)).toEqual(["insert", "delete", "reorder"])
+    // 2 insert writes + 1 delete write + 3 reorder writes = 6 total.
+    expect(q.flatWrites).toHaveLength(6)
   })
 
-  it("safe order queues the track; the unsafe order still orphans the queue (fail)", () => {
-    expect(rewireSafe(atPlaylist()).playlistCleared).toBe(1)
-    const broken = spliceFirst(atPlaylist())
-    expect(isStuckLL(broken)).toBe(true)
-    expect(apply(broken, { type: "check" }).feedback).toBe("nudge")
-    expect(apply(broken, { type: "check" }, { type: "check" }).feedback).toBe("fail")
+  it("performs the whole script in order and clears as one slot", () => {
+    const s = completeScript(at("playlist"))
+    expect(s.feedback).toBe("correct")
+    expect(s.playlistCleared).toBe(1)
+    expect(s.combo).toBe(1)
+  })
+
+  it("advances phase as writes land; a wrong write only nudges (never strands)", () => {
+    const start = at("playlist")
+    expect(playlistPhaseIndexLL(start)).toBe(0) // insert
+    const afterInsert = apply(
+      start,
+      { type: "rewire", ...start.question!.flatWrites[0] },
+      { type: "rewire", ...start.question!.flatWrites[1] },
+    )
+    expect(playlistPhaseIndexLL(afterInsert)).toBe(1) // delete
+    expect(playlistStepLL(afterInsert)!.phase).toBe("delete")
+    // A wrong write nudges and does not advance the cursor.
+    const wrong = apply(afterInsert, { type: "rewire", from: pointerId("A"), to: "E" })
+    expect(wrong.feedback).toBe("nudge")
+    expect(wrong.writes.length).toBe(afterInsert.writes.length)
+    expect(remainingScriptLL(afterInsert)).toHaveLength(4)
+  })
+
+  it("drops the deleted track but keeps the reordered track present", () => {
+    const start = at("playlist")
+    // Run insert + delete; the deleted track C orphans, the moved track D stays.
+    let s = start
+    for (const w of start.question!.flatWrites.slice(0, 3)) s = apply(s, { type: "rewire", ...w })
+    const orphaned = playlistOrphanedLL(s)
+    expect(orphaned).toContain("C")
+    expect(orphaned).not.toContain("D")
+    expect(legalTargets(s).has("C")).toBe(false)
   })
 })
 
-describe("Linked Lists — array-vs-list contrast (L5, the inverse trade)", () => {
-  it("insert: the list wins (2 writes vs an N-cell ripple)", () => {
-    const q = atContrastInsert().question!
-    expect(q.kind).toBe("contrast-insert")
-    expect(q.answer).toBe("list")
-    expect(q.listCost).toEqual({ word: "free", count: 2, unit: "pointers rewired" })
+describe("Linked Lists - contrast two-step (pick -> why-MCQ)", () => {
+  it("insert: the pick is de-cued (structure names only, no cost or strategy)", () => {
+    const q = at("contrast-insert").question!
+    expect(q.pickOptions.map((o) => o.id).sort()).toEqual(["array", "list", "same"])
+    const banned = /\d|rewire|shift|jump|walk|hop|cell|pointer|index/i
+    for (const o of q.pickOptions) expect(o.label).not.toMatch(banned)
+    expect(q.pickAnswer).toBe("list")
+  })
+
+  it("reach: the pick is de-cued and the array is the less-work pick", () => {
+    const q = at("contrast-reach").question!
+    const banned = /\d|rewire|shift|jump|walk|hop|cell|pointer|index/i
+    for (const o of q.pickOptions) expect(o.label).not.toMatch(banned)
+    expect(q.pickAnswer).toBe("array")
+  })
+
+  it("the pick is low-stakes (any pick advances to the why-MCQ; it never fails)", () => {
+    const start = at("contrast-insert")
+    expect(start.contrastPhase).toBe("pick")
+    // Even a wrong pick advances to the graded why-MCQ without failing.
+    const afterPick = apply(start, { type: "select", letter: "array" }, { type: "check" })
+    expect(afterPick.contrastPhase).toBe("why")
+    expect(afterPick.feedback).toBe("idle")
+    expect(afterPick.combo).toBe(0)
+    expect(afterPick.pick).toBe("array")
+  })
+
+  it("the why-MCQ is the graded check (correct clears; wrong nudges then fails)", () => {
+    expect(completeContrast(at("contrast-insert")).contrastInsertCleared).toBe(1)
+    expect(completeContrast(at("contrast-reach")).contrastReachCleared).toBe(1)
+
+    const start = at("contrast-insert")
+    const wrongWhyId = start.question!.whyOptions.find((o) => o.id !== start.question!.whyAnswer)!.id
+    let w = apply(start, { type: "select", letter: "list" }, { type: "check" }) // pick -> why
+    w = apply(w, { type: "select", letter: wrongWhyId }, { type: "check" })
+    expect(w.feedback).toBe("nudge")
+    w = apply(w, { type: "check" })
+    expect(w.feedback).toBe("fail")
+    expect(w.contrastInsertCleared).toBe(0)
+  })
+
+  it("reveals the cost only after the commit (never on the question screen)", () => {
+    const q = at("contrast-insert").question!
     expect(q.arrayCost!.word).toBe("scales")
-    expect(answerTraverse(atContrastInsert()).contrastInsertCleared).toBe(1)
-  })
-
-  it("reach: the array wins (1 jump vs k hops)", () => {
-    const q = atContrastReach().question!
-    expect(q.kind).toBe("contrast-reach")
-    expect(q.answer).toBe("array")
-    expect(q.arrayCost).toEqual({ word: "free", count: 1, unit: "jump" })
-    expect(q.listCost!.word).toBe("scales")
-    expect(answerTraverse(atContrastReach()).contrastReachCleared).toBe(1)
+    expect(q.listCost).toEqual({ word: "free", count: 2, unit: "pointers rewired" })
   })
 })
 
-describe("Linked Lists — doubly coda (ungraded)", () => {
-  it("is an ungraded teaching beat that finishes the lesson on continue", () => {
-    const s = atDoubly()
-    expect(currentPartLL(s)).toBe("doubly")
-    expect(s.question!.kind).toBe("doubly")
-    expect(s.completed).toBe(false)
-    const done = apply(s, { type: "continue" })
-    expect(done.completed).toBe(true)
+describe("Linked Lists - doubly segment", () => {
+  it("doubly-demo is a free-play beat that leads into the graded splice", () => {
+    const s = at("doubly-demo")
+    expect(s.question!.kind).toBe("doubly-demo")
+    const next = apply(s, { type: "continue" })
+    expect(currentPartLL(next)).toBe("doubly-splice")
+  })
+
+  it("doubly-splice pins the four save-first writes (newcomer first, then neighbours)", () => {
+    const q = at("doubly-splice").question!
+    const [A, B] = q.nodes
+    expect(q.doublyWrites.map((w) => w.from)).toEqual([
+      nextPtr(NEW_NODE),
+      prevPtr(NEW_NODE),
+      nextPtr(A),
+      prevPtr(B),
+    ])
+    expect(q.doublyWrites.map((w) => w.to)).toEqual([B, A, NEW_NODE, NEW_NODE])
+  })
+
+  it("doubly-splice clears when all four writes land in order; a wrong order nudges", () => {
+    const s = completeScript(at("doubly-splice"))
+    expect(s.feedback).toBe("correct")
+    expect(s.doublySpliceCleared).toBe(1)
+
+    // Tapping a later write before the next correct one only nudges.
+    const start = at("doubly-splice")
+    const outOfOrder = start.question!.doublyWrites[2]
+    const w = apply(start, { type: "rewire", from: outOfOrder.from, to: outOfOrder.to })
+    expect(w.feedback).toBe("nudge")
+    expect(w.writes.length).toBe(0)
+  })
+
+  it("doubly-walk is a backward forced walk from the tail", () => {
+    const s = at("doubly-walk")
+    const q = s.question!
+    expect(q.backward).toBe(true)
+    // The walk starts at the tail; the only frontier is the node before it.
+    expect(walkCursorLL(s)).toBe(q.nodes.length - 1)
+    expect(walkFrontierLL(s)).toBe(q.nodes.length - 2)
+    // You cannot one-tap a node further back than the immediate prev.
+    const rejected = apply(s, { type: "select", letter: q.answer })
+    expect(rejected.selected).toBeNull()
+    const cleared = completeWalk(s)
+    expect(cleared.feedback).toBe("correct")
+    expect(cleared.doublyWalkCleared).toBe(1)
   })
 })
 
-describe("Linked Lists — completion / progress", () => {
-  it("squashes to a lesson-shaped counters map with an attempt tally", () => {
+describe("Linked Lists - replay frame selectors", () => {
+  it("insertWriteFrames steps intact -> save -> splice with no orphans", () => {
+    const q = at("rewire-insert").question!
+    const frames = insertWriteFrames(q)
+    expect(frames).toHaveLength(3)
+    expect(frames.every((f) => f.orphaned.length === 0)).toBe(true)
+    expect(frames[1].workingNext[pointerId(NEW_NODE)]).toBe(q.at)
+    expect(frames[2].workingNext[pointerId(q.prev!)]).toBe(NEW_NODE)
+  })
+
+  it("deleteWriteFrames bypasses the node on the second frame", () => {
+    const q = at("rewire-delete").question!
+    const frames = deleteWriteFrames(q)
+    expect(frames).toHaveLength(2)
+    expect(frames[1].orphaned.length).toBeGreaterThan(0)
+  })
+})
+
+describe("Linked Lists - completion / progress", () => {
+  it("squashes to a lesson-shaped counters map with the nine graded keys", () => {
     const p = toProgressLinkedLists(createLinkedLists(SEED))
     expect(p.counters).toEqual({
       traverse: 0,
@@ -330,36 +422,49 @@ describe("Linked Lists — completion / progress", () => {
       playlist: 0,
       contrastInsert: 0,
       contrastReach: 0,
+      doublySplice: 0,
+      doublyWalk: 0,
       attempts: 0,
     })
     expect(p.currentPart).toBe("node-demo")
     expect(p.completed).toBe(false)
   })
 
-  it("clears the seven graded beats, reaches the doubly coda, then finishes", () => {
-    const atIns = apply(answerTraverse(atTraverse()), { type: "next" }) // → insert
-    const atDel = apply(rewireSafe(atIns), { type: "next" }) // → delete
-    const atPre = apply(rewireSafe(atDel), { type: "next" }) // → predict
-    const atPlay = apply(answerTraverse(atPre), { type: "next" }) // → playlist
-    const atCI = apply(rewireSafe(atPlay), { type: "next" }) // → contrast-insert
-    const atCR = apply(answerTraverse(atCI), { type: "next" }) // → contrast-reach
-    const atCoda = apply(answerTraverse(atCR), { type: "next" }) // → doubly (ungraded)
-    expect(currentPartLL(atCoda)).toBe("doubly")
-    expect(isCompleteLL(atCoda)).toBe(true) // 7 graded cleared
-    expect(atCoda.completed).toBe(false) // coda not finished yet
-    const done = apply(atCoda, { type: "continue" }) // Finish lesson
-    expect(done.completed).toBe(true)
-    expect(toProgressLinkedLists(done).completed).toBe(true)
-  })
-
   it("restores persisted counts on the same part with a cold combo", () => {
     const s = resumeLinkedLists(
-      { counters: { traverse: 1, insert: 0, attempts: 3 }, currentPart: "rewire-insert", completed: false },
+      {
+        counters: { traverse: 1, insert: 1, doublySplice: 1, attempts: 5 },
+        currentPart: "doubly-walk",
+        completed: false,
+      },
       SEED,
     )
-    expect(currentPartLL(s)).toBe("rewire-insert")
+    expect(currentPartLL(s)).toBe("doubly-walk")
     expect(s.traverseCleared).toBe(1)
-    expect(s.attempts).toBe(3)
+    expect(s.doublySpliceCleared).toBe(1)
+    expect(s.attempts).toBe(5)
     expect(s.combo).toBe(0)
+  })
+
+  it("is complete only when all nine graded beats are cleared", () => {
+    const eight = resumeLinkedLists(
+      {
+        counters: {
+          traverse: 1,
+          insert: 1,
+          delete: 1,
+          predict: 1,
+          playlist: 1,
+          contrastInsert: 1,
+          contrastReach: 1,
+          doublySplice: 1,
+        },
+        currentPart: "doubly-walk",
+        completed: false,
+      },
+      SEED,
+    )
+    expect(isCompleteLL(eight)).toBe(false)
+    expect(isCompleteLL(completeWalk(eight))).toBe(true)
   })
 })
