@@ -29,7 +29,7 @@ describe("withTrialNodes", () => {
     const idx = nodes.findIndex((n) => n.id === "trial-1-linear")
     expect(idx).toBe(4) // immediately after linked-lists (index 3)
     expect(nodes[idx].state).toBe("locked")
-    expect(nodes[idx].name).toBe("Trial I: Linear Systems")
+    expect(nodes[idx].name).toBe("Trial")
   })
 
   it("opens the Trial as available once linked-lists is complete", () => {

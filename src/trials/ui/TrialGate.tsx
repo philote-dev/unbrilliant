@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
  */
 export function TrialGate({
   onBegin,
-  title = "The Trial",
+  title = "Trial",
 }: {
   onBegin: () => void
   title?: string
@@ -39,24 +39,19 @@ export function TrialGate({
               "linear-gradient(135deg, #2a2540, var(--lilac-strong) 62%, var(--lilac))",
           }}
         >
-          <div className="flex items-center gap-2">
-            <span className="flex size-6 items-center justify-center rounded-md bg-white/15">
-              <svg
-                viewBox="0 0 24 24"
-                className="size-4"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2.2}
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M3 20 10 6l4 8 3-5 4 11z" />
-              </svg>
-            </span>
-            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/80">
-              Trial
-            </span>
-          </div>
+          <span className="flex size-7 items-center justify-center rounded-lg bg-white/15">
+            <svg
+              viewBox="0 0 24 24"
+              className="size-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2.2}
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M3 20 10 6l4 8 3-5 4 11z" />
+            </svg>
+          </span>
           <h1 className="mt-3 text-2xl font-extrabold leading-tight text-white">
             {title}
           </h1>
