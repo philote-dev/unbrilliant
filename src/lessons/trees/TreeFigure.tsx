@@ -5,14 +5,19 @@ import { cn } from "@/lib/utils"
 import { useIsDesktop } from "@/hooks/useMediaQuery"
 import type { LessonAction } from "@/features/lesson/engine"
 import {
+  bstBuildCurrentKey,
+  bstBuildCursor,
+  bstBuildNextStep,
   candidatesRemaining,
   correctNextStep,
   cursorNode,
   droppedNodeIds,
   isTerminalTrees,
   nodeById,
+  sequenceFrontier,
   subtreeSize,
   tappableChildren,
+  type BstBuildBeat,
   type Side,
   type TreeNode,
   type TreesState,
@@ -101,6 +106,9 @@ export function TreeFigure({
   if (!q) return null
   if (q.mode === "sequence") {
     return <SequenceFigure state={state} dispatch={dispatch} reduced={reduced} variant={variant} />
+  }
+  if (q.mode === "build" && state.build) {
+    return <BuildFigure state={state} dispatch={dispatch} reduced={reduced} variant={variant} />
   }
   return (
     <DescendFigure
@@ -448,6 +456,160 @@ function descendStatus(state: TreesState): string {
   return `${q.target ?? "The value"} ${goLeft ? "is less than" : "is greater than"} ${parent.key}, go ${goLeft ? "left" : "right"}; dropped ${d} node${d === 1 ? "" : "s"}; ${inPlay}.`
 }
 
+/* ------------------------------- build-the-BST ----------------------------- */
+
+/**
+ * The build figure: the learner grows a BST by descending the incoming key and
+ * dropping it into the empty slot it lands in. It reuses the descend mechanic on
+ * the live `state.build` working tree (which grows by one node per placement):
+ * only the cursor's two children are tappable (no jumping), plus a dashed ghost
+ * slot for each empty side at the cursor (tap = "it attaches here"). The single
+ * correct next action carries the DEV `data-answer` hook for the tracer. The tree
+ * reflows + the new node springs in as it grows; reduced motion snaps.
+ */
+function BuildFigure({
+  state,
+  dispatch,
+  reduced,
+  variant,
+}: {
+  state: TreesState
+  dispatch: Dispatch<LessonAction>
+  reduced: boolean
+  variant: FigureVariant
+}) {
+  const beat = state.build as BstBuildBeat
+  const tree = beat.tree
+  const radius = nodeRadius(variant)
+  const layout = tidyLayout(tree)
+  const pathIds = new Set(beat.path)
+  const cur = bstBuildCursor(beat)
+  const incomingKey = bstBuildCurrentKey(beat)
+  const interactive = !isTerminalTrees(state) && incomingKey != null
+  const step = interactive ? bstBuildNextStep(beat) : null
+
+  const leftChildId = cur?.left?.id ?? null
+  const rightChildId = cur?.right?.id ?? null
+  const ghostSides: Side[] = []
+  if (interactive && cur) {
+    if (!cur.left) ghostSides.push("left")
+    if (!cur.right) ghostSides.push("right")
+  }
+  const isTappable = (id: string) => interactive && (id === leftChildId || id === rightChildId)
+
+  const hasSlots = ghostSides.length > 0
+  const figW = layout.width
+  const figH = layout.height + (hasSlots ? ROW_Y : 0)
+  const curPos = cur ? layout.pos.get(cur.id) : null
+  const slotPos = (side: Side): NodePos =>
+    curPos
+      ? {
+          x: clamp(curPos.x + (side === "left" ? -GHOST_DX : GHOST_DX), NODE_R, figW - NODE_R),
+          y: curPos.y + ROW_Y,
+        }
+      : { x: figW / 2, y: figH - NODE_R }
+
+  const edgeTone = (from: string, to: string): EdgeTone =>
+    pathIds.has(from) && pathIds.has(to) ? "path" : "muted"
+
+  const transition = reduced ? { duration: 0 } : { type: "spring" as const, stiffness: 260, damping: 24 }
+
+  return (
+    <div className="flex w-full flex-col items-center gap-3">
+      <FitBox figW={figW} figH={figH} reduced={reduced}>
+        <Edges tree={tree} pos={layout.pos} tone={edgeTone} reduced={reduced} variant={variant} />
+
+        {[...layout.pos.entries()].map(([id, p]) => {
+          const node = nodeById(tree, id)!
+          const onPath = pathIds.has(id)
+          const tappable = isTappable(id)
+          const answer = step?.kind === "node" && step.id === id
+          return (
+            <motion.div
+              key={id}
+              initial={reduced ? false : { scale: 0.6, opacity: 0 }}
+              animate={{ x: p.x - NODE_R, y: p.y - NODE_R, scale: 1, opacity: 1 }}
+              transition={transition}
+              className="absolute left-0 top-0"
+              style={{ width: NODE_W, height: NODE_H }}
+            >
+              {tappable ? (
+                <button
+                  type="button"
+                  data-tappable="1"
+                  data-node-id={id}
+                  data-answer={answer && DEV ? "1" : undefined}
+                  aria-label={`node ${node.key}`}
+                  onClick={() => dispatch({ type: "select", letter: id })}
+                  className={cn(
+                    "flex size-full items-center justify-center border-2 text-base font-bold text-foreground outline-none transition-colors",
+                    radius,
+                    "cursor-pointer border-lilac-strong/60 bg-card ring-4 ring-lilac-strong/15 hover:bg-lilac-soft",
+                    "focus-visible:ring-2 focus-visible:ring-lilac-strong/70 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                  )}
+                >
+                  {node.key}
+                </button>
+              ) : (
+                <div
+                  data-node-id={id}
+                  aria-label={`node ${node.key}`}
+                  className={cn(
+                    "flex size-full items-center justify-center border-2 text-base font-bold transition-colors",
+                    radius,
+                    onPath
+                      ? "border-lilac-strong bg-lilac-soft text-foreground"
+                      : "border-border bg-card text-foreground",
+                  )}
+                >
+                  {node.key}
+                </div>
+              )}
+            </motion.div>
+          )
+        })}
+
+        {/* dashed ghost slots for the empty sides at the cursor (tap = "it attaches here") */}
+        {ghostSides.map((side) => {
+          const p = slotPos(side)
+          const answer = step?.kind === "ghost" && step.side === side
+          return (
+            <button
+              key={`ghost-${side}`}
+              type="button"
+              data-tappable="1"
+              data-ghost-side={side}
+              data-answer={answer && DEV ? "1" : undefined}
+              aria-label={`empty ${side} slot. Drop ${incomingKey ?? "the key"} here if it attaches on the ${side}`}
+              onClick={() => dispatch({ type: "select", letter: side === "left" ? "ghost:left" : "ghost:right" })}
+              className={cn(
+                "absolute flex items-center justify-center border-2 border-dashed border-lilac-strong/70 bg-lilac-soft/40 text-sm font-semibold text-lilac-strong outline-none",
+                radius,
+                "cursor-pointer hover:bg-lilac-soft focus-visible:ring-2 focus-visible:ring-lilac-strong/70 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+              )}
+              style={{ left: p.x - NODE_R, top: p.y - NODE_R, width: NODE_W, height: NODE_H }}
+            >
+              {incomingKey}
+            </button>
+          )
+        })}
+      </FitBox>
+
+      <p className="sr-only" role="status">
+        {buildStatus(beat)}
+      </p>
+    </div>
+  )
+}
+
+function buildStatus(beat: BstBuildBeat): string {
+  const key = bstBuildCurrentKey(beat)
+  if (key == null) return "The tree is built: every key placed."
+  const cur = bstBuildCursor(beat)
+  if (!cur) return `Placing ${key}.`
+  return `Placing ${key}. At ${cur.key}: ${key < cur.key ? "go left" : "go right"} toward its empty slot.`
+}
+
 /* -------------------------------- sequence --------------------------------- */
 
 function SequenceFigure({
@@ -476,6 +638,9 @@ function SequenceFigure({
   const rank = new Map(order.map((id, i) => [id, i]))
   const tappedAt = new Map(state.tappedOrder.map((id, i) => [id, i + 1]))
   const terminal = isTerminalTrees(state)
+  // Frontier-gated (Bucket 4): only the next correct in-order node is tappable, so
+  // the learner walks the real traversal instead of tapping by ascending value.
+  const frontier = sequenceFrontier(state)
   const figW = Math.max(compact.width, tidy.width)
   const figH = Math.max(compact.height, tidy.height)
 
@@ -489,7 +654,7 @@ function SequenceFigure({
         const node = nodeById(tree, id)!
         const orderNo = tappedAt.get(id)
         const tapped = orderNo != null
-        const tappable = !tapped && !terminal
+        const tappable = id === frontier && !terminal
         return (
           <motion.div
             key={id}
@@ -504,13 +669,14 @@ function SequenceFigure({
                 type="button"
                 data-tappable="1"
                 data-node-id={id}
+                data-answer={DEV ? "1" : undefined}
                 data-inorder-rank={DEV ? rank.get(id) : undefined}
-                aria-label={`node ${node.key}`}
+                aria-label={`node ${node.key}, tap next`}
                 onClick={() => dispatch({ type: "select", letter: id })}
                 className={cn(
-                  "flex size-full items-center justify-center border-2 border-border bg-card text-base font-bold text-foreground outline-none transition-colors",
+                  "flex size-full items-center justify-center border-2 border-lilac-strong/60 bg-card text-base font-bold text-foreground outline-none transition-colors",
                   radius,
-                  "cursor-pointer hover:border-lilac-strong/50 focus-visible:ring-2 focus-visible:ring-lilac-strong/70 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                  "cursor-pointer ring-4 ring-lilac-strong/15 hover:bg-lilac-soft focus-visible:ring-2 focus-visible:ring-lilac-strong/70 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                 )}
               >
                 {node.key}
@@ -584,6 +750,8 @@ export function DisplayTree({
     return lit.has(from) && lit.has(to) ? "path" : "muted"
   }
 
+  const transition = reduced ? { duration: 0 } : { type: "spring" as const, stiffness: 240, damping: 26 }
+
   return (
     <div className={cn("flex flex-col items-center gap-1.5", dim && "opacity-50")}>
       <FitBox figW={layout.width} figH={layout.height} reduced={reduced}>
@@ -593,22 +761,25 @@ export function DisplayTree({
           const isDropped = dropped.has(id)
           const rank = rankOf.get(id)
           return (
-            <div
+            <motion.div
               key={id}
               data-node-id={id}
               data-dropped={isDropped ? "1" : undefined}
               data-order-rank={rank}
               aria-label={`node ${node.key}${rank ? `, visited ${rank}` : ""}${isDropped ? ", discarded" : ""}`}
+              initial={reduced ? false : { scale: 0.6, opacity: 0 }}
+              animate={{ x: p.x - NODE_R, y: p.y - NODE_R, scale: 1, opacity: isDropped ? 0.4 : 1 }}
+              transition={transition}
               className={cn(
-                "absolute flex items-center justify-center border-2 text-base font-bold transition-colors",
+                "absolute left-0 top-0 flex items-center justify-center border-2 text-base font-bold transition-colors",
                 radius,
                 isDropped
-                  ? "border-dashed border-faint bg-card/40 text-faint opacity-40"
+                  ? "border-dashed border-faint bg-card/40 text-faint"
                   : lit.has(id)
                     ? "border-lilac-strong bg-lilac-soft text-foreground"
                     : "border-border bg-card text-foreground",
               )}
-              style={{ left: p.x - NODE_R, top: p.y - NODE_R, width: NODE_W, height: NODE_H }}
+              style={{ width: NODE_W, height: NODE_H }}
             >
               {node.key}
               {rank != null && (
@@ -616,7 +787,7 @@ export function DisplayTree({
                   {rank}
                 </span>
               )}
-            </div>
+            </motion.div>
           )
         })}
       </FitBox>

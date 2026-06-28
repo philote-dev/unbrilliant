@@ -1,29 +1,38 @@
+import { useReducedMotion } from "motion/react"
 import type { Dispatch } from "react"
 
+import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { AnswerCard, type AnswerState } from "@/components/willow/AnswerCard"
 import { CostReadout } from "@/components/willow/CostReadout"
 import { FeedbackFooter } from "@/components/willow/FeedbackFooter"
+import { StatusChip } from "@/components/willow/StatusChip"
 import type { LessonAction } from "@/features/lesson/engine"
 import {
+  bstBuildCurrentKey,
   binOf,
   canCheckTrees,
   chainWalkDone,
   currentPartTrees,
   descendPath,
+  droppedAlongPath,
   isTerminalTrees,
   nodeById,
   partQuotaTrees,
+  watchedBuildFrames,
+  type BstBuildBeat,
+  type BuildFrame,
   type TreesBin,
   type TreesCost,
   type TreesQuestion,
   type TreesState,
 } from "@/features/lesson/treesEngine"
 import { StageSplit, StageCenter } from "@/components/willow/lesson/StageLayout"
+import { FrameSequence } from "@/components/willow/lesson/FrameSequence"
 import { DisplayTree, TreeFigure } from "./TreeFigure"
 import { SortedChain } from "./SortedChain"
 import { ContrastRace } from "./ContrastRace"
-import { ArenaFooter, ArenaShell } from "./Arena"
+import { ArenaFooter, ArenaShell, RebalanceBracket } from "./Arena"
 
 /**
  * The Trees stage. Every beat renders in the generic Willow UI (lilac accent, the
@@ -50,9 +59,16 @@ export function TreesStage({
     case "find-hit":
     case "find-miss":
     case "insert":
+    case "find-big":
       return <DescendPart state={state} dispatch={dispatch} />
+    case "watched-build":
+      return <WatchedBuildPart state={state} dispatch={dispatch} />
+    case "build-bst-1":
+    case "build-bst-2":
+      return <BuildPart state={state} dispatch={dispatch} />
     case "sequence-a":
     case "sequence-b":
+    case "sequence-c":
       return <SequencePart state={state} dispatch={dispatch} />
     case "realworld":
       return <RealWorldPart state={state} dispatch={dispatch} />
@@ -68,6 +84,7 @@ export function TreesStage({
 const BIN_LABEL: Record<TreesBin, string> = {
   locate: "Locate",
   sequence: "Sequence",
+  build: "Build",
   comparison: "Comparison",
 }
 
@@ -113,6 +130,15 @@ function MutedLabel({ children }: { children: React.ReactNode }) {
   )
 }
 
+/** The house teach/intro kicker: a small, wide-tracked lilac eyebrow (baseline). */
+function Eyebrow({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="text-center text-xs font-semibold uppercase tracking-[0.18em] text-lilac-strong">
+      {children}
+    </p>
+  )
+}
+
 function LabeledCost({ label, cost }: { label: string; cost: TreesCost }) {
   return (
     <div className="flex flex-col items-center gap-1">
@@ -148,7 +174,8 @@ function DemoPart({
   return (
     <StageCenter>
       <div className="mt-7 text-center">
-        <h2 className="text-xl font-bold text-foreground lg:text-2xl">{q.title}</h2>
+        <Eyebrow>Trees</Eyebrow>
+        <h2 className="mt-2 text-xl font-bold text-foreground lg:text-2xl">{q.title}</h2>
         <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground lg:max-w-sm lg:text-base">{q.prompt}</p>
       </div>
 
@@ -158,7 +185,8 @@ function DemoPart({
 
       <div className="mt-auto">
         <p className="mb-3 text-center text-sm text-muted-foreground">
-          Each tap compares and steps down one level. The half you skip is discarded.
+          Each tap <span className="concept">compares</span> and steps down one level. The half you skip
+          is <span className="concept" style={{ animationDelay: "450ms" }}>discarded</span>.
         </p>
         <Button
           variant="tactile"
@@ -175,6 +203,47 @@ function DemoPart({
 
 /* ------------------------------- teach beats ------------------------------ */
 
+interface TeachFrame {
+  highlight: string[]
+  dropped: string[]
+  ranks?: string[]
+  caption: string
+}
+
+/** Frames for teach-descend: the path lights step by step, the other half greys. */
+function descendTeachFrames(tree: TreesQuestion["tree"], target: number): TeachFrame[] {
+  const path = descendPath(tree, target).path
+  return path.map((_, i) => {
+    const lit = path.slice(0, i + 1)
+    if (i === 0) {
+      return { highlight: lit, dropped: [], caption: `Start at the root, ${nodeById(tree, path[0])!.key}.` }
+    }
+    const parent = nodeById(tree, path[i - 1])!
+    const goLeft = target < parent.key
+    return {
+      highlight: lit,
+      dropped: [...droppedAlongPath(tree, lit)],
+      caption: `${target} is ${goLeft ? "less" : "greater"} than ${parent.key}: go ${
+        goLeft ? "left" : "right"
+      }, and the other half is gone.`,
+    }
+  })
+}
+
+/** Frames for teach-inorder: the visit-order badges appear one at a time. */
+function inorderTeachFrames(order: string[], tree: TreesQuestion["tree"]): TeachFrame[] {
+  return order.map((_, i) => {
+    const ranks = order.slice(0, i + 1)
+    const justKey = nodeById(tree, order[i])!.key
+    return {
+      highlight: ranks,
+      dropped: [],
+      ranks,
+      caption: i === 0 ? `Left subtree first: ${justKey} comes out first.` : `Then ${justKey}.`,
+    }
+  })
+}
+
 function TeachPart({
   state,
   dispatch,
@@ -183,33 +252,59 @@ function TeachPart({
   dispatch: Dispatch<LessonAction>
 }) {
   const q = state.question
+  const reduced = useReducedMotion() ?? false
   if (!q) return null
   const isDescend = q.kind === "teach-descend"
-  const highlight = isDescend ? descendPath(q.tree, 10).path : q.order
+  const frames = isDescend ? descendTeachFrames(q.tree, 10) : inorderTeachFrames(q.order, q.tree)
 
   return (
     <StageCenter>
       <div className="mt-7 text-center">
-        <h2 className="text-xl font-bold text-foreground lg:text-2xl">{q.title}</h2>
-      </div>
-
-      <div className="flex flex-1 flex-col items-center justify-center gap-6 py-6">
-        <DisplayTree
-          tree={q.tree}
-          highlightIds={highlight}
-          orderRanks={isDescend ? undefined : q.order}
-          variant="tree"
-        />
+        <Eyebrow>{isDescend ? "Descend" : "In-order"}</Eyebrow>
+        <h2 className="mt-2 text-xl font-bold text-foreground lg:text-2xl">{q.title}</h2>
         {isDescend ? (
-          <p className="mx-auto max-w-xs text-center text-sm text-muted-foreground">
-            Compare, go left if smaller or right if larger, and the half you skip is discarded.
+          <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground lg:max-w-sm lg:text-base">
+            <span className="concept">Compare</span> at each node, then{" "}
+            <span className="concept" style={{ animationDelay: "450ms" }}>
+              drop the half
+            </span>{" "}
+            you skip.
           </p>
         ) : (
-          <p className="mx-auto max-w-xs text-center text-sm text-muted-foreground">
-            The badges count the visit order: left subtree, then the node, then the right subtree, and
-            it comes out <span className="font-semibold text-foreground">sorted</span>.
+          <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground lg:max-w-sm lg:text-base">
+            <span className="concept">Left subtree</span>, then the{" "}
+            <span className="concept" style={{ animationDelay: "450ms" }}>
+              node
+            </span>
+            , then the{" "}
+            <span className="concept" style={{ animationDelay: "900ms" }}>
+              right subtree
+            </span>
+            : it comes out sorted.
           </p>
         )}
+      </div>
+
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 py-6">
+        <FrameSequence
+          frames={frames}
+          autoPlayMs={(i) => (i === 0 ? 900 : 800)}
+          controls
+          reduced={reduced}
+        >
+          {(frame) => (
+            <>
+              <DisplayTree
+                tree={q.tree}
+                highlightIds={frame.highlight}
+                droppedIds={frame.dropped}
+                orderRanks={frame.ranks}
+                variant="tree"
+              />
+              <p className="max-w-xs text-center text-xs text-muted-foreground">{frame.caption}</p>
+            </>
+          )}
+        </FrameSequence>
       </div>
 
       <Button
@@ -220,6 +315,187 @@ function TeachPart({
       >
         Continue
       </Button>
+    </StageCenter>
+  )
+}
+
+/* ------------------------------ watched build ----------------------------- */
+
+/** Which descend nodes to light for a watched-build frame (the path + the new node). */
+function watchedHighlight(frame: BuildFrame): string[] {
+  return frame.highlightIds
+}
+
+/**
+ * Beat 6, watched-build (teach, ungraded): auto-plays a BST grown from scratch,
+ * key by key, through the shared `FrameSequence`. Each frame lights the descend
+ * the next key took and shows it attached, so the tree visibly grows. Replay
+ * re-watches it; reduced motion snaps to the finished tree with no timers. The
+ * concept copy glows in reading order (baseline).
+ */
+function WatchedBuildPart({
+  state,
+  dispatch,
+}: {
+  state: TreesState
+  dispatch: Dispatch<LessonAction>
+}) {
+  const q = state.question
+  const reduced = useReducedMotion() ?? false
+  if (!q || !q.buildKeys) return null
+  const frames = watchedBuildFrames(q.buildKeys)
+
+  return (
+    <StageCenter>
+      <div className="mt-7 text-center">
+        <Eyebrow>Build a tree</Eyebrow>
+        <h2 className="mt-2 text-xl font-bold text-foreground lg:text-2xl">Watch it grow, key by key</h2>
+        <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground lg:max-w-sm lg:text-base">
+          A tree is just <span className="concept">insert</span>, repeated. Each key{" "}
+          <span className="concept" style={{ animationDelay: "450ms" }}>
+            compares down
+          </span>{" "}
+          and attaches at the{" "}
+          <span className="concept" style={{ animationDelay: "900ms" }}>
+            first empty slot
+          </span>
+          .
+        </p>
+      </div>
+
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 py-4">
+        <FrameSequence
+          frames={frames}
+          autoPlayMs={(i) => (i === 0 ? 900 : 820)}
+          controls
+          reduced={reduced}
+        >
+          {(frame) => (
+            <>
+              <DisplayTree tree={frame.tree} highlightIds={watchedHighlight(frame)} variant="tree" />
+              <p className="max-w-xs text-center text-xs text-muted-foreground">{frame.caption}</p>
+            </>
+          )}
+        </FrameSequence>
+      </div>
+
+      <Button
+        variant="tactile"
+        size="lg"
+        className="mt-auto w-full"
+        onClick={() => dispatch({ type: "continue" })}
+      >
+        Continue
+      </Button>
+    </StageCenter>
+  )
+}
+
+/* ------------------------------- build the BST ---------------------------- */
+
+/** The insert sequence as a queue: placed keys settle green, the current one glows. */
+function BuildKeyQueue({ beat }: { beat: BstBuildBeat }) {
+  const incoming = bstBuildCurrentKey(beat)
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-1.5" aria-hidden>
+      {beat.keys.map((k, i) => {
+        const done = i < beat.placed
+        const current = k === incoming && i === beat.placed
+        return (
+          <span
+            key={`${i}-${k}`}
+            className={cn(
+              "flex size-8 items-center justify-center rounded-lg border-2 text-xs font-bold transition-colors",
+              done
+                ? "border-success bg-success-soft text-foreground"
+                : current
+                  ? "border-lilac-strong bg-lilac-soft text-lilac-strong ring-4 ring-lilac-strong/15"
+                  : "border-border bg-card text-muted-foreground",
+            )}
+          >
+            {k}
+          </span>
+        )
+      })}
+    </div>
+  )
+}
+
+/** The footer for an active build: a quiet instruction, a nudge on a wrong move,
+ * and the correction + Continue once every key is placed. No Check / fail wall. */
+function BuildFooter({
+  state,
+  q,
+  dispatch,
+}: {
+  state: TreesState
+  q: TreesQuestion
+  dispatch: Dispatch<LessonAction>
+}) {
+  const { feedback } = state
+  return (
+    <div className="mt-auto min-h-[120px] pt-2">
+      {feedback === "correct" ? (
+        <div className="animate-fade-in">
+          <div className="mb-4 flex flex-col items-center gap-2 text-center">
+            <StatusChip status="correct" />
+            <p className="text-sm text-muted-foreground lg:text-base">{q.correct}</p>
+          </div>
+          <Button variant="tactile" size="lg" className="w-full" onClick={() => dispatch({ type: "next" })}>
+            Continue
+          </Button>
+        </div>
+      ) : feedback === "nudge" ? (
+        <div className="mb-4 flex flex-col items-center gap-2 text-center" role="status">
+          <StatusChip status="hint" />
+          <p className="text-sm text-muted-foreground lg:text-base">{q.nudge}</p>
+        </div>
+      ) : (
+        <p className="text-center text-sm text-muted-foreground lg:text-base">
+          Descend each key to its empty slot, then drop it in.
+        </p>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Beats 7-8, build-the-BST (graded, the Build bin): the learner grows a BST by
+ * inserting a fixed sequence of keys, descending each to its empty slot and
+ * dropping it in (the TreeFigure build mode). The queue shows progress; a wrong
+ * tap nudges (no fail wall) and the build clears once the last key lands. Reduced
+ * motion snaps each placement.
+ */
+function BuildPart({
+  state,
+  dispatch,
+}: {
+  state: TreesState
+  dispatch: Dispatch<LessonAction>
+}) {
+  const q = state.question
+  const beat = state.build
+  if (!q || !beat) return null
+  const solved = state.feedback === "correct"
+  const incoming = bstBuildCurrentKey(beat)
+
+  return (
+    <StageCenter>
+      <GradedHeader state={state} />
+
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 py-4">
+        <BuildKeyQueue beat={beat} />
+        <TreeFigure state={state} dispatch={dispatch} variant="tree" />
+        <p className="max-w-xs text-center text-xs text-muted-foreground">
+          {solved
+            ? "Every key found its slot. The tree is grown."
+            : incoming != null
+              ? `Insert ${incoming}: compare down, then tap the empty slot it lands in.`
+              : ""}
+        </p>
+      </div>
+
+      <BuildFooter state={state} q={q} dispatch={dispatch} />
     </StageCenter>
   )
 }
@@ -349,6 +625,7 @@ function ComparePart({
   dispatch: Dispatch<LessonAction>
 }) {
   const q = state.question
+  const reduced = useReducedMotion() ?? false
   if (!q || !q.stick) return null
   const correct = state.feedback === "correct"
   const terminal = isTerminalTrees(state)
@@ -358,15 +635,25 @@ function ComparePart({
       header={<GradedHeader state={state} />}
       figure={
         <>
-          <div className="flex flex-col items-center gap-3 py-4">
-            <DisplayTree tree={q.tree} caption="Balanced" variant="tree" />
-            <DisplayTree tree={q.stick} caption="Same nodes, one long branch" variant="tree" />
-          </div>
+          {/* De-cued (Bucket 2): the figures are captioned neutrally "Tree A" / "Tree
+              B" (no "Balanced" / "stick" verdict). On a correct answer the lopsided
+              Tree B visibly rebalances into Tree A (RebalanceBracket, Bucket 3),
+              a non-gating flourish that delivers the verdict the labels withheld. */}
+          {correct ? (
+            <div className="flex flex-col items-center gap-3 py-4">
+              <RebalanceBracket balanced={q.tree} stick={q.stick} reducedMotion={reduced} />
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-3 py-4">
+              <DisplayTree tree={q.tree} caption="Tree A" variant="tree" />
+              <DisplayTree tree={q.stick} caption="Tree B" variant="tree" />
+            </div>
+          )}
 
           {correct && q.cost && q.altCost && (
             <div className="mb-4 flex flex-wrap justify-center gap-2">
-              <LabeledCost label="Balanced" cost={q.cost} />
-              <LabeledCost label="Lopsided" cost={q.altCost} />
+              <LabeledCost label="Tree A" cost={q.cost} />
+              <LabeledCost label="Tree B" cost={q.altCost} />
             </div>
           )}
         </>
