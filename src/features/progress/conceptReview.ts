@@ -22,7 +22,7 @@ export const GAP_LADDER_MS = [DAY, 3 * DAY, 7 * DAY, 21 * DAY] // levels 0..3
 export const MAX_LEVEL = GAP_LADDER_MS.length // graduate after 4 spaced reps
 export const MIN_GAP_MS = 20 * 60 * 60 * 1000 // 20h floor: never same/next-session
 
-function gapForLevel(level: number): number {
+export function gapForLevel(level: number): number {
   return GAP_LADDER_MS[Math.min(Math.max(level, 0), GAP_LADDER_MS.length - 1)]
 }
 
