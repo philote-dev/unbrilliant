@@ -5,6 +5,7 @@ import { currentSegment } from "@/features/trials/trialModule"
 
 import { ClientScene } from "./ClientScene"
 import { DesignBoard } from "./DesignBoard"
+import { PredictionReview } from "./PredictionReview"
 import { StressTestPanel } from "./StressTestPanel"
 import { TrialGate } from "./TrialGate"
 import { TrialTopBar } from "./TrialTopBar"
@@ -30,9 +31,17 @@ export function TrialPlayer() {
       <div className="mx-auto flex w-full max-w-xl flex-col gap-4 px-4 py-5">
         <TrialTopBar />
         <ClientScene prompt={segment.clientPrompt} skin={mission.clientSkin} />
-        {state.phase === "design" && <DesignBoard />}
-        {state.phase === "verdict" && <StressTest />}
-        {state.phase === "complete" && <CompletePanel />}
+        {state.phase === "complete" ? (
+          <CompletePanel />
+        ) : segment.grading === "prediction" ? (
+          // Final-review segments own both their design (predict) and verdict
+          // (replay) phases; the capability board/panel handle every other segment.
+          <PredictionReview />
+        ) : state.phase === "design" ? (
+          <DesignBoard />
+        ) : (
+          <StressTest />
+        )}
       </div>
     </div>
   )
