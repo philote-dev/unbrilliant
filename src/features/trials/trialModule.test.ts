@@ -146,6 +146,71 @@ describe("trialReducer: guards", () => {
   })
 })
 
+describe("trialReducer: submit-prediction", () => {
+  // A one-segment prediction fixture. Script: A and B arrive, the front is served,
+  // leaving [B] -> the true front is "B".
+  const PRED_SPEC: TrialSpec = {
+    id: "trial-test-pred",
+    title: "Pred",
+    exercisedConcepts: [],
+    missions: [
+      {
+        id: "m",
+        clientSkin: "x",
+        segments: [
+          {
+            id: "p1",
+            clientPrompt: "predict",
+            offeredStructures: [],
+            operations: [],
+            required: [],
+            grading: "prediction",
+            eventScript: [
+              { t: "arrive", id: "A" },
+              { t: "arrive", id: "B" },
+              { t: "serve" },
+            ],
+            explanations: { viable: "v", strained: "s", broken: "b" },
+            nudges: { sep: "n" },
+            brokenNudgeId: "sep",
+          },
+        ],
+      },
+    ],
+  }
+
+  it("a correct prediction is viable and can advance to completion", () => {
+    let s = createTrialRun(PRED_SPEC)
+    s = trialReducer(s, { type: "submit-prediction", prediction: { front: "B" } })
+
+    expect(s.verdict?.status).toBe("viable")
+    expect(s.phase).toBe("verdict")
+    expect(s.verdicts).toEqual({ p1: "viable" })
+    expect(s.stressTestsRun).toEqual(["p1"])
+
+    s = trialReducer(s, { type: "advance" })
+    expect(s.phase).toBe("complete")
+    expect(s.cleanPass).toBe(true)
+  })
+
+  it("a wrong first prediction is broken, clears cleanPass, and surfaces the nudge", () => {
+    let s = createTrialRun(PRED_SPEC)
+    s = trialReducer(s, { type: "submit-prediction", prediction: { front: "A" } })
+
+    expect(s.verdict?.status).toBe("broken")
+    expect(s.verdict?.nudgeId).toBe("sep")
+    expect(s.cleanPass).toBe(false)
+  })
+
+  it("submit-prediction on a capability segment is a no-op", () => {
+    let s = createTrialRun(SPEC) // a1 grades on the capability matrix
+    s = trialReducer(s, { type: "submit-prediction", prediction: { front: "A" } })
+
+    expect(s.verdict).toBeNull()
+    expect(s.phase).toBe("design")
+  })
+})
+
 describe("trialModule: toProgress / resume", () => {
   it("round-trips missionIndex, segmentIndex, cleanPass, and verdicts", () => {
     let s = createTrialRun(SPEC)

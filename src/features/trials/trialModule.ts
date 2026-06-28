@@ -1,4 +1,5 @@
 import { classify } from "./capability"
+import { gradePrediction, type LineOp } from "./simulate"
 import { emptySave, type RevisionRecord, type TrialSaveState } from "./saveState"
 import type {
   Position,
@@ -40,6 +41,7 @@ export type TrialAction =
   | { type: "unplace-op"; op: string }
   | { type: "set-policy"; id: string; value: string }
   | { type: "run-stress" }
+  | { type: "submit-prediction"; prediction: { front: string | null } }
   | { type: "revise" }
   | { type: "advance" }
 
@@ -123,6 +125,30 @@ export function trialReducer(state: TrialRunState, action: TrialAction): TrialRu
       const verdict = classify({ structure, mapping: state.mapping, policy: state.policy }, segment)
       const firstRun = !state.stressTestsRun.includes(segment.id)
       const cleanPass = firstRun && verdict.status !== "viable" ? false : state.cleanPass
+
+      return {
+        ...state,
+        verdict,
+        cleanPass,
+        verdicts: { ...state.verdicts, [segment.id]: verdict.status },
+        stressTestsRun: firstRun ? [...state.stressTestsRun, segment.id] : state.stressTestsRun,
+        phase: "verdict",
+      }
+    }
+
+    case "submit-prediction": {
+      const segment = currentSegment(state)
+      // Prediction segments (A4, B5) are graded against the event-script simulator,
+      // not the capability matrix. The reducer owns this so cleanPass + verdicts
+      // accrue exactly the way a capability stress run does.
+      if (segment.grading !== "prediction") return state
+      const script = (segment.eventScript ?? []) as LineOp[]
+      const { correct } = gradePrediction(script, action.prediction)
+      const verdict: VerdictResult = correct
+        ? { status: "viable", explainId: "viable" }
+        : { status: "broken", explainId: "broken", nudgeId: segment.brokenNudgeId }
+      const firstRun = !state.stressTestsRun.includes(segment.id)
+      const cleanPass = firstRun && !correct ? false : state.cleanPass
 
       return {
         ...state,
