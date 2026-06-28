@@ -136,6 +136,45 @@ describe("draw-edge (rewire: node is both source and target)", () => {
   })
 })
 
+describe("trace (active read-path: walk neighbor to neighbor)", () => {
+  it("only the current node's neighbors are step buttons; walking A→B→D clears it", () => {
+    render(<Harness initial={stateAt("read-path", { read: 2 })} />)
+    // From A (neighbors B, C): B is a step button; D and F are not yet tappable.
+    expect(screen.getByRole("button", { name: "node B" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "node D" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "node F" })).toBeNull()
+
+    fireEvent.click(screen.getByRole("button", { name: "node B" }))
+    // Now at B (neighbors A, C, D): D becomes a legal step.
+    fireEvent.click(screen.getByRole("button", { name: "node D" }))
+    expect(screen.getByRole("button", { name: "Continue" })).toBeInTheDocument()
+  })
+
+  it("offers no Check button (the walk is the answer)", () => {
+    render(<Harness initial={stateAt("read-path", { read: 2 })} />)
+    expect(screen.queryByRole("button", { name: "Check" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "Continue" })).toBeNull()
+  })
+})
+
+describe("build-the-line (draw the missing tracks toward the plan)", () => {
+  it("lays the four missing tracks and clears the beat", () => {
+    render(<Harness initial={stateAt("build-the-line", { read: 5, draw: 2 })} />)
+    const lay = (a: string, b: string) => {
+      fireEvent.click(sourceEl(a))
+      fireEvent.click(targetEl(b))
+    }
+    // No Check on a build beat; commit by drawing each missing plan track.
+    expect(screen.queryByRole("button", { name: "Check" })).toBeNull()
+    lay("A", "M")
+    lay("B", "H")
+    lay("D", "G")
+    expect(screen.queryByRole("button", { name: "Continue" })).toBeNull() // not finished
+    lay("D", "J")
+    expect(screen.getByRole("button", { name: "Continue" })).toBeInTheDocument()
+  })
+})
+
 describe("reduced motion", () => {
   it("snaps (no animation) when reduced motion is requested", () => {
     render(

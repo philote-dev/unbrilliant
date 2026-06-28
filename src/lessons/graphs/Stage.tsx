@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { AnswerCard, type AnswerState } from "@/components/willow/AnswerCard"
 import { FeedbackFooter } from "@/components/willow/FeedbackFooter"
+import { StatusChip } from "@/components/willow/StatusChip"
 import { RewireSurface } from "@/components/rewire/RewireSurface"
 import type { LessonAction, QuestionCopy } from "@/features/lesson/engine"
 import {
@@ -14,28 +15,41 @@ import {
   currentPartGraphs,
   isTerminalGraphs,
   legalDrawTargets,
+  legalTraceTargets,
+  missingPlanEdges,
   neighbors,
   normalizeEdge,
   partQuotaGraphs,
+  traceCurrent,
+  tracePathEdges,
   type GraphOption,
   type GraphsQuestion,
   type GraphsState,
   type NodeId,
 } from "@/features/lesson/graphsEngine"
 import { StageSplit, StageCenter } from "@/components/willow/lesson/StageLayout"
+import { FrameSequence } from "@/components/willow/lesson/FrameSequence"
 import { AdjacencyPanel } from "./AdjacencyPanel"
 import { GraphCanvas } from "./GraphCanvas"
 import { SameGraphView } from "./SameGraphView"
 import { SubwayMap, type SubwayVariant } from "./SubwayMap"
-import { TRANSIT_DRAW_LINES, TRANSIT_FULL_LINES, TRANSIT_LINES, type TransitLine } from "./transitData"
+import {
+  METRO_PLAN_LINES,
+  TRANSIT_DRAW_LINES,
+  TRANSIT_FULL_LINES,
+  TRANSIT_LINES,
+  type TransitLine,
+} from "./transitData"
 import { tintLines, useMetroSkin, type MetroSkin } from "./metroSkin"
 
 /**
- * The Graphs stage. Routes the 12 beats: the drag-a-node + teach intros, four
- * de-cued reads (tap-the-neighbors multi-select, path yes/no, picture→list MCQ),
- * two undirected edge-draws (plain + a transit skin) via the shared rewire
- * surface, the redraw demo, and two classify beats (same-graph, tree-or-not).
- * Every verdict flows through the shared FeedbackFooter; nothing here grades.
+ * The Graphs stage. Routes the 14 beats: the drag-a-node + teach intros, the
+ * multi-select reads, two active TRACES (walk the edges to the target), the
+ * picture→list MCQ, two undirected single-edge draws (plain + a transit skin),
+ * the build-the-line synthesis (draw the missing tracks toward the ghost plan),
+ * the redraw demo, and two classify beats (same-graph, tree-or-not). The active
+ * trace + build commit through their own taps/draws; the rest flow through the
+ * shared FeedbackFooter. Nothing here grades.
  */
 export function GraphsStage({
   state,
@@ -53,7 +67,8 @@ export function GraphsStage({
     case "read-degree":
       return <ReadMultiSelectPart state={state} dispatch={dispatch} />
     case "read-path":
-      return <YesNoPart state={state} dispatch={dispatch} />
+    case "read-trace-far":
+      return <TracePart state={state} dispatch={dispatch} />
     case "match-list":
       return <MatchListPart state={state} dispatch={dispatch} />
     case "draw-demo":
@@ -61,6 +76,8 @@ export function GraphsStage({
     case "draw-edge":
     case "draw-transit":
       return <DrawPart state={state} dispatch={dispatch} />
+    case "build-the-line":
+      return <BuildLinePart state={state} dispatch={dispatch} />
     case "redraw-demo":
       return <RedrawDemoPart state={state} dispatch={dispatch} />
     case "same-graph":
@@ -72,6 +89,15 @@ export function GraphsStage({
 type PartProps = { state: GraphsState; dispatch: Dispatch<LessonAction> }
 
 /* --------------------------------- shared bits --------------------------------- */
+
+/** The house teach/intro kicker: a small, wide-tracked lilac eyebrow. */
+function Eyebrow({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="text-center text-xs font-semibold uppercase tracking-[0.18em] text-lilac-strong">
+      {children}
+    </p>
+  )
+}
 
 function feedbackCopy(q: GraphsQuestion): QuestionCopy {
   return { prompt: q.prompt, hint: q.hint, nudge: q.nudge, correct: q.correct, why: q.why }
@@ -120,8 +146,9 @@ function DemoPart({ state, dispatch }: PartProps) {
   if (!q) return null
   return (
     <StageCenter>
-      <div className="mt-7 text-center">
-        <h2 className="text-xl font-bold text-foreground lg:text-2xl">Graphs: the list is the data</h2>
+      <div className="mt-7 text-center animate-fade-in">
+        <Eyebrow>Graphs</Eyebrow>
+        <h2 className="mt-2 text-xl font-bold text-foreground lg:text-2xl">The list is the data</h2>
         <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground lg:max-w-sm lg:text-base">{q.prompt}</p>
       </div>
 
@@ -152,8 +179,9 @@ function TeachPart({ state, dispatch }: PartProps) {
   if (!q) return null
   return (
     <StageCenter>
-      <div className="mt-7 text-center">
-        <h2 className="text-xl font-bold text-foreground lg:text-2xl">A graph is not a tree</h2>
+      <div className="mt-7 text-center animate-fade-in">
+        <Eyebrow>The one idea</Eyebrow>
+        <h2 className="mt-2 text-xl font-bold text-foreground lg:text-2xl">A graph is not a tree</h2>
       </div>
 
       <div className="flex flex-1 flex-col items-center justify-center gap-5 py-5">
@@ -174,14 +202,21 @@ function TeachPart({ state, dispatch }: PartProps) {
             Everything the questions need is right here.
           </p>
         )}
-        <div className="mx-auto max-w-xs space-y-3 text-sm text-muted-foreground">
+        <div className="mx-auto max-w-xs space-y-3 text-center text-sm text-muted-foreground">
           <p>
-            The <span className="font-semibold text-foreground">adjacency list is the data</span>; the
-            picture is decoration. Every question reads from the list.
+            The <span className="concept">adjacency list is the data</span>; the picture is just
+            decoration. Every question reads from the list.
           </p>
           <p>
-            A graph has <span className="font-semibold text-foreground">no root and may have cycles</span>:
-            that's how it differs from a tree. (Some connections only go one way, a later idea.)
+            A graph has{" "}
+            <span className="concept" style={{ animationDelay: "500ms" }}>
+              no root
+            </span>{" "}
+            and may have{" "}
+            <span className="concept" style={{ animationDelay: "1000ms" }}>
+              cycles
+            </span>
+            : that is how it differs from a tree. (Some connections only go one way, a later idea.)
           </p>
         </div>
       </div>
@@ -260,60 +295,168 @@ function ReadMultiSelectPart({ state, dispatch }: PartProps) {
   )
 }
 
-/* ------------------------------- beat 5: path yes/no --------------------------- */
+/* ------------------------------- beats 5 & 6: trace --------------------------- */
 
-function YesNoPart({ state, dispatch }: PartProps) {
+/**
+ * The active trace reads (`read-path` near, `read-trace-far` far): the learner
+ * walks the graph node to node from the start to the target. Only the current
+ * node's neighbors are tappable (dashed lilac steps); the walked trail lights up,
+ * the matching rows in the adjacency list light up as the walk progresses, and a
+ * wrong tap is a brief nudge (no fail wall). Reaching the target grades the read
+ * bin and plays a `FrameSequence` recap of the flow found. Reduced motion snaps.
+ */
+function TracePart({ state, dispatch }: PartProps) {
   const q = state.question
-  if (!q) return null
-  const { feedback, selected, showWhy } = state
-  const terminal = isTerminalGraphs(state)
+  const beat = state.trace
+  const reduced = useReducedMotion() ?? false
+  const [announce, setAnnounce] = useState("")
+  if (!q || !beat || !q.pair) return null
+  const { feedback } = state
+  const solved = feedback === "correct"
+  const target = q.pair[1]
+  const current = traceCurrent(beat)
+  const walked = tracePathEdges(beat)
+  const tip = walked.length ? walked[walked.length - 1] : null
+  const trail = walked.slice(0, -1)
+
+  const onStep = solved
+    ? undefined
+    : (n: NodeId) => {
+        const row = neighbors(q.adj, n)
+        setAnnounce(`Stepped to ${n}. ${n} connects to ${row.length ? row.join(", ") : "nothing"}.`)
+        dispatch({ type: "select", letter: n })
+      }
 
   return (
-    <StageSplit
-      header={<BinHeader state={state} />}
-      figure={
-        <div className="flex flex-col items-center gap-3 py-3">
-          <GraphCanvas mode="display" nodes={q.nodes} adj={q.adj} layout={q.layout} markedNodes={q.markedNodes} />
-          <AdjacencyPanel
+    <StageCenter>
+      <BinHeader state={state} />
+
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 py-3">
+        {solved ? (
+          <TraceReplay beat={beat} q={q} reduced={reduced} />
+        ) : (
+          <GraphCanvas
+            mode="trace"
             nodes={q.nodes}
             adj={q.adj}
-            highlightNodes={q.pair ? [q.pair[0], q.pair[1]] : undefined}
+            layout={q.layout}
+            currentNode={current}
+            visitedNodes={beat.path}
+            legalNext={[...legalTraceTargets(beat)]}
+            targetNode={target}
+            litEdges={trail}
+            pendingEdge={tip}
+            onStep={onStep}
+            terminal={isTerminalGraphs(state)}
+            reducedMotion={reduced}
           />
-        </div>
-      }
-      interaction={
-        <>
-          <div className="flex gap-3">
-            {q.options.map((opt, i) => (
-              <AnswerCard
-                key={opt.id}
-                letter={String.fromCharCode(65 + i)}
-                label={opt.label}
-                state={optionState(feedback, selected, showWhy, opt.id, q.answer)}
-                disabled={terminal}
-                answerMarker={opt.id === q.answer}
-                onSelect={() => dispatch({ type: "select", letter: opt.id })}
-                className="flex-1"
-              />
-            ))}
-          </div>
+        )}
+        <p className="text-sm font-medium text-foreground">
+          {solved ? (
+            <>
+              Reached <span className="font-bold text-lilac-strong">{target}</span>.
+            </>
+          ) : (
+            <>
+              At <span className="font-bold text-lilac-strong">{current}</span>, heading to{" "}
+              <span className="font-bold text-foreground">{target}</span>
+            </>
+          )}
+        </p>
+        <AdjacencyPanel nodes={q.nodes} adj={q.adj} highlightNodes={beat.path} />
+        <p role="status" aria-live="polite" className="sr-only">
+          {announce}
+        </p>
+      </div>
 
-          <FeedbackFooter
-            feedback={feedback}
-            selected={selected}
-            canCheck={canCheckGraphs(state)}
-            showWhy={showWhy}
-            hideFailHint
-            copy={feedbackCopy(q)}
-            dispatch={dispatch}
-          />
-        </>
-      }
-    />
+      <TraceFooter state={state} q={q} dispatch={dispatch} />
+    </StageCenter>
   )
 }
 
-/* ------------------------------ beat 6: match-list ----------------------------- */
+/**
+ * The trace recap: a `FrameSequence` that replays the walked path hop by hop, each
+ * edge drawing on, so the learner sees the flow they found. Frame `i` lights the
+ * solid trail up to the i-th hop and draws the i-th edge on. Reduced motion snaps
+ * to the full path.
+ */
+function TraceReplay({
+  beat,
+  q,
+  reduced,
+}: {
+  beat: NonNullable<GraphsState["trace"]>
+  q: GraphsQuestion
+  reduced: boolean
+}) {
+  const edges = tracePathEdges(beat)
+  const target = q.pair?.[1]
+  const frames = beat.path.map((_, i) => i)
+  return (
+    <FrameSequence
+      frames={frames}
+      autoPlayMs={(i) => (i === 0 ? 600 : 640)}
+      controls
+      reduced={reduced}
+    >
+      {(i) => (
+        <GraphCanvas
+          mode="trace"
+          nodes={q.nodes}
+          adj={q.adj}
+          layout={q.layout}
+          currentNode={beat.path[i]}
+          visitedNodes={beat.path.slice(0, i + 1)}
+          targetNode={target}
+          litEdges={edges.slice(0, Math.max(0, i - 1))}
+          pendingEdge={i > 0 ? edges[i - 1] : null}
+          terminal
+          reducedMotion={reduced}
+        />
+      )}
+    </FrameSequence>
+  )
+}
+
+/** The trace footer: a quiet instruction while walking, a nudge on a wrong step,
+ *  and the correction + Continue once the target is reached. No Check button. */
+function TraceFooter({
+  state,
+  q,
+  dispatch,
+}: {
+  state: GraphsState
+  q: GraphsQuestion
+  dispatch: Dispatch<LessonAction>
+}) {
+  const { feedback } = state
+  return (
+    <div className="mt-auto min-h-[120px] pt-2">
+      {feedback === "correct" ? (
+        <div className="animate-fade-in">
+          <div className="mb-4 flex flex-col items-center gap-2 text-center">
+            <StatusChip status="correct" />
+            <p className="text-sm text-muted-foreground lg:text-base">{q.correct}</p>
+          </div>
+          <Button variant="tactile" size="lg" className="w-full" onClick={() => dispatch({ type: "next" })}>
+            Continue
+          </Button>
+        </div>
+      ) : feedback === "nudge" ? (
+        <div className="mb-4 flex flex-col items-center gap-2 text-center" role="status">
+          <StatusChip status="hint" />
+          <p className="text-sm text-muted-foreground lg:text-base">{q.nudge}</p>
+        </div>
+      ) : (
+        <p className="text-center text-sm text-muted-foreground lg:text-base">
+          Tap a highlighted neighbor to step there. Each step, read that node's row for your options.
+        </p>
+      )}
+    </div>
+  )
+}
+
+/* ------------------------------ beat 7: match-list ----------------------------- */
 
 function MatchListPart({ state, dispatch }: PartProps) {
   const q = state.question
@@ -412,7 +555,7 @@ function AdjOptionCard({
   )
 }
 
-/* ------------------------------- beat 7: draw demo ----------------------------- */
+/* ------------------------------- beat 8: draw demo ----------------------------- */
 
 function DrawDemoPart({ state, dispatch }: PartProps) {
   const q = state.question
@@ -420,8 +563,9 @@ function DrawDemoPart({ state, dispatch }: PartProps) {
   const drawn = state.pendingEdge
   return (
     <StageCenter>
-      <div className="mt-7 text-center">
-        <h2 className="text-xl font-bold text-foreground lg:text-2xl">Draw an edge</h2>
+      <div className="mt-7 text-center animate-fade-in">
+        <Eyebrow>Draw the edge</Eyebrow>
+        <h2 className="mt-2 text-xl font-bold text-foreground lg:text-2xl">Drag to connect two nodes</h2>
         <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground lg:max-w-sm lg:text-base">{q.prompt}</p>
       </div>
 
@@ -456,7 +600,7 @@ function DrawDemoPart({ state, dispatch }: PartProps) {
   )
 }
 
-/* ----------------------------- beats 8 & 9: draws ----------------------------- */
+/* ----------------------------- beats 9 & 10: draws ---------------------------- */
 
 function DrawPart({ state, dispatch }: PartProps) {
   const skin = useMetroSkin()
@@ -555,7 +699,125 @@ function DrawPart({ state, dispatch }: PartProps) {
   )
 }
 
-/* ----------------------------- beat 10: redraw demo --------------------------- */
+/* ----------------------------- beat 11: build the line ------------------------ */
+
+/**
+ * The build-the-line synthesis (`build-the-line`, the build bin): the learner draws
+ * the missing tracks to grow the active colored network until it matches the
+ * greyed-out PLAN ghost. Every plan station is a draw target (so a planned-but-
+ * unbuilt station can be wired in); each laid track draws on in its line color over
+ * the grey outline; an illegal track (not in the plan, or already running) is a
+ * brief nudge with no fail wall; matching the plan grades the build bin. Keeps the
+ * current metro skin. Reduced motion snaps.
+ */
+function BuildLinePart({ state, dispatch }: PartProps) {
+  const skin = useMetroSkin()
+  const q = state.question
+  const beat = state.buildLine
+  const reduced = useReducedMotion() ?? false
+  if (!q || !beat) return null
+  const terminal = isTerminalGraphs(state)
+  const remainingEdges = missingPlanEdges(state.workingAdj, beat.planAdj)
+  const remaining = remainingEdges.length
+  const total = missingPlanEdges(q.shownAdj ?? {}, beat.planAdj).length
+  const laid = total - remaining
+  const drawn = state.pendingEdge
+
+  return (
+    <StageCenter>
+      <MetroScene
+        eyebrow={metroEyebrow(state)}
+        prompt={q.prompt}
+        lines={METRO_PLAN_LINES.slice(0, 3)}
+        ribbon
+        status={{
+          label: terminal ? "Complete" : `${remaining} ${remaining === 1 ? "gap" : "gaps"}`,
+          ok: terminal,
+        }}
+        footer={<MetroBuildFooter state={state} dispatch={dispatch} laid={laid} total={total} />}
+      >
+        <RewireSurface
+          legalTargets={legalDrawTargets(state)}
+          onRewire={(from, to) => dispatch({ type: "rewire", from, to })}
+          label="Lay a missing track by dragging between two stations"
+          className="flex w-full justify-center"
+        >
+          <SubwayMap
+            mode="draw"
+            fill
+            nodes={q.nodes}
+            adj={state.workingAdj}
+            layout={q.layout}
+            variant="diagrammatic"
+            lines={tintLines(skin, METRO_PLAN_LINES)}
+            ghost={{ nodes: q.nodes, adj: beat.planAdj, lines: METRO_PLAN_LINES }}
+            marker="node"
+            labels="none"
+            paper={skin.paper}
+            backdrop={skin.backdrop}
+            pendingEdge={drawn}
+            terminal={terminal}
+            reducedMotion={reduced}
+          />
+        </RewireSurface>
+        {/* The grey plan outline is visual; spell out the remaining tracks for a
+            non-sighted learner so the build is reachable without the map. */}
+        <p role="status" aria-live="polite" className="sr-only">
+          {terminal
+            ? "The live network now matches the plan."
+            : `Tracks still to lay: ${remainingEdges.map(([u, v]) => `${u} to ${v}`).join(", ")}.`}
+        </p>
+      </MetroScene>
+    </StageCenter>
+  )
+}
+
+/** The build footer: a running "tracks laid" count while building, a nudge on an
+ *  illegal track, and the correction + Continue once the plan is matched. The
+ *  build commits by drawing, so there is no Check button. */
+function MetroBuildFooter({
+  state,
+  dispatch,
+  laid,
+  total,
+}: {
+  state: GraphsState
+  dispatch: Dispatch<LessonAction>
+  laid: number
+  total: number
+}) {
+  const skin = useMetroSkin()
+  const q = state.question
+  const { feedback } = state
+  if (!q) return null
+  return (
+    <div className="mt-auto min-h-[128px] pt-2">
+      {feedback === "correct" ? (
+        <>
+          <MetroChip tone="ok">{q.correct}</MetroChip>
+          <MetroButton className="w-full" onClick={() => dispatch({ type: "next" })}>
+            Continue
+          </MetroButton>
+        </>
+      ) : (
+        <>
+          {feedback === "nudge" ? (
+            <MetroChip tone="hint">{q.nudge}</MetroChip>
+          ) : (
+            <p className="mb-3 text-center text-sm" style={{ color: skin.sub }}>
+              {q.hint}
+            </p>
+          )}
+          <p className="text-center text-sm font-bold tabular-nums" style={{ color: skin.ink }}>
+            {laid} / {total} tracks laid
+          </p>
+        </>
+      )}
+    </div>
+  )
+}
+
+/* ----------------------------- beat 12: redraw demo --------------------------- */
 
 function RedrawDemoPart({ state, dispatch }: PartProps) {
   const skin = useMetroSkin()
@@ -612,7 +874,7 @@ function RedrawDemoPart({ state, dispatch }: PartProps) {
   )
 }
 
-/* --------------------------- beats 11 & 12: classify -------------------------- */
+/* --------------------------- beats 13 & 14: classify -------------------------- */
 
 function ClassifyPart({ state, dispatch }: PartProps) {
   const q = state.question

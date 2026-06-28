@@ -211,25 +211,40 @@ export const METRO_PLAN_ADJ: Adjacency = {
   M: ["A"],
 }
 
-/** What's built + colored so far: both trunks, plus two of the four loop edges. */
-export const METRO_ACTIVE_NODES: NodeId[] = ["A", "B", "C", "D", "E", "F", "G", "H", "I"]
+/**
+ * What's built + colored so far, tuned to leave a clean four-track gap for the
+ * build-the-line synthesis: both trunks run end to end, two of the four diamond
+ * loop edges are laid (B-G and D-H), and two suburb spurs already run (Kiln, Larch).
+ * The learner draws the four greyed-out tracks left in the plan: the two missing
+ * loop edges (G-D, B-H) that close the diamond, plus the Jade (D-J) and Moss (A-M)
+ * spurs. J and M start with no edges (planned-but-unbuilt stations).
+ */
+export const METRO_ACTIVE_NODES: NodeId[] = [
+  "A", "B", "C", "D", "E", "F", "G", "H", "I", "K", "L",
+]
 
 export const METRO_ACTIVE_LINES: TransitLine[] = [
   { id: "red", name: "Red Line", color: "#ef5350", path: ["A", "B", "C", "D", "E"] },
   { id: "blue", name: "Blue Line", color: "#1aa7e0", path: ["F", "G", "C", "H", "I"] },
   { id: "loop", name: "Loop Line", color: "#16b08a", path: ["B", "G", "D", "H", "B"] },
+  { id: "spur-k", name: "Kiln spur", color: "#b6bcc6", path: ["B", "K"] },
+  { id: "spur-l", name: "Larch spur", color: "#b6bcc6", path: ["E", "L"] },
 ]
 
 export const METRO_ACTIVE_ADJ: Adjacency = {
   A: ["B"],
-  B: ["A", "C", "G"],
+  B: ["A", "C", "G", "K"],
   C: ["B", "D", "G", "H"],
   D: ["C", "E", "H"],
-  E: ["D"],
+  E: ["D", "L"],
   F: ["G"],
   G: ["B", "C", "F"],
   H: ["C", "D", "I"],
   I: ["H"],
+  J: [],
+  K: ["B"],
+  L: ["E"],
+  M: [],
 }
 
 /* ------------------------------- edge to line ------------------------------- */

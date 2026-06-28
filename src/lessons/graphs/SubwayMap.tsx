@@ -491,7 +491,7 @@ function PendingSegment({
         strokeLinejoin="round"
         initial={reduced ? false : { pathLength: 0, opacity: 0 }}
         animate={{ pathLength: 1, opacity: 1 }}
-        transition={reduced ? { duration: 0 } : { duration: 0.5, ease: "easeOut" }}
+        transition={reduced ? { duration: 0 } : { duration: 0.34, ease: "easeOut" }}
       />
     </g>
   )
@@ -697,10 +697,11 @@ function DotStationDraw({
             : `${stationName(n)} station, drag to connect`
       }
       className={cn(
-        "grid size-full place-items-center bg-transparent outline-none",
+        "grid size-full place-items-center bg-transparent outline-none transition-transform",
         FOCUSABLE,
         "touch-none select-none rounded-full",
-        armed ? "cursor-grabbing" : showLegal ? "cursor-pointer" : "cursor-grab",
+        armed ? "scale-105 cursor-grabbing" : showLegal ? "cursor-pointer" : "cursor-grab",
+        hovered && "scale-110",
         terminal && "cursor-default",
       )}
     >
@@ -789,8 +790,9 @@ function StationDraw({
       className={cn(
         STATION_BASE,
         FOCUSABLE,
-        "touch-none select-none",
-        armed ? "cursor-grabbing" : showLegal ? "cursor-pointer" : "cursor-grab",
+        "touch-none select-none transition-transform",
+        armed ? "scale-105 cursor-grabbing" : showLegal ? "cursor-pointer" : "cursor-grab",
+        hovered && "scale-110",
         terminal && "cursor-default",
       )}
       style={style}

@@ -5,6 +5,10 @@ import {
   type LessonProgress,
 } from "@/features/lesson/engine"
 import {
+  METRO_ACTIVE_ADJ,
+  METRO_PLAN_ADJ,
+  METRO_PLAN_LAYOUT,
+  METRO_PLAN_NODES,
   TRANSIT_DIAGRAM_LAYOUT,
   TRANSIT_DRAW_LAYOUT,
   TRANSIT_FULL_DIAGRAM_LAYOUT,
@@ -21,44 +25,55 @@ import {
  * a node is BOTH source and target, a drag A→B emits `rewire {from,to}`, and the
  * undirected normalization lives here (it adds the edge to both rows).
  *
- * Twelve beats, eight graded behind the until-correct wall, aggregated into a
- * read 4 / draw 2 / same 2 gate. Reuses the shared feedback machine + flame
- * (`gradeAnswer`) and the durable LessonProgress shape; only the graph model,
- * verdicts, and quotas are Graphs-specific. Deterministic (seeded): same state
- * always yields the same question/feedback.
+ * Fourteen beats, ten graded behind the until-correct wall, aggregated into a
+ * read 5 / draw 2 / build 1 / same 2 gate. Two of the reads are active TRACES
+ * (walk the edges node to node; reaching the target is the verdict, which is
+ * possible exactly when `pathExists`); the build beat is a multi-edge synthesis
+ * (draw the missing tracks until the working network matches the `METRO_PLAN`
+ * ghost, graded on `sameGraph`). Both active mechanics are gated to legal moves
+ * (only neighbors are walkable; only un-built plan edges are drawable) and a wrong
+ * move is a brief nudge with no fail wall, mirroring the Heaps do-the-sift pilot.
+ * Reuses the shared feedback machine + flame (`gradeAnswer`) and the durable
+ * LessonProgress shape; only the graph model, verdicts, and quotas are
+ * Graphs-specific. Deterministic (seeded): same state always yields the same
+ * question/feedback.
  */
 
 export const GRAPHS_PARTS = [
   "demo", // 1  intro: drag a node, nothing changes; tap a node lights its list
   "teach", // 2  teach: adjacency is the data; a graph is not a tree
-  "read-list", // 3  G1 tap C's connection list (multi-select)          Read  ✓
-  "read-degree", // 4  G1 tap D's neighbors; degree = count (multi-select) Read  ✓
-  "read-path", // 5  G2 is there a path from A to F? (yes/no)            Read  ✓
-  "match-list", // 6  G3 which adjacency list matches? (MCQ)              Read  ✓
-  "draw-demo", // 7  intro: draw an edge, watch the list gain a neighbor
-  "draw-edge", // 8  G4 draw the one missing edge (rewire)               Draw  ✓
-  "draw-transit", // 9  G4 transit skin: add the missing connection (rewire) Draw ✓
-  "redraw-demo", // 10 teach: same graph snaps to a new layout, list still
-  "same-graph", // 11 G5 same graph? moved-node (same) / one-edge (diff)  Same  ✓
-  "tree-or-not", // 12 G2-family: tree or general graph? (spot the cycle) Same  ✓
+  "read-list", // 3  tap C's connection list (multi-select)              Read  ✓
+  "read-degree", // 4  tap D's neighbors; degree = count (multi-select)    Read  ✓
+  "read-path", // 5  TRACE: walk A→D, neighbor by neighbor (near)         Read  ✓
+  "read-trace-far", // 6  TRACE: walk A→F, neighbor by neighbor (far)      Read  ✓
+  "match-list", // 7  which adjacency list matches? (MCQ)                  Read  ✓
+  "draw-demo", // 8  intro: draw an edge, watch the list gain a neighbor
+  "draw-edge", // 9  draw the one missing edge (rewire)                   Draw  ✓
+  "draw-transit", // 10 transit skin: add the missing connection (rewire) Draw  ✓
+  "build-the-line", // 11 BUILD: draw the missing tracks toward the plan   Build ✓
+  "redraw-demo", // 12 teach: same graph snaps to a new layout, list still
+  "same-graph", // 13 same graph? moved-node (same) / one-edge (diff)     Same  ✓
+  "tree-or-not", // 14 tree or general graph? (spot the cycle)            Same  ✓
 ] as const
 export type GraphsPart = (typeof GRAPHS_PARTS)[number]
 export const GRAPHS_TOTAL_PARTS = GRAPHS_PARTS.length
 
-/** Correct answers required per bin to clear the gate (read 4 / draw 2 / same 2 = 8). */
-export const READ_QUOTA = 4
+/** Correct answers required per bin to clear the gate (read 5 / draw 2 / build 1 / same 2 = 10). */
+export const READ_QUOTA = 5
 export const DRAW_QUOTA = 2
+export const BUILD_QUOTA = 1
 export const SAME_QUOTA = 2
-export const GATE_TOTAL = READ_QUOTA + DRAW_QUOTA + SAME_QUOTA
+export const GATE_TOTAL = READ_QUOTA + DRAW_QUOTA + BUILD_QUOTA + SAME_QUOTA
 
-export type GraphBin = "read" | "draw" | "same"
+export type GraphBin = "read" | "draw" | "build" | "same"
 /** How the learner answers a beat. */
 export type GraphMode =
   | "intro"
   | "multiselect"
-  | "yesno"
+  | "trace"
   | "mcq"
   | "draw"
+  | "build"
   | "classify"
 
 export type NodeId = string // "A".."H"
@@ -85,13 +100,14 @@ export interface GraphsQuestion {
   adj: Adjacency // the canonical (correct) symmetric adjacency
   shownAdj?: Adjacency // draw beats: the picture's adjacency (missing one edge)
   markedNodes?: NodeId[] // read beats: the asked node / the (X,Y) pair to ring
-  pair?: readonly [NodeId, NodeId] // read-path: the (X,Y) asked
+  pair?: readonly [NodeId, NodeId] // trace: the (start, target) to walk between
   missingEdge?: Edge // draw beats: the one correct edge to add
+  planAdj?: Adjacency // build-the-line: the complete plan to grow the network toward
   adjB?: Adjacency // same-graph: the second layout's adjacency
   layout: Record<NodeId, Pt> // PRESENTATIONAL only. Never read by a verdict
   layoutB?: Record<NodeId, Pt> // same-graph / redraw: the alternate layout
-  options: GraphOption[] // mcq / yesno / classify choices
-  answer: string // winning option id (yesno/mcq/classify); else ""
+  options: GraphOption[] // mcq / classify choices
+  answer: string // winning option id (mcq / classify); else ""
   answerSet?: NodeId[] // multiselect: the correct neighbor set
   transit?: boolean // draw-transit skin flag
   hint: string
@@ -104,16 +120,29 @@ export interface GraphsState {
   seed: number
   rngState: number
   partIndex: number
-  readCorrect: number // 0..4
+  readCorrect: number // 0..5
   drawCorrect: number // 0..2
+  buildCorrect: number // 0..1
   sameCorrect: number // 0..2
   attempts: number
   question: GraphsQuestion | null
   // working state (TRANSIENT, never persisted):
   selectedNodes: NodeId[] // multi-select read set (toggled by `select`)
-  selected: string | null // yes/no | mcq option | same/different | tree/graph
-  pendingEdge: Edge | null // draw beat: the single drawn edge
-  workingAdj: Adjacency // draw beat: shownAdj + pendingEdge (for the figure)
+  selected: string | null // mcq option | same/different | tree/graph
+  pendingEdge: Edge | null // draw beat: the single drawn edge (or the just-built track)
+  workingAdj: Adjacency // draw / build beat: the figure's live adjacency
+  /**
+   * The live TRACE working model on the active read-path beats (the learner walks
+   * adjacent nodes). Null on every other beat. Rebuilt by `enterPart`/`resume`
+   * from the curated question, never persisted (like the Heaps `sift` beat).
+   */
+  trace: TraceBeat | null
+  /**
+   * The live BUILD-the-line working model (the learner draws the missing plan
+   * edges). Null on every other beat. Rebuilt by `enterPart`/`resume`, never
+   * persisted (like the Heaps `build` beat).
+   */
+  buildLine: BuildLineBeat | null
   wrongCount: number
   feedback: Feedback
   revealed: boolean
@@ -228,6 +257,139 @@ function setEqualStr(a: Set<string>, b: Set<string>): boolean {
 export const sameGraph = (a: Adjacency, b: Adjacency): boolean =>
   setEqualStr(edgeSet(a), edgeSet(b))
 
+/* ----------------------------- trace (active read-path) ----------------------------- */
+
+/**
+ * The live state of an active "trace the path" beat, where the learner walks the
+ * graph node to node instead of answering yes/no. It pairs the adjacency with the
+ * asked (start, target) and the ordered walk so far (`path`, which always begins at
+ * `start`). Pure: `applyTraceStep` accepts only a step to a *neighbor of the current
+ * node* and returns a fresh beat; an illegal step is rejected and the beat is
+ * returned untouched. Reaching the target settles it, which is possible exactly when
+ * `pathExists(adj, start, target)`, so the verdict still reads connectivity, walked
+ * by hand. Walking teaches traversal: every step is a fresh read of the current
+ * node's row (the adjacency list is the data, even here).
+ */
+export interface TraceBeat {
+  /** The graph being walked (a copy, never mutated). */
+  adj: Adjacency
+  /** Where the walk starts. */
+  start: NodeId
+  /** The node the walk is trying to reach. */
+  target: NodeId
+  /** The ordered walk so far; `path[0] === start`, last entry is the current node. */
+  path: NodeId[]
+}
+
+/** Open a trace beat at the start node (nothing walked yet). */
+export function traceBeatFrom(adj: Adjacency, start: NodeId, target: NodeId): TraceBeat {
+  return { adj: cloneAdj(adj), start, target, path: [start] }
+}
+
+/** The node the walk currently sits on (the last step). */
+export function traceCurrent(beat: TraceBeat): NodeId {
+  return beat.path[beat.path.length - 1]
+}
+
+/** The nodes the learner may step to next: exactly the current node's neighbors. */
+export function legalTraceTargets(beat: TraceBeat): Set<NodeId> {
+  return new Set(neighbors(beat.adj, traceCurrent(beat)))
+}
+
+/** Is `n` a legal next step (a neighbor of the current node)? */
+export function isLegalTraceStep(beat: TraceBeat, n: NodeId): boolean {
+  return hasEdge(beat.adj, traceCurrent(beat), n)
+}
+
+/**
+ * Validate a learner-proposed step. If `n` is a neighbor of the current node, walk
+ * to it (a fresh beat, `accepted: true`); otherwise reject it and return the SAME
+ * beat (`accepted: false`). Re-stepping onto an already-visited neighbor is allowed
+ * (a backtrack), so the walk can never get stuck before reaching the target. Never
+ * mutates the input.
+ */
+export function applyTraceStep(beat: TraceBeat, n: NodeId): { beat: TraceBeat; accepted: boolean } {
+  if (!isLegalTraceStep(beat, n)) return { beat, accepted: false }
+  return { beat: { ...beat, path: [...beat.path, n] }, accepted: true }
+}
+
+/** The beat is solved once the walk reaches the target (a path was traced). */
+export function isTraceSolved(beat: TraceBeat): boolean {
+  return traceCurrent(beat) === beat.target
+}
+
+/** The undirected edges walked so far (consecutive pairs), for lighting the trail. */
+export function tracePathEdges(beat: TraceBeat): Edge[] {
+  const edges: Edge[] = []
+  for (let i = 0; i < beat.path.length - 1; i++) {
+    edges.push(normalizeEdge(beat.path[i], beat.path[i + 1]))
+  }
+  return edges
+}
+
+/* ----------------------------- build-the-line (active synthesis) ----------------------------- */
+
+/**
+ * The live state of an active "build the line" synthesis, where the learner draws
+ * several missing tracks to grow the working network until it matches the complete
+ * PLAN. It pairs the plan (the greyed-out ghost) with the working network built so
+ * far. Pure: `applyBuildLineEdge` accepts only an un-built *plan* edge and returns a
+ * fresh beat; any other edge (already built, or not in the plan) is rejected and the
+ * beat is returned untouched. It is solved once `sameGraph(working, plan)` holds, so
+ * the verdict reads adjacency, never positions. The Graphs analog of the Heaps ER
+ * synthesis / Linked Lists playlist: one graded slot, many drawn steps.
+ */
+export interface BuildLineBeat {
+  /** The complete plan to build toward (a copy, never mutated). */
+  planAdj: Adjacency
+  /** Every station in the plan (so the figure can render the un-built ones too). */
+  planNodes: NodeId[]
+  /** The network drawn so far (starts as the active network, grows per edge). */
+  working: Adjacency
+}
+
+/** Open a build-the-line beat from the active network, toward the plan. */
+export function buildLineBeatFrom(
+  activeAdj: Adjacency,
+  planAdj: Adjacency,
+  planNodes: NodeId[],
+): BuildLineBeat {
+  return { planAdj: cloneAdj(planAdj), planNodes: [...planNodes], working: cloneAdj(activeAdj) }
+}
+
+/** The plan edges not yet built (the gap the learner still has to draw). */
+export function missingPlanEdges(working: Adjacency, planAdj: Adjacency): Edge[] {
+  const built = edgeSet(working)
+  return edgeList(planAdj).filter((e) => !built.has(edgeKey(e[0], e[1])))
+}
+
+/** Is `(u,v)` a legal build move: a plan edge that is not built yet (and not a self-loop)? */
+export function isLegalBuildEdge(beat: BuildLineBeat, u: NodeId, v: NodeId): boolean {
+  if (u === v) return false
+  if (!hasEdge(beat.planAdj, u, v)) return false // not part of the plan
+  if (hasEdge(beat.working, u, v)) return false // already built
+  return true
+}
+
+/**
+ * Validate a learner-proposed track. If `(u,v)` is an un-built plan edge, draw it
+ * into the working network (a fresh beat, `accepted: true`); otherwise reject it and
+ * return the SAME beat (`accepted: false`). Never mutates the input.
+ */
+export function applyBuildLineEdge(
+  beat: BuildLineBeat,
+  u: NodeId,
+  v: NodeId,
+): { beat: BuildLineBeat; accepted: boolean } {
+  if (!isLegalBuildEdge(beat, u, v)) return { beat, accepted: false }
+  return { beat: { ...beat, working: addEdge(beat.working, u, v) }, accepted: true }
+}
+
+/** The build is solved once the working network's edge set equals the plan's. */
+export function isBuildLineSolved(beat: BuildLineBeat): boolean {
+  return sameGraph(beat.working, beat.planAdj)
+}
+
 /* ----------------------------- deterministic rng ----------------------------- */
 
 function rngNext(a: number): { value: number; next: number } {
@@ -256,27 +418,31 @@ export const isIntroPart = (part: GraphsPart): boolean =>
   part === "demo" || part === "teach" || part === "draw-demo" || part === "redraw-demo"
 export const isMultiSelectPart = (part: GraphsPart): boolean =>
   part === "read-list" || part === "read-degree"
-/** Beats that accept a `rewire` gesture (the two graded draws plus the free-play demo). */
+/** The active trace reads: the learner walks the edges to find the path. */
+export const isTracePart = (part: GraphsPart): boolean =>
+  part === "read-path" || part === "read-trace-far"
+/** Beats that accept a `rewire` gesture (the two graded draws, the demo, the build). */
 export const isDrawPart = (part: GraphsPart): boolean =>
   part === "draw-demo" || part === "draw-edge" || part === "draw-transit"
-/** The two graded draws (the demo draws but is never checked). */
+/** The two single-edge graded draws (the demo draws but is never checked). */
 export const isGradedDrawPart = (part: GraphsPart): boolean =>
   part === "draw-edge" || part === "draw-transit"
+/** The multi-edge build-the-line synthesis (drawn, never checked). */
+export const isBuildLinePart = (part: GraphsPart): boolean => part === "build-the-line"
 export const isSingleChoicePart = (part: GraphsPart): boolean =>
-  part === "read-path" ||
-  part === "match-list" ||
-  part === "same-graph" ||
-  part === "tree-or-not"
+  part === "match-list" || part === "same-graph" || part === "tree-or-not"
 
 export function binOfPart(part: GraphsPart): GraphBin | null {
   if (
     part === "read-list" ||
     part === "read-degree" ||
     part === "read-path" ||
+    part === "read-trace-far" ||
     part === "match-list"
   )
     return "read"
   if (part === "draw-edge" || part === "draw-transit") return "draw"
+  if (part === "build-the-line") return "build"
   if (part === "same-graph" || part === "tree-or-not") return "same"
   return null
 }
@@ -414,10 +580,6 @@ function baseQuestion(kind: GraphsPart, over: Partial<GraphsQuestion>): GraphsQu
   return { ...BASE, kind, ...over }
 }
 
-const yesNoOptions = (): GraphOption[] => [
-  { id: "yes", label: "Yes" },
-  { id: "no", label: "No" },
-]
 const sameOptions = (): GraphOption[] => [
   { id: "same", label: "Same graph" },
   { id: "different", label: "Different graph" },
@@ -492,33 +654,56 @@ function makeReadDegree(): GraphsQuestion {
   })
 }
 
-function makeReadPath(seed: number): { question: GraphsQuestion; next: number } {
-  const pair: Edge = ["A", "F"]
-  const yes = pathExists(G6, pair[0], pair[1])
-  const { result, next } = shuffle(yesNoOptions(), seed)
-  return {
-    question: baseQuestion("read-path", {
-      bin: "read",
-      mode: "yesno",
-      prompt: `Is there a path from ${pair[0]} to ${pair[1]}?`,
-      nodes: G6_NODES,
-      adj: G6,
-      layout: G6_LAYOUT,
-      pair,
-      markedNodes: [pair[0], pair[1]],
-      options: result,
-      answer: yes ? "yes" : "no",
-      hint: "",
-      nudge: "Trace the connections step by step. Can you reach the other node at all?",
-      correct: yes
-        ? `Yes: you can reach ${pair[1]} from ${pair[0]} by following the edges.`
-        : `No, no chain of edges links ${pair[0]} to ${pair[1]}.`,
-      why: yes
-        ? `Walking the edges from ${pair[0]} eventually reaches ${pair[1]}, so a path exists, even though they're not directly connected.`
-        : `No chain of edges connects ${pair[0]} to ${pair[1]}, so there's no path.`,
-    }),
-    next,
-  }
+/**
+ * The active TRACE reads (`read-path` near, `read-trace-far` far): the learner
+ * walks G6 node to node from the start to the target. The pairs are curated to be
+ * reachable (`pathExists` is asserted in tests), so the walk can always be
+ * completed; reaching the target is the verdict. The near beat (A→D) is a short
+ * two-hop, the far beat (A→F) a longer three-hop, so the second trace ramps the
+ * traversal up. No yes/no options: the walk itself is the answer.
+ */
+function makeTrace(part: "read-path" | "read-trace-far"): GraphsQuestion {
+  const pair: Edge = part === "read-path" ? ["A", "D"] : ["A", "F"]
+  const [start, target] = pair
+  return baseQuestion(part, {
+    bin: "read",
+    mode: "trace",
+    prompt: `Trace a path from ${start} to ${target}. Tap a neighbor to step there.`,
+    nodes: G6_NODES,
+    adj: G6,
+    layout: G6_LAYOUT,
+    pair,
+    markedNodes: [start, target],
+    hint: "",
+    nudge: `You can only step to a node listed in the current node's row. Re-read that row.`,
+    correct: `You reached ${target}. A path exists from ${start}.`,
+    why: `Walking the edges from ${start} reaches ${target}, so a path exists, even though they are not directly connected. Each step reads the current node's row, so traversal is just repeated reads of the list.`,
+  })
+}
+
+/**
+ * The build-the-line synthesis (`build-the-line`, the new build bin): the learner
+ * draws the missing tracks to grow the active network until it matches the complete
+ * `METRO_PLAN`. The plan is the greyed-out ghost; the active network starts colored.
+ * Graded on `sameGraph(working, plan)` after every missing edge is drawn. The whole
+ * plan's stations are tappable so a planned-but-unbuilt station can be wired in.
+ */
+function makeBuildLine(): GraphsQuestion {
+  return baseQuestion("build-the-line", {
+    bin: "build",
+    mode: "build",
+    transit: true,
+    prompt: "Finish the network: draw the missing tracks so the live map matches the plan.",
+    nodes: METRO_PLAN_NODES,
+    adj: METRO_PLAN_ADJ,
+    shownAdj: METRO_ACTIVE_ADJ,
+    planAdj: METRO_PLAN_ADJ,
+    layout: METRO_PLAN_LAYOUT,
+    hint: "Each grey link in the plan with no color yet is a track to lay. Drag between its two stations.",
+    nudge: "That pair is not in the plan, or it is already running. Lay a greyed-out link instead.",
+    correct: "The live map now matches the plan. Every line is in service.",
+    why: "Every greyed-out link in the plan is now drawn and colored, so the working network's connections match the plan exactly. Layout never entered it; the route list did.",
+  })
 }
 
 function makeMatchList(seed: number): { question: GraphsQuestion; next: number } {
@@ -731,7 +916,8 @@ function buildQuestion(
     case "read-degree":
       return { question: makeReadDegree(), next: seed }
     case "read-path":
-      return makeReadPath(seed)
+    case "read-trace-far":
+      return { question: makeTrace(part), next: seed }
     case "match-list":
       return makeMatchList(seed)
     case "draw-demo":
@@ -740,6 +926,8 @@ function buildQuestion(
       return { question: makeDrawEdge(), next: seed }
     case "draw-transit":
       return { question: makeDrawTransit(), next: seed }
+    case "build-the-line":
+      return { question: makeBuildLine(), next: seed }
     case "redraw-demo":
       return { question: makeRedrawDemo(), next: seed }
     case "same-graph": {
@@ -766,6 +954,8 @@ function freshFields() {
     selectedNodes: [] as NodeId[],
     selected: null as string | null,
     pendingEdge: null as Edge | null,
+    trace: null as TraceBeat | null,
+    buildLine: null as BuildLineBeat | null,
     wrongCount: 0,
     feedback: "idle" as Feedback,
     revealed: false,
@@ -773,15 +963,36 @@ function freshFields() {
   }
 }
 
+/** Open the trace working model for a trace question (the asked start/target). */
+function traceBeatFor(q: GraphsQuestion): TraceBeat | null {
+  return q.pair ? traceBeatFrom(q.adj, q.pair[0], q.pair[1]) : null
+}
+
+/** Open the build-the-line working model for a build question (active → plan). */
+function buildLineBeatFor(q: GraphsQuestion): BuildLineBeat | null {
+  return q.planAdj ? buildLineBeatFrom(q.shownAdj ?? {}, q.planAdj, q.nodes) : null
+}
+
+/** The figure's starting live adjacency for a beat: the build's working network,
+ *  a draw beat's shown picture, or empty. */
+function initialWorkingAdj(question: GraphsQuestion, buildLine: BuildLineBeat | null): Adjacency {
+  if (buildLine) return cloneAdj(buildLine.working)
+  return question.shownAdj ? cloneAdj(question.shownAdj) : {}
+}
+
 function enterPart(state: GraphsState, index: number): GraphsState {
   const part = GRAPHS_PARTS[index]
   const { question, next } = buildQuestion(part, state.rngState)
+  const trace = isTracePart(part) ? traceBeatFor(question) : null
+  const buildLine = isBuildLinePart(part) ? buildLineBeatFor(question) : null
   return {
     ...state,
     partIndex: index,
     ...freshFields(),
     question,
-    workingAdj: question.shownAdj ? cloneAdj(question.shownAdj) : {},
+    trace,
+    buildLine,
+    workingAdj: initialWorkingAdj(question, buildLine),
     rngState: next,
   }
 }
@@ -793,6 +1004,7 @@ export function createGraphs(seed: number = Date.now()): GraphsState {
     partIndex: 0,
     readCorrect: 0,
     drawCorrect: 0,
+    buildCorrect: 0,
     sameCorrect: 0,
     attempts: 0,
     question: null,
@@ -819,14 +1031,18 @@ export function filledPartsGraphs(state: GraphsState): number {
   return state.completed ? GRAPHS_TOTAL_PARTS : state.partIndex
 }
 
-/** Cumulative "n of 8" header for a graded beat (across the three bins). */
+/** Cumulative "n of 10" header for a graded beat (across the four bins). */
 export function partQuotaGraphs(
   state: GraphsState,
 ): { done: number; total: number } | null {
   const bin = binOfPart(currentPartGraphs(state))
   if (!bin) return null
   return {
-    done: state.readCorrect + state.drawCorrect + state.sameCorrect,
+    done:
+      Math.min(READ_QUOTA, state.readCorrect) +
+      Math.min(DRAW_QUOTA, state.drawCorrect) +
+      Math.min(BUILD_QUOTA, state.buildCorrect) +
+      Math.min(SAME_QUOTA, state.sameCorrect),
     total: GATE_TOTAL,
   }
 }
@@ -835,9 +1051,11 @@ export function partQuotaGraphs(
 export function currentBinLabel(state: GraphsState): string | null {
   switch (binOfPart(currentPartGraphs(state))) {
     case "read":
-      return "Read the list"
+      return isTracePart(currentPartGraphs(state)) ? "Trace the path" : "Read the list"
     case "draw":
       return "Draw the edge"
+    case "build":
+      return "Build the line"
     case "same":
       return "Same graph?"
     default:
@@ -851,7 +1069,11 @@ export function legalDrawTargets(state: GraphsState): Set<string> {
   return new Set(state.question?.nodes ?? [])
 }
 
-/** Can the learner press Check? Multi-select needs a pick; draw needs an edge. */
+/**
+ * Can the learner press Check? Multi-select needs a pick; single-edge draw needs an
+ * edge; single-choice needs a pick. The active trace + build beats commit through
+ * their own taps/draws (no Check), so they never gate a Check button.
+ */
 export function canCheckGraphs(state: GraphsState): boolean {
   const part = currentPartGraphs(state)
   if (isMultiSelectPart(part)) return state.selectedNodes.length > 0
@@ -860,11 +1082,12 @@ export function canCheckGraphs(state: GraphsState): boolean {
   return false
 }
 
-/** The hard mastery gate: read ≥ 4 && draw ≥ 2 && same ≥ 2 (= 8). */
+/** The hard mastery gate: read ≥ 5 && draw ≥ 2 && build ≥ 1 && same ≥ 2 (= 10). */
 export function isCompleteGraphs(state: GraphsState): boolean {
   return (
     state.readCorrect >= READ_QUOTA &&
     state.drawCorrect >= DRAW_QUOTA &&
+    state.buildCorrect >= BUILD_QUOTA &&
     state.sameCorrect >= SAME_QUOTA
   )
 }
@@ -874,6 +1097,7 @@ export function hasProgressGraphs(state: GraphsState): boolean {
     state.partIndex > 0 ||
     state.readCorrect > 0 ||
     state.drawCorrect > 0 ||
+    state.buildCorrect > 0 ||
     state.sameCorrect > 0
   )
 }
@@ -883,6 +1107,7 @@ export function hasProgressGraphs(state: GraphsState): boolean {
 function bumpBin(state: GraphsState, bin: GraphBin): void {
   if (bin === "read") state.readCorrect = Math.min(READ_QUOTA, state.readCorrect + 1)
   else if (bin === "draw") state.drawCorrect = Math.min(DRAW_QUOTA, state.drawCorrect + 1)
+  else if (bin === "build") state.buildCorrect = Math.min(BUILD_QUOTA, state.buildCorrect + 1)
   else state.sameCorrect = Math.min(SAME_QUOTA, state.sameCorrect + 1)
 }
 
@@ -902,6 +1127,32 @@ export function graphsReducer(state: GraphsState, action: LessonAction): GraphsS
 
     case "select": {
       if (isTerminalGraphs(state)) return state
+      // The active trace: a tap walks to that node if it is a neighbor of the
+      // current node. A non-neighbor is a brief nudge (no fail wall); reaching the
+      // target grades the read bin. The walk is the verdict (matches pathExists).
+      if (isTracePart(part)) {
+        if (!state.trace) return state
+        const bin = binOfPart(part)
+        if (!bin) return state
+        const { beat, accepted } = applyTraceStep(state.trace, action.letter)
+        if (!accepted) {
+          return { ...state, feedback: "nudge", attempts: state.attempts + 1 }
+        }
+        if (!isTraceSolved(beat)) {
+          return { ...state, trace: beat, feedback: "idle", attempts: state.attempts + 1 }
+        }
+        const v = gradeAnswer(state, true)
+        const next: GraphsState = {
+          ...state,
+          trace: beat,
+          feedback: v.feedback,
+          combo: v.combo,
+          revealed: v.revealed,
+          attempts: state.attempts + 1,
+        }
+        bumpBin(next, bin)
+        return next
+      }
       if (isMultiSelectPart(part)) {
         return {
           ...state,
@@ -916,10 +1167,48 @@ export function graphsReducer(state: GraphsState, action: LessonAction): GraphsS
     }
 
     case "rewire": {
-      if (!isDrawPart(part) || isTerminalGraphs(state)) return state
+      if (isTerminalGraphs(state)) return state
       const q = state.question
       if (!q) return state
       const { from, to } = action
+
+      // The active build-the-line synthesis: each accepted track is committed to the
+      // working network (the line draws on); an illegal track (not in the plan or
+      // already built) is a brief nudge (no fail wall). Matching the plan grades the
+      // build bin.
+      if (isBuildLinePart(part)) {
+        if (!state.buildLine) return state
+        const { beat, accepted } = applyBuildLineEdge(state.buildLine, from, to)
+        if (!accepted) {
+          return { ...state, feedback: "nudge", attempts: state.attempts + 1 }
+        }
+        const drawn = normalizeEdge(from, to)
+        if (!isBuildLineSolved(beat)) {
+          return {
+            ...state,
+            buildLine: beat,
+            workingAdj: beat.working,
+            pendingEdge: drawn,
+            feedback: "idle",
+            attempts: state.attempts + 1,
+          }
+        }
+        const v = gradeAnswer(state, true)
+        const next: GraphsState = {
+          ...state,
+          buildLine: beat,
+          workingAdj: beat.working,
+          pendingEdge: drawn,
+          feedback: v.feedback,
+          combo: v.combo,
+          revealed: v.revealed,
+          attempts: state.attempts + 1,
+        }
+        bumpBin(next, "build")
+        return next
+      }
+
+      if (!isDrawPart(part)) return state
       // Engine-enforced legality: no self-loop, no parallel/dup, both endpoints
       // in the node set. A new legal draw REPLACES the single pending edge.
       if (from === to) return state
@@ -937,6 +1226,8 @@ export function graphsReducer(state: GraphsState, action: LessonAction): GraphsS
     case "check": {
       const q = state.question
       if (!q || isTerminalGraphs(state)) return state
+      // The active trace + build commit via taps/draws, never Check.
+      if (isTracePart(part) || isBuildLinePart(part)) return state
       const bin = binOfPart(part)
       if (!bin) return state
 
@@ -970,11 +1261,15 @@ export function graphsReducer(state: GraphsState, action: LessonAction): GraphsS
 
     case "reattempt": {
       const { question, next } = buildQuestion(part, state.rngState)
+      const trace = isTracePart(part) ? traceBeatFor(question) : null
+      const buildLine = isBuildLinePart(part) ? buildLineBeatFor(question) : null
       return {
         ...state,
         ...freshFields(),
         question,
-        workingAdj: question.shownAdj ? cloneAdj(question.shownAdj) : {},
+        trace,
+        buildLine,
+        workingAdj: initialWorkingAdj(question, buildLine),
         rngState: next,
       }
     }
@@ -999,6 +1294,7 @@ export function toProgressGraphs(s: GraphsState): LessonProgress {
     counters: {
       read: s.readCorrect,
       draw: s.drawCorrect,
+      build: s.buildCorrect,
       same: s.sameCorrect,
       attempts: s.attempts,
     },
@@ -1022,6 +1318,7 @@ export function resumeGraphs(
     ...base,
     readCorrect: clampG(c.read ?? 0, READ_QUOTA),
     drawCorrect: clampG(c.draw ?? 0, DRAW_QUOTA),
+    buildCorrect: clampG(c.build ?? 0, BUILD_QUOTA),
     sameCorrect: clampG(c.same ?? 0, SAME_QUOTA),
     attempts: Math.max(0, Math.trunc(c.attempts ?? 0)),
   }
