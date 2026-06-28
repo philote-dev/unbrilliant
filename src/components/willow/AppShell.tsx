@@ -2,15 +2,16 @@ import type { ReactNode } from "react"
 
 import { cn } from "@/lib/utils"
 import { BottomNav } from "@/components/willow/BottomNav"
+import { MobileImmersiveNav } from "@/components/willow/MobileImmersiveNav"
+import { NavChromeProvider, useNavChrome } from "@/components/willow/NavChromeProvider"
 import { DesktopShell } from "@/components/willow/desktop/DesktopShell"
 import { useIsDesktop } from "@/hooks/useMediaQuery"
 
 /**
- * The single layout seam. At `lg`+ it renders the DesktopShell (persistent
- * SideNav + centered capped main). Below `lg` it renders the original
- * mobile-first column (max-w-md) with an optional persistent bottom nav,
- * unchanged. One tree is rendered at a time, so the mobile DOM stays identical
- * below `lg` and no desktop affordances leak into it.
+ * The single layout seam. At `lg`+ it renders the DesktopShell (collapsible
+ * SideNav + centered capped main). Below `lg` it renders the mobile-first column
+ * with a bottom nav that becomes a condensed corner icon during the lesson flow.
+ * NavChromeProvider sits here so both shells share one nav-chrome state.
  */
 export function AppShell({
   children,
@@ -21,7 +22,26 @@ export function AppShell({
   bottomNav?: boolean
   className?: string
 }) {
+  return (
+    <NavChromeProvider>
+      <AppShellInner bottomNav={bottomNav} className={className}>
+        {children}
+      </AppShellInner>
+    </NavChromeProvider>
+  )
+}
+
+function AppShellInner({
+  children,
+  bottomNav,
+  className,
+}: {
+  children: ReactNode
+  bottomNav: boolean
+  className?: string
+}) {
   const isDesktop = useIsDesktop()
+  const { immersive } = useNavChrome()
 
   if (isDesktop) {
     return <DesktopShell className={className}>{children}</DesktopShell>
@@ -31,13 +51,15 @@ export function AppShell({
     <div className="relative mx-auto flex min-h-svh w-full max-w-md flex-col bg-background">
       <div className={cn("flex flex-1 flex-col", className)}>{children}</div>
 
-      {bottomNav && (
+      {immersive ? (
+        <MobileImmersiveNav />
+      ) : bottomNav ? (
         <div className="fixed inset-x-0 bottom-0 z-40">
           <div className="mx-auto max-w-md px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
             <BottomNav />
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   )
 }
@@ -46,9 +68,6 @@ export function AppShell({
 export function PinnedAction({ children }: { children: ReactNode }) {
   const isDesktop = useIsDesktop()
 
-  // On desktop there is no fixed bottom nav and content scrolls within the
-  // capped main column, so the action sits sticky at the bottom of that column
-  // instead of floating over the whole viewport.
   if (isDesktop) {
     return (
       <div className="sticky bottom-6 z-30 mx-auto mt-8 w-full max-w-md">
