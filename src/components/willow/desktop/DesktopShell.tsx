@@ -6,15 +6,19 @@ import { SideNav } from "@/components/willow/desktop/SideNav"
 import { CollapsedReveal } from "@/components/willow/desktop/CollapsedReveal"
 import { useNavChrome } from "@/components/willow/NavChromeProvider"
 
-/** Matches --willow-sidebar-w (260px). Animated to 0 when collapsed. */
+/** Matches --willow-sidebar-w. Animated to 0 when collapsed. */
 const RAIL_W = 260
+
+/** Shared close/open easing (easeOutQuint-ish): a confident settle, no bounce. */
+const EASE = [0.22, 1, 0.36, 1] as const
 
 /**
  * The `lg`+ layout: a collapsible left SideNav beside a centered, capped main
- * column. The rail's width animates between RAIL_W and 0 so the content reflows
- * as one. While collapsed, CollapsedReveal provides a reopen icon and an
- * edge-peek sliver. Collapse state comes from NavChromeProvider (manual pref +
- * route immersion). Below `lg`, AppShell renders the mobile column instead.
+ * column. The rail's width animates between RAIL_W and 0 and its contents fade in
+ * lockstep, so the column reflows as one clean motion with no clipped ghosting.
+ * While collapsed, CollapsedReveal fades in a reopen icon and an edge-peek handle.
+ * Collapse state comes from NavChromeProvider (manual pref + route immersion).
+ * Below `lg`, AppShell renders the mobile column instead.
  */
 export function DesktopShell({
   children,
@@ -29,18 +33,26 @@ export function DesktopShell({
   return (
     <div className="flex min-h-svh w-full bg-background">
       <motion.div
-        className="relative shrink-0 overflow-hidden"
+        className="relative z-10 shrink-0 overflow-hidden"
         initial={false}
         animate={{ width: collapsed ? 0 : RAIL_W }}
-        transition={reduce ? { duration: 0 } : { duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+        transition={reduce ? { duration: 0 } : { duration: 0.28, ease: EASE }}
         aria-hidden={collapsed}
       >
-        <div style={{ width: RAIL_W }} className="h-full">
+        {/* Fixed-width inner so the rail contents never squish while the frame
+            collapses; the opacity fade hides the clip edge as it closes. */}
+        <motion.div
+          style={{ width: RAIL_W }}
+          className="h-full"
+          initial={false}
+          animate={{ opacity: collapsed ? 0 : 1 }}
+          transition={reduce ? { duration: 0 } : { duration: 0.18, ease: EASE }}
+        >
           <SideNav onCollapse={close} />
-        </div>
+        </motion.div>
       </motion.div>
 
-      {collapsed && <CollapsedReveal onOpen={open} reduce={!!reduce} />}
+      <CollapsedReveal collapsed={collapsed} onOpen={open} reduce={!!reduce} />
 
       <main className="relative flex min-w-0 flex-1 flex-col">
         <div

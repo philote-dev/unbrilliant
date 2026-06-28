@@ -2,21 +2,28 @@ import { useEffect, useState } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { Menu } from "lucide-react"
 
+import { cn } from "@/lib/utils"
 import { useNavigation } from "@/lib/navigation"
-import { BottomNav } from "@/components/willow/BottomNav"
+import { NAV_ITEMS } from "@/lib/navItems"
 
 /**
- * Mobile lesson-flow nav. The bottom pill condenses to a bottom-right three-line
- * icon for immersion; tapping it expands the real BottomNav pill in place;
- * tapping anywhere else (the scrim) or navigating re-condenses.
+ * Mobile lesson-flow nav. One dock morphs between a bottom-right three-line icon
+ * (condensed, for immersion) and the full navigation pill. Tapping the icon
+ * expands it in place; tapping the scrim or navigating re-condenses it. The dock
+ * itself carries the chrome (border, blur, shadow) so a single `layout` spring
+ * grows it from the corner instead of cross-fading two separate shapes.
  */
 export function MobileImmersiveNav() {
-  const { screen } = useNavigation()
+  const { screen, tab: active, navigate } = useNavigation()
   const reduce = useReducedMotion()
   const [expanded, setExpanded] = useState(false)
 
   // Re-condense when the route changes (advancing a beat, or leaving the lesson).
   useEffect(() => setExpanded(false), [screen])
+
+  const spring = reduce
+    ? { duration: 0 }
+    : { type: "spring" as const, stiffness: 460, damping: 40 }
 
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40">
@@ -36,33 +43,67 @@ export function MobileImmersiveNav() {
       </AnimatePresence>
 
       <div className="mx-auto flex max-w-md justify-end px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-        <AnimatePresence initial={false} mode="popLayout">
-          {expanded ? (
-            <motion.div
-              key="pill"
-              className="pointer-events-auto w-full"
-              initial={reduce ? false : { opacity: 0, scale: 0.92, x: 48 }}
-              animate={{ opacity: 1, scale: 1, x: 0 }}
-              exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.92, x: 48 }}
-              transition={{ type: "spring", stiffness: 380, damping: 34 }}
-            >
-              <BottomNav />
-            </motion.div>
-          ) : (
-            <motion.button
-              key="fab"
-              type="button"
-              onClick={() => setExpanded(true)}
-              aria-label="Show navigation"
-              className="pointer-events-auto flex size-12 items-center justify-center rounded-2xl border border-border bg-card/90 text-foreground shadow-card backdrop-blur-md"
-              initial={reduce ? false : { opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.8 }}
-            >
-              <Menu className="size-5" />
-            </motion.button>
+        <motion.div
+          layout
+          transition={spring}
+          className={cn(
+            "pointer-events-auto flex items-center overflow-hidden border border-border bg-card/90 shadow-card backdrop-blur-md",
+            expanded ? "h-16 w-full rounded-3xl px-2" : "size-14 justify-center rounded-2xl",
           )}
-        </AnimatePresence>
+        >
+          <AnimatePresence mode="wait" initial={false}>
+            {expanded ? (
+              <motion.nav
+                key="tabs"
+                aria-label="Primary"
+                className="flex w-full items-center justify-around gap-1"
+                initial={reduce ? false : { opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={reduce ? { opacity: 0 } : { opacity: 0 }}
+                transition={{ duration: 0.1 }}
+              >
+                {NAV_ITEMS.map(({ tab, label, Icon, target }) => {
+                  const isActive = tab === active
+                  return (
+                    <button
+                      key={tab}
+                      type="button"
+                      onClick={() => navigate(target)}
+                      aria-current={isActive ? "page" : undefined}
+                      className={cn(
+                        "flex flex-1 flex-col items-center gap-1 rounded-2xl py-1.5 text-[11px] font-medium transition-colors",
+                        isActive
+                          ? "text-lilac-strong"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      <Icon
+                        className="size-5"
+                        strokeWidth={isActive ? 2.4 : 2}
+                        fill={isActive ? "var(--lilac)" : "none"}
+                      />
+                      {label}
+                    </button>
+                  )
+                })}
+              </motion.nav>
+            ) : (
+              <motion.button
+                key="fab"
+                type="button"
+                onClick={() => setExpanded(true)}
+                aria-label="Show navigation"
+                className="flex size-full items-center justify-center text-foreground"
+                initial={reduce ? false : { opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={reduce ? { opacity: 0 } : { opacity: 0 }}
+                transition={{ duration: 0.1 }}
+              >
+                <Menu className="size-5" />
+              </motion.button>
+            )}
+          </AnimatePresence>
+        </motion.div>
       </div>
     </div>
   )

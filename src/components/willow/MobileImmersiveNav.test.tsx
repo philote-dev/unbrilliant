@@ -16,7 +16,15 @@ vi.mock("motion/react", async (importOriginal) => {
     (tag: string) =>
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ({ children, ...props }: any) => {
-      const { initial: _i, animate: _a, exit: _e, transition: _t, ...rest } = props
+      const {
+        initial: _i,
+        animate: _a,
+        exit: _e,
+        transition: _t,
+        layout: _l,
+        layoutId: _lid,
+        ...rest
+      } = props
       return React.createElement(tag, rest, children)
     }
 
