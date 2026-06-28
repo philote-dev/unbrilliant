@@ -3,7 +3,8 @@ import { act, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { createInMemoryProgressRepository } from "@/features/progress/inMemoryProgressRepository"
-import type { TrialAction } from "@/features/trials/trialModule"
+import { emptySave, type TrialSaveState } from "@/features/trials/saveState"
+import { currentSegment, type TrialAction } from "@/features/trials/trialModule"
 import type { TrialSpec } from "@/features/trials/types"
 import { TrialRunProvider, useTrialRun } from "./TrialRunProvider"
 
@@ -73,12 +74,34 @@ const PLAY: TrialAction[] = [
   { type: "advance" },
 ]
 
+// A broken first stress (wrong structure) then a revise to a viable queue. The
+// first non-viable stress run permanently flips cleanPass to false for the run.
+const PLAY_WITH_REVISE: TrialAction[] = [
+  { type: "choose-structure", structure: "stack" },
+  { type: "place-op", op: "arrival", position: "back" },
+  { type: "place-op", op: "serve", position: "front" },
+  { type: "run-stress" }, // a stack can't own a line -> broken, cleanPass=false
+  { type: "revise" },
+  { type: "choose-structure", structure: "queue" }, // fix (mapping is retained)
+  { type: "run-stress" }, // viable
+  { type: "advance" },
+  { type: "choose-structure", structure: "queue" },
+  { type: "place-op", op: "peek", position: "front" },
+  { type: "run-stress" }, // viable
+  { type: "advance" }, // -> complete
+]
+
 function Probe({ capture }: { capture: (d: (a: TrialAction) => void) => void }) {
   const { state, dispatch } = useTrialRun()
   useEffect(() => {
     capture(dispatch)
   }, [capture, dispatch])
-  return <div data-testid="phase">{state.phase}</div>
+  return (
+    <div>
+      <span data-testid="phase">{state.phase}</span>
+      <span data-testid="segment">{currentSegment(state).id}</span>
+    </div>
+  )
 }
 
 beforeEach(() => {
@@ -140,5 +163,78 @@ describe("TrialRunProvider", () => {
     expect(saveSpy).not.toHaveBeenCalled()
     expect(onTrialComplete).not.toHaveBeenCalled()
     expect(await repo.getTrialProgress("u1", "trial-test")).toBeNull()
+  })
+
+  it("server wins: resumes to the saved mission/segment on sign-in", async () => {
+    h.user = { uid: "u1", displayName: "Tess", email: null }
+    const repo = createInMemoryProgressRepository()
+    // A mid-run slice from a prior session: parked on the second segment.
+    const seeded: TrialSaveState = {
+      ...emptySave("trial-test", "m1", "s2"),
+      chosenStructures: { m1: "queue" },
+      verdicts: { s1: "viable" },
+      stressTestsRun: ["s1"],
+    }
+    await repo.saveTrialProgress("u1", "trial-test", seeded)
+    const onTrialComplete = vi.fn()
+    const cap = { dispatch: undefined as undefined | ((a: TrialAction) => void) }
+
+    render(
+      <TrialRunProvider spec={spec} repo={repo} onTrialComplete={onTrialComplete}>
+        <Probe capture={(d) => (cap.dispatch = d)} />
+      </TrialRunProvider>,
+    )
+
+    // The run rehydrates to the saved segment (s2), not the fresh-start s1.
+    await waitFor(() => expect(screen.getByTestId("segment")).toHaveTextContent("s2"))
+    expect(screen.getByTestId("phase")).toHaveTextContent("design")
+    expect(onTrialComplete).not.toHaveBeenCalled()
+  })
+
+  it("once only: a completed slice resumes to complete without re-firing the boost", async () => {
+    h.user = { uid: "u1", displayName: "Tess", email: null }
+    const repo = createInMemoryProgressRepository()
+    const seeded: TrialSaveState = {
+      ...emptySave("trial-test", "m1", "s2"),
+      completed: true,
+      cleanPass: true,
+    }
+    await repo.saveTrialProgress("u1", "trial-test", seeded)
+    const onTrialComplete = vi.fn()
+    const cap = { dispatch: undefined as undefined | ((a: TrialAction) => void) }
+
+    render(
+      <TrialRunProvider spec={spec} repo={repo} onTrialComplete={onTrialComplete}>
+        <Probe capture={(d) => (cap.dispatch = d)} />
+      </TrialRunProvider>,
+    )
+
+    await waitFor(() => expect(screen.getByTestId("phase")).toHaveTextContent("complete"))
+    // The boost already happened in the prior session; a resume must not re-fire it.
+    expect(onTrialComplete).not.toHaveBeenCalled()
+  })
+
+  it("propagates cleanPass=false through a broken -> revise -> viable completion", async () => {
+    h.user = { uid: "u1", displayName: "Tess", email: null }
+    const repo = createInMemoryProgressRepository()
+    const saveSpy = vi.spyOn(repo, "saveTrialProgress")
+    const onTrialComplete = vi.fn()
+    const cap = { dispatch: undefined as undefined | ((a: TrialAction) => void) }
+
+    render(
+      <TrialRunProvider spec={spec} repo={repo} onTrialComplete={onTrialComplete}>
+        <Probe capture={(d) => (cap.dispatch = d)} />
+      </TrialRunProvider>,
+    )
+
+    await waitFor(() => expect(saveSpy).toHaveBeenCalled())
+
+    await act(async () => {
+      for (const action of PLAY_WITH_REVISE) cap.dispatch?.(action)
+    })
+
+    await waitFor(() => expect(screen.getByTestId("phase")).toHaveTextContent("complete"))
+    await waitFor(() => expect(onTrialComplete).toHaveBeenCalledTimes(1))
+    expect(onTrialComplete).toHaveBeenCalledWith(spec, false)
   })
 })

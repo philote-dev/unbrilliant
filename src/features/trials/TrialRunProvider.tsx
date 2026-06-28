@@ -97,8 +97,10 @@ export function TrialRunProvider({
   // state (not a ref) so flipping it re-runs the autosave effect, which is what
   // carries a brand-new account's local run up to the server.
   const [reconciled, setReconciled] = useState<string | null>(null)
-  // The completion hook fires once per trialId per session. A server slice that
-  // is already complete pre-arms this so a resume never re-fires the boost.
+  // The completion hook fires once per `uid:trialId` (the same key the reconcile
+  // uses), so an account switch on a surviving provider can never leak one
+  // learner's "already fired" flag to the next. A server slice that is already
+  // complete pre-arms its key so a resume never re-fires the boost.
   const completionFiredRef = useRef<Set<string>>(new Set())
 
   // Reconcile once per signed-in user + trial. Server wins: a saved slice
@@ -107,6 +109,9 @@ export function TrialRunProvider({
   useEffect(() => {
     if (!user) {
       setReconciled(null)
+      // Sign-out: drop every "already fired" flag so a later account signing in
+      // on this same provider can't inherit the previous learner's guard.
+      completionFiredRef.current.clear()
       return
     }
     const key = `${user.uid}:${trialId}`
@@ -123,7 +128,7 @@ export function TrialRunProvider({
         if (server) {
           // A trial finished in a prior session has already had its boost; never
           // re-fire it on resume.
-          if (server.completed) completionFiredRef.current.add(trialId)
+          if (server.completed) completionFiredRef.current.add(key)
           dispatch({ type: "hydrate", state: trialModule.resume(server) })
         }
         setReconciled(key)
@@ -142,13 +147,15 @@ export function TrialRunProvider({
   // final save. Anonymous runs no-op here: memory only, no persistence.
   const progressSig = JSON.stringify(trialModule.toProgress(state))
   useEffect(() => {
-    if (!user || reconciled !== `${user.uid}:${trialId}`) return
+    if (!user) return
+    const key = `${user.uid}:${trialId}`
+    if (reconciled !== key) return
     const current = runsRef.current[trialId]
     if (
       trialModule.completed(current) &&
-      !completionFiredRef.current.has(trialId)
+      !completionFiredRef.current.has(key)
     ) {
-      completionFiredRef.current.add(trialId)
+      completionFiredRef.current.add(key)
       onTrialComplete?.(spec, current.cleanPass)
     }
     void repo
