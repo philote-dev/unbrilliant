@@ -84,9 +84,14 @@ export const a3Undo: SegmentSpec = {
   clientPrompt:
     "The desk needs an undo button. Every action you take is recorded, and undo should reverse the most recent action first. Add a support structure that tracks that history.",
   offeredStructures: ["stack", "queue", "array", "linked-list"],
+  // Broadened so non-stack structures expose a placeable target: only the stack
+  // has a Top zone, so without these the learner could pick a queue/array/list and
+  // have nowhere to drop record/undo (Run stuck disabled), never reaching the
+  // intended broken verdict. `required` stays top/top, so grading is unchanged:
+  // stack grades viable, the others grade broken (misplaced off the top).
   operations: [
-    { id: "record", label: "record a desk action", allowedPositions: ["top"] },
-    { id: "undo", label: "undo the last action", allowedPositions: ["top"] },
+    { id: "record", label: "record a desk action", allowedPositions: ["top", "front", "back"] },
+    { id: "undo", label: "undo the last action", allowedPositions: ["top", "front", "back"] },
   ],
   required: [
     { op: "record", position: "top" },
