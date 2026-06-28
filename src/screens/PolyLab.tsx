@@ -78,7 +78,7 @@ const HINT_SCENARIOS: HintScenario[] = [
       "You stacked them so the first card you placed is buried at the bottom. Which card is sitting on top, ready to come off first?",
       "Picture lifting cards off the top one at a time. Given how you piled them, which letter leaves first, and is that the one your goal needs first?",
     ],
-    staticFallback: "Remember: you can only take the card off the top.",
+    staticFallback: "Remember that you can only take the card off the top.",
   },
   {
     id: "queue-reversed",
@@ -88,7 +88,7 @@ const HINT_SCENARIOS: HintScenario[] = [
     pushed: ["C", "B", "A"],
     mockHints: [
       "You lined them up so the newest arrival sits at the front. Who gets served first, the person who just showed up or the one who has waited longest?",
-      "Think of a checkout line: people leave in the order they joined. Which letter joined your line first?",
+      "Think of a checkout line. People leave in the order they joined. Which letter joined your line first?",
     ],
     staticFallback: "Items leave a queue from the front, in the order they arrived.",
   },
@@ -130,11 +130,11 @@ const HINT_SCENARIOS: HintScenario[] = [
       producedExit: ["D", "C", "B", "A"],
     },
     mockHints: [
-      "You loaded every item in before taking any out, so the first one you can hand back is whatever you pushed last. Your target wants the second arrival out first: what would have to happen the moment it lands?",
+      "You loaded every item in before taking any out, so the first one you can hand back is whatever you pushed last. Your target wants the second arrival out first. What would have to happen the moment it lands?",
       "Walk it one move at a time. Right after the second item goes on, it is sitting on top and it is exactly who your output needs next, so what is the cheapest moment to take it?",
     ],
     staticFallback:
-      "Pop while you push: take an item out as soon as it reaches the top in the order you need.",
+      "Pop while you push. Take an item out as soon as it reaches the top in the order you need.",
   },
 ]
 
@@ -169,7 +169,7 @@ function makeMockCheckpoint() {
       await wait(450)
       return {
         question:
-          "You're almost there! Let's connect that last piece: when you take a card off, which one are you actually able to reach?",
+          "You're almost there! Let's connect that last piece. When you take a card off, which one are you actually able to reach?",
       }
     },
   }
@@ -197,7 +197,7 @@ export function PolyLab() {
         </div>
       </div>
       <p className="mt-2 text-center text-sm text-muted-foreground">
-        Try the Phase 2 AI features in isolation: the health check, action-grounded hints,
+        Try the Phase 2 AI features in isolation, including the health check, action-grounded hints,
         and self-explanation checkpoints.
       </p>
 
@@ -240,7 +240,7 @@ function RunBanner({ mode }: { mode: Mode }) {
   if (mode === "mock") {
     return (
       <p className="mt-3 text-center text-xs text-faint">
-        Mock mode: canned responses, no key or emulator needed. Switch to Live to call the
+        Mock mode uses canned responses, with no key or emulator needed. Switch to Live to call the
         real model.
       </p>
     )
@@ -316,7 +316,7 @@ function HealthPanel({ mode }: { mode: Mode }) {
     <DemoCard
       icon={<HeartPulse className="size-5" />}
       title="1 · Health check"
-      desc="Proves the secure round-trip: the browser calls the Cloud Function, which calls OpenAI with the server-side key and returns a tiny reply."
+      desc="Proves the secure round-trip. The browser calls the Cloud Function, which calls OpenAI with the server-side key and returns a tiny reply."
     >
       <Button variant="tactile" size="default" onClick={run} disabled={loading}>
         {loading ? "Pinging..." : "Run health check"}
@@ -331,10 +331,10 @@ function HealthPanel({ mode }: { mode: Mode }) {
           >
             {result.ok ? "ok" : "failed"}
           </span>
-          <span className="ml-2 text-muted-foreground">model:</span>{" "}
+          <span className="ml-2 text-muted-foreground">model</span>{" "}
           <span className="font-mono text-foreground">{result.model}</span>
           <div className="mt-1 text-muted-foreground">
-            reply: <span className="font-mono text-foreground">{result.reply || "(empty)"}</span>
+            reply <span className="font-mono text-foreground">{result.reply || "(empty)"}</span>
           </div>
         </div>
       )}
@@ -500,14 +500,14 @@ function HintPanel({ mode }: { mode: Mode }) {
           <p className="text-xs font-semibold uppercase tracking-wide text-faint">
             {scenario.discipline} construct
           </p>
-          <CardChips label="Goal: leaves as" items={scenario.goalExit} />
+          <CardChips label="Goal leaves as" items={scenario.goalExit} />
           <CardChips label="Learner built" items={scenario.pushed} />
         </div>
       )}
 
       {scenario.complex && mode === "live" && (
         <p className="mt-2 text-[11px] leading-relaxed text-faint">
-          Live note: the current engine receives only the flattened push order, not
+          Live note. The current engine receives only the flattened push order, not
           the step trace, so its hint cannot see <em>when</em> the learner popped.
           That gap is the fine-tuning target.
         </p>
@@ -528,7 +528,7 @@ function HintPanel({ mode }: { mode: Mode }) {
         {loading && <p className="text-sm text-muted-foreground">Poly is thinking...</p>}
         {capped && (
           <p className="rounded-xl border border-dashed border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-            Cap reached (2 AI hints). Poly hands back the lesson&apos;s static hint:{" "}
+            Cap reached (2 AI hints). Poly hands back the lesson&apos;s static hint.{" "}
             <span className="text-foreground">{scenario.staticFallback}</span>
           </p>
         )}
@@ -569,9 +569,9 @@ const BUFFER = {
 // A basic, one-step beat: the static hint is enough, and Poly only steps in if
 // the learner stalls (an idle timeout), with a plain nudge. No diagnosis.
 const BASIC = {
-  prompt: "A line forms: A joins, then B, then C. Who gets served first?",
+  prompt: "A line forms. A joins, then B, then C. Who gets served first?",
   staticHint: "Think about who has been waiting the longest.",
-  stuckHint: "No rush. Picture the very front of the line: who got there before anyone else?",
+  stuckHint: "No rush. Picture the very front of the line. Who got there before anyone else?",
   idleSeconds: 6,
 }
 
@@ -770,7 +770,7 @@ function ComplexStuck({ mode }: { mode: Mode }) {
           )}
           {located && diagnosis && (
             <p className="text-xs font-medium text-amber-600">
-              First misstep located: move {diagnosis.stepNumber}.
+              First misstep located at move {diagnosis.stepNumber}.
             </p>
           )}
         </div>
@@ -805,7 +805,7 @@ function ComplexStuck({ mode }: { mode: Mode }) {
         )}
       </div>
       <FlowNote>
-        Complex beats hook a stage lookup to the problem: Poly diagnoses the exact misstep, verifies the
+        Complex beats hook a stage lookup to the problem. Poly diagnoses the exact misstep, verifies the
         hint has no giveaway, then points at that one action and questions it. The answer is never sent.
       </FlowNote>
     </div>
@@ -886,7 +886,7 @@ function CheckpointPanel({ mode, uid }: { mode: Mode; uid: string | null }) {
         </Button>
       </div>
       <p className="mt-3 text-xs text-faint">
-        Mock tip: the first answer leaves a gap (so a probe fires); a second answer covers
+        Mock tip. The first answer leaves a gap (so a probe fires); a second answer covers
         everything.
       </p>
       <div className="mt-4 flex min-h-[380px] flex-col rounded-2xl border border-dashed border-border bg-background/40 p-4">

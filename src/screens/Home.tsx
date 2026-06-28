@@ -174,7 +174,7 @@ function DashboardHomeMobile({ courseId }: { courseId: string }) {
         <Flame tier={comboToTier(streak.current)} size={26} />
         <span className="text-sm text-muted-foreground">
           {streak.longest > 0
-            ? `Best streak: ${streak.longest} in a row`
+            ? `Best streak is ${streak.longest} in a row`
             : "Stack correct answers to catch fire"}
         </span>
       </div>
@@ -245,7 +245,7 @@ function DashboardHomeDesktop({ courseId }: { courseId: string }) {
           <Flame tier={comboToTier(streak.current)} size={26} />
           <span className="text-sm text-muted-foreground">
             {streak.longest > 0
-              ? `Best streak: ${streak.longest} in a row`
+              ? `Best streak is ${streak.longest} in a row`
               : "Stack correct answers to catch fire"}
           </span>
         </div>
