@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest"
+import { describe, it, expect, beforeEach, afterAll, vi } from "vitest"
 import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 
@@ -43,6 +43,7 @@ function mount() {
 
 describe("NavChromeProvider", () => {
   beforeEach(() => store.clear())
+  afterAll(() => vi.unstubAllGlobals())
 
   it("collapses on entering a lesson and restores the pre-lesson state on leaving", async () => {
     mount()
