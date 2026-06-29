@@ -18,7 +18,7 @@ export interface HintDiagnosis {
 export interface HintArgs {
   stageId: string
   skill: string
-  discipline: "stack" | "queue" | "array"
+  discipline: "stack" | "queue" | "array" | "linked-list"
   learnerOrder: string[]
   priorHint?: string
   // Multi-step (complex) beats: the learner's operation trace as readable steps
@@ -26,6 +26,12 @@ export interface HintArgs {
   // model cannot leak it.
   attempt?: string[]
   diagnosis?: HintDiagnosis
+  // Edge-case caching + stall nudge (all client-computed, giveaway-free):
+  boundary?: boolean
+  configKey?: string
+  mode?: "hint" | "nudge"
+  // Phrasing variety (no extra model call):
+  attemptIndex?: number
 }
 
 export interface HintResult {
