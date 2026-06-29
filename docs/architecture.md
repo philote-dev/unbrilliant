@@ -32,6 +32,26 @@ call is non-gating and falls back to the deterministic lesson on any failure.
   available as a pull-up keyboard sheet, and any failure (no token, mic denied,
   connection error) falls back to it.
 
+### Hints: the boundary-condition cache seam
+
+Complex-segment hints are all-AI behind the same callable seam, with a server-side
+cache enabled **only** for boundary-condition edge cases. The client `diagnose()`
+for a complex mechanic emits a giveaway-free `ErrorShape` (`kind` + step) plus a
+`boundary` flag and a short structural `configKey` (for example `full-block` or
+`head-insert`); these ride along on the hint request and never contain answer
+items. The `polyHint` callable branches on `boundary`: boundary cases are
+cache-first (look up by a deterministic, sanitized key, otherwise generate,
+giveaway-verify, then store), while interior mistakes generate live and never
+touch the cache. A cheap phrasing layer varies wording by attempt with no extra
+model call, and a finite boundary set is precomputed offline into the same store.
+Any failure falls back to the static authored hint, so hints stay non-gating.
+
+The `hintCache` Firestore collection is **server-only**: it is read and written
+through the admin SDK (which bypasses security rules), and no client rule is added,
+so default-deny keeps it unreadable from the browser. The public callable persists
+only keys on an authored boundary allowlist, so a hostile caller cannot poison or
+grow the shared cache.
+
 ## Tech stack
 
 | Concern        | Choice                                                            |
