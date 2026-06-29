@@ -24,6 +24,7 @@ import {
   type ExplanationRecord,
 } from "@/features/poly/explanationStore"
 import { db } from "@/lib/firebase"
+import { mergeScores, isTeachbackPass, pickWeakest } from "@/features/poly/teachbackScore"
 
 type TranscriptUpdate = { finalText: string; interimText: string }
 
@@ -117,6 +118,9 @@ export function Teachback({
 
   const transcriberRef = useRef<RealtimeTranscriber | null>(null)
   const submittingRef = useRef(false)
+  // The merged best-verdict-per-proposition across all exchanges this session, so
+  // a later narrow answer never drops earlier coverage (the "too strict" bug).
+  const scoresRef = useRef<PropScore[]>([])
 
   const voiceText = [finalText, interimText].filter(Boolean).join(" ").trim()
 
@@ -195,19 +199,21 @@ export function Teachback({
     if (uid) void saveExplanation(uid, { conceptId, explanation: trimmed }).catch(() => {})
     try {
       const res = await scoreExplanation({ conceptId, explanation: trimmed })
-      setScores(res.scores)
+      const merged = mergeScores(scoresRef.current, res.scores)
+      scoresRef.current = merged
+      setScores(merged)
       const n = exchanges + 1
       setExchanges(n)
-      const allCovered =
-        res.scores.length > 0 && res.scores.every((s) => s.verdict === "covered")
-      if (allCovered || n >= maxExchanges || !res.weakest) {
-        setSucceeded(allCovered)
+      const pass = isTeachbackPass(merged)
+      const weakest = pickWeakest(merged)
+      if (pass || n >= maxExchanges || !weakest) {
+        setSucceeded(pass)
         setPhase("done")
         return
       }
       const probe = await requestProbe({
         conceptId,
-        propositionId: res.weakest,
+        propositionId: weakest,
         explanation: trimmed,
       })
       if (!probe.question) {
