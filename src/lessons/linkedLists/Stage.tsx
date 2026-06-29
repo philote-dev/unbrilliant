@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRight, Check } from "lucide-react"
 import { motion, useReducedMotion } from "motion/react"
 
 import { cn } from "@/lib/utils"
+import { usePolyHint } from "@/lib/ai/usePolyHint"
 import { Button } from "@/components/ui/button"
 import { AnswerCard, type AnswerState } from "@/components/willow/AnswerCard"
 import { CostReadout, type CostWord } from "@/components/willow/CostReadout"
@@ -17,6 +18,10 @@ import {
   orphanedNodes,
   type LinkedListsState,
 } from "@/features/lesson/linkedListsEngine"
+import {
+  diagnoseLinkedListInsert,
+  describeWritesGeneric,
+} from "@/features/poly/diagnoseLinkedList"
 import { StageSplit, StageCenter } from "@/components/willow/lesson/StageLayout"
 import { ArrayRow } from "@/lessons/arrays/ArrayRow"
 import { NodeGraph } from "./NodeGraph"
@@ -208,6 +213,35 @@ function RewirePart({
   dispatch: Dispatch<LessonAction>
 }) {
   const q = state.question
+  const wrong = state.feedback === "nudge" || state.feedback === "fail"
+  // Build the giveaway-free diagnose question only for a wrong insert attempt.
+  // The hint hook runs before any early return so hook order stays stable.
+  const insertQ =
+    q && q.kind === "rewire-insert" && q.prev && q.at && q.newNode
+      ? {
+          head: q.head,
+          prev: q.prev,
+          at: q.at,
+          newNode: q.newNode,
+          nodes: q.nodes,
+          correctNext: q.correctNext,
+        }
+      : null
+  const diag = wrong && insertQ ? diagnoseLinkedListInsert(insertQ, state.writes) : null
+  // Label-free, positional attempt: LL labels are randomized per learner, but
+  // boundary hints are cached and shared, so the prompt must carry no concrete
+  // node label (see describeWritesGeneric).
+  const aiHint = usePolyHint({
+    stageId: "linked-lists",
+    skill: "llInsert",
+    discipline: "linked-list",
+    wrongAttempt: wrong && diag ? { id: state.attempts, learnerOrder: q!.nodes } : null,
+    diagnosis: diag ? { kind: diag.kind, stepNumber: diag.stepNumber } : undefined,
+    attempt: insertQ ? describeWritesGeneric(insertQ, state.writes) : undefined,
+    boundary: diag?.boundary,
+    configKey: diag?.configKey,
+  })
+
   if (!q) return null
   const { feedback, showWhy } = state
   const canCheck = state.writes.length > 0
@@ -260,6 +294,7 @@ function RewirePart({
         hideFailHint
         copy={{ prompt: q.prompt, hint: q.hint, nudge: q.nudge, correct: q.correct, why: q.why }}
         dispatch={dispatch}
+        aiHint={aiHint}
       />
     </StageCenter>
   )
