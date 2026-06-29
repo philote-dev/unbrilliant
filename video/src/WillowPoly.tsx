@@ -174,7 +174,7 @@ export const WillowPoly: React.FC = () => {
         />
       </Sequence>
       <Sequence from={r(FROM.d2)} durationInFrames={r(D.d2)} name="06 Poly Guide / show">
-        <DemoScene dur={D.d2} url="willow.app/learn/checkpoint">
+        <DemoScene dur={D.d2} url="willow.app/learn/teach-back">
           <CheckpointWeb />
         </DemoScene>
       </Sequence>

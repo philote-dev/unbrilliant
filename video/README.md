@@ -79,7 +79,7 @@ Music is still optional: drop an `.mp3` into `public/` and set `MUSIC_FILE` in
 - `src/lessons/{SubwayMini,QueueMini,WarehouseMini}.tsx` the montage hero visuals.
 - `src/components/PolyAvatar.tsx` the Poly mascot (rounded square, one-corner eye), used for every Poly badge and the voice bubble.
 - `src/components/WebShell.tsx` the browser + sidebar app shell; `src/components/Cursor.tsx` the pointer.
-- `src/ui/web/*` the full desktop demos (stack construct / hints, checkpoint / guide, voice).
+- `src/ui/web/*` the full desktop demos (stack construct / hints, teach-back / guide, voice).
 - `src/scenes/S1Hook`, `S2Reveal`, `S6Willow`, `S7End`, `S8Sting`, `S9Science` the non-demo scenes.
 - `scripts/gen-sfx.mjs` + `public/sfx/*.wav` the sound design.
 - `src/theme.ts` Willow's light tokens; `src/font.ts` loads Geist.
