@@ -6,6 +6,8 @@ import { targetsForSkill } from "./skillMap"
 import { rubricFor, propositionsByIds } from "./rubrics"
 import { findGiveaway } from "./verifier"
 import { Proposition } from "./types"
+import { HintCache, hintCacheKey } from "./hintCache"
+import { applyPhrasing } from "./phrasing"
 
 export interface HintDiagnosis {
   // Structural failure kind from the client-side diagnose engine. Concept-
@@ -115,10 +117,26 @@ function buildUser(args: HintArgs, withheld: Proposition[]): string {
   )
 }
 
+async function generateVerified(
+  completer: Completer,
+  model: string,
+  user: string,
+  withheld: Proposition[],
+): Promise<string | null> {
+  const first = (await completer.complete({ system: BASE_SYSTEM, user, model })).trim()
+  if (findGiveaway(first, withheld).ok) return first || null
+  const second = (
+    await completer.complete({ system: STRICTER + BASE_SYSTEM, user, model })
+  ).trim()
+  if (findGiveaway(second, withheld).ok) return second || null
+  return null
+}
+
 export async function generateHint(
   completer: Completer,
   model: string,
   rawArgs: HintArgs,
+  cache?: HintCache,
 ): Promise<HintResult> {
   const args = sanitizeHintArgs(rawArgs)
   const target = targetsForSkill(args.skill)
@@ -126,17 +144,18 @@ export async function generateHint(
   const rubric = rubricFor(target.conceptId)
   if (!rubric) return { hint: null }
   const withheld = propositionsByIds(rubric, target.propositionIds)
+
+  // Cache is enabled ONLY for boundary-condition edge cases.
+  const key = cache && args.boundary === true ? hintCacheKey(args) : null
+  if (key && cache) {
+    const hit = await cache.get(key)
+    if (hit) return { hint: applyPhrasing(hit, args) }
+  }
+
   const user = buildUser(args, withheld)
-
-  const first = (await completer.complete({ system: BASE_SYSTEM, user, model })).trim()
-  if (findGiveaway(first, withheld).ok) return { hint: first || null }
-
-  const second = (
-    await completer.complete({ system: STRICTER + BASE_SYSTEM, user, model })
-  ).trim()
-  if (findGiveaway(second, withheld).ok) return { hint: second || null }
-
-  return { hint: null }
+  const base = await generateVerified(completer, model, user, withheld)
+  if (base && key && cache) await cache.set(key, base)
+  return { hint: base ? applyPhrasing(base, args) : null }
 }
 
 export const polyHint = onCall(
