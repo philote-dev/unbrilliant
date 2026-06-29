@@ -57,4 +57,23 @@ describe("generateHint cache branching", () => {
     )
     expect(hit.hint).toBe("One more look: Look again.")
   })
+
+  it("stores the un-phrased base and phrases per attempt at serve time", async () => {
+    const cache = new InMemoryHintCache()
+    const miss = await generateHint(
+      completer("Look again."),
+      "m",
+      { ...boundaryArgs, attemptIndex: 1 },
+      cache,
+    )
+    expect(miss.hint).toBe("One more look: Look again.") // miss path phrases
+    expect(await cache.get(hintCacheKey(boundaryArgs))).toBe("Look again.") // stored base is bare
+    const hit = await generateHint(
+      completer("UNUSED"),
+      "m",
+      { ...boundaryArgs, attemptIndex: 0 },
+      cache,
+    )
+    expect(hit.hint).toBe("Look again.") // hit re-derives from the bare base
+  })
 })

@@ -13,6 +13,10 @@ export function hintCacheKey(args: HintArgs): string {
   const step = args.diagnosis?.stepNumber ?? 0
   const config = args.configKey ?? ""
   const raw = `${args.discipline}:${args.skill}:${mode}:${kind}:${step}:${config}`
+  // The components above are expected to be key-safe enum/authored tokens
+  // (discipline, skill, mode, diagnosis kind, configKey). This sanitizing map
+  // ([^A-Za-z0-9_-] -> _) is non-injective: distinct unsafe inputs can collapse
+  // to the same id, so callers must not rely on free-form text in the key.
   return raw.replace(/[^A-Za-z0-9_-]/g, "_")
 }
 

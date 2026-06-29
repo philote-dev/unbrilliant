@@ -28,6 +28,12 @@ describe("hintCacheKey", () => {
     const k = hintCacheKey({ ...args, mode: undefined, diagnosis: undefined })
     expect(k).toBe("linked-list_llInsert_hint_none_0_head-insert")
   })
+
+  it("sanitizes unsafe characters in key components", () => {
+    expect(hintCacheKey({ ...args, configKey: "a/b c" })).toBe(
+      "linked-list_llInsert_hint_orphaned-tail_1_a_b_c",
+    )
+  })
 })
 
 describe("InMemoryHintCache", () => {
