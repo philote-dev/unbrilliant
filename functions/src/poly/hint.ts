@@ -51,6 +51,16 @@ const STRICTER =
   "Your previous attempt revealed too much. Be more indirect: do not name the concept, " +
   "do not use its key terms, and do not state any ordering. "
 
+const NUDGE_SYSTEM =
+  "The learner has been stuck for a while on a data-structures problem. Give ONE short " +
+  "metacognitive nudge about where to think next, never the step itself. Ask a single " +
+  "orienting question. NEVER state the correct move, the order, or name the concept. " +
+  "Use plain punctuation; never use an em dash."
+
+function systemFor(args: HintArgs): string {
+  return args.mode === "nudge" ? NUDGE_SYSTEM : BASE_SYSTEM
+}
+
 // Defensive caps: these callables are public and unauthenticated, so a hostile
 // caller could pass huge payloads to run up model cost and latency. The real
 // client sends tiny data, so clamping is invisible in normal use.
@@ -88,6 +98,17 @@ function buildUser(args: HintArgs, withheld: Proposition[]): string {
   const prior = args.priorHint
     ? `\nYour previous hint was: "${args.priorHint}". Take a different angle.`
     : ""
+  if (args.mode === "nudge") {
+    const where = args.diagnosis
+      ? ` They look stuck around move ${args.diagnosis.stepNumber}.`
+      : ""
+    return (
+      `Structure: ${args.discipline}\n` +
+      `The learner is stuck and has not acted for a while.${where}\n` +
+      `Ask one short orienting question about where to focus next. ` +
+      `Do NOT state any move or the order.`
+    )
+  }
   if (args.discipline === "array") {
     return (
       `Structure: a fixed-size memory block that is full.\n` +
@@ -120,13 +141,14 @@ function buildUser(args: HintArgs, withheld: Proposition[]): string {
 async function generateVerified(
   completer: Completer,
   model: string,
+  system: string,
   user: string,
   withheld: Proposition[],
 ): Promise<string | null> {
-  const first = (await completer.complete({ system: BASE_SYSTEM, user, model })).trim()
+  const first = (await completer.complete({ system, user, model })).trim()
   if (findGiveaway(first, withheld).ok) return first || null
   const second = (
-    await completer.complete({ system: STRICTER + BASE_SYSTEM, user, model })
+    await completer.complete({ system: STRICTER + system, user, model })
   ).trim()
   if (findGiveaway(second, withheld).ok) return second || null
   return null
@@ -153,7 +175,7 @@ export async function generateHint(
   }
 
   const user = buildUser(args, withheld)
-  const base = await generateVerified(completer, model, user, withheld)
+  const base = await generateVerified(completer, model, systemFor(args), user, withheld)
   if (base && key && cache) await cache.set(key, base)
   return { hint: base ? applyPhrasing(base, args) : null }
 }
