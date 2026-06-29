@@ -101,7 +101,7 @@ describe("Teachback (voice mode)", () => {
     )
     await waitFor(() =>
       expect(speakText).toHaveBeenCalledWith(
-        "In your own words, explain stacks.",
+        "Teach it back: explain stacks in your own words.",
         expect.any(AbortSignal),
       ),
     )
