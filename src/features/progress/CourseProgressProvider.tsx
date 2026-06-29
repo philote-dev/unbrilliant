@@ -60,6 +60,10 @@ export function CourseProgressProvider({ children }: { children: ReactNode }) {
   } = useLessonRun()
   const repo = useMemo(() => createFirestoreProgressRepository(db), [])
   const [server, setServer] = useState<ProgressByLesson>({})
+  // Lessons finished during this session, kept beyond their active run. This is
+  // what lets an anonymous learner (who has no `server`) advance: once they
+  // finish a lesson its completion stays counted, so the next lesson unlocks.
+  const [sessionProgress, setSessionProgress] = useState<ProgressByLesson>({})
   const [currentCourseId, setCurrentCourseId] = useState<string | null>(null)
   const [serverStreak, setServerStreak] = useState({ current: 0, longest: 0 })
   const [serverActivity, setServerActivity] = useState<ActivityDay[]>([])
@@ -150,12 +154,27 @@ export function CourseProgressProvider({ children }: { children: ReactNode }) {
     [user, repo],
   )
 
-  // Overlay the live run for the active lesson so mid-run progress shows at once
-  // (and so an anonymous run, which never persists, is still reflected).
+  // Record a lesson's progress once it completes, so a finished lesson stays
+  // counted for the rest of the session even after its run stops being active.
+  // Only completions are recorded and they are never downgraded, so re-playing a
+  // finished lesson can never re-lock what comes after it.
+  useEffect(() => {
+    if (!runModule.hasProgress(runState)) return
+    const p = runModule.toProgress(runState)
+    if (!p.completed) return
+    setSessionProgress((prev) =>
+      prev[runLessonId]?.completed ? prev : { ...prev, [runLessonId]: p },
+    )
+  }, [runState, runModule, runLessonId])
+
+  // Overlay order: persisted server progress, then this session's completed
+  // lessons (an upgrade-only layer that carries an anonymous learner forward),
+  // then the live active run on top so mid-run progress shows at once.
   const progressByLesson = useMemo<ProgressByLesson>(() => {
-    if (!runModule.hasProgress(runState)) return server
-    return { ...server, [runLessonId]: runModule.toProgress(runState) }
-  }, [server, runState, runModule, runLessonId])
+    const base = { ...server, ...sessionProgress }
+    if (!runModule.hasProgress(runState)) return base
+    return { ...base, [runLessonId]: runModule.toProgress(runState) }
+  }, [server, sessionProgress, runState, runModule, runLessonId])
 
   const courseProgress = useCallback(
     (courseId: string) => deriveCourseProgress(courseId, progressByLesson),
