@@ -91,10 +91,34 @@ const arraysRubric: Rubric = {
   ],
 }
 
+const linkedListsRubric: Rubric = {
+  conceptId: "linked-lists",
+  propositions: [
+    {
+      id: "P1",
+      text: "Save the rest of the list (aim the new node at the tail) before repointing",
+      answerTokens: [
+        "save the rest",
+        "save first",
+        "new node first",
+        "aim x",
+        "new.next",
+        "point the new node",
+      ],
+    },
+    {
+      id: "P2",
+      text: "Repointing the predecessor first orphans the tail (unreachable from the head)",
+      answerTokens: ["orphan", "orphaned", "unreachable", "floats off", "stranded", "lost the tail"],
+    },
+  ],
+}
+
 export const RUBRICS: Record<string, Rubric> = {
   stacks: stacksRubric,
   queues: queuesRubric,
   arrays: arraysRubric,
+  "linked-lists": linkedListsRubric,
 }
 
 export function rubricFor(conceptId: string): Rubric | undefined {
