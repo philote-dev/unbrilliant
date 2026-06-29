@@ -887,6 +887,9 @@ function GrowPart({
     wrongAttempt: wrongGrowOne
       ? { id: state.attempts, learnerOrder: ["grow the block by one slot"] }
       : null,
+    boundary: true,
+    configKey: "full-block",
+    diagnosis: { kind: "grow-by-one", stepNumber: 0 },
   })
 
   if (!q || !q.options) return null
