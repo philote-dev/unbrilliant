@@ -27,7 +27,7 @@ import { db } from "@/lib/firebase"
 
 type TranscriptUpdate = { finalText: string; interimText: string }
 
-export interface PolyCheckpointProps {
+export interface TeachbackProps {
   conceptId: string
   conceptName: string
   uid: string | null
@@ -85,7 +85,7 @@ function PolyOrb({ phase, reduce }: { phase: VoicePhase; reduce: boolean | null 
   )
 }
 
-export function PolyCheckpoint({
+export function Teachback({
   conceptId,
   conceptName,
   uid,
@@ -98,7 +98,7 @@ export function PolyCheckpoint({
   speakText = defaultSpeakText,
   createTranscriber = (opts) =>
     createRealtimeTranscriber({ ...opts, getToken: defaultRealtimeToken }),
-}: PolyCheckpointProps) {
+}: TeachbackProps) {
   const reduce = useReducedMotion()
 
   const [phase, setPhase] = useState<Phase>("answering")

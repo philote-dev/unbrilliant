@@ -26,7 +26,7 @@ vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: null }) }))
 vi.mock("@/lib/ai/polyClient", () => ({
   scoreExplanation: vi.fn().mockResolvedValue({ scores: [{ id: "P1", verdict: "covered" }], weakest: null }),
   requestProbe: vi.fn().mockResolvedValue({ question: null }),
-  // Checkpoint voice is on in the live Stage now, so the real PolyCheckpoint
+  // Checkpoint voice is on in the live Stage now, so the real Teachback
   // speaks the question and tries to open a realtime mic on mount. Stub the
   // audio callables to no-op and return no realtime token, so the component
   // fails soft to the keyboard sheet and this stays a pure renderer check.
