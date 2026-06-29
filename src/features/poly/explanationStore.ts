@@ -10,14 +10,14 @@ export interface ExplanationRecord {
   explanation: string
 }
 
-/** Persist a raw checkpoint explanation under the signed-in learner. Callers must
+/** Persist a raw teach-back explanation under the signed-in learner. Callers must
  * only invoke this with a real uid (anonymous play skips storage). */
 export async function saveExplanation(
   db: Firestore,
   uid: string,
   rec: ExplanationRecord,
 ): Promise<void> {
-  await addDoc(collection(db, "users", uid, "checkpointExplanations"), {
+  await addDoc(collection(db, "users", uid, "teachbackExplanations"), {
     conceptId: rec.conceptId,
     explanation: rec.explanation,
     createdAt: serverTimestamp(),
