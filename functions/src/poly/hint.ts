@@ -8,6 +8,9 @@ import { findGiveaway } from "./verifier"
 import { Proposition } from "./types"
 import { HintCache, hintCacheKey } from "./hintCache"
 import { applyPhrasing } from "./phrasing"
+import { getAdminDb } from "../firebaseAdmin"
+import { firestoreHintCache } from "./firestoreHintCache"
+import { BOUNDARY_SHAPES } from "./boundaryShapes"
 
 export interface HintDiagnosis {
   // Structural failure kind from the client-side diagnose engine. Concept-
@@ -180,12 +183,29 @@ export async function generateHint(
   return { hint: base ? applyPhrasing(base, args) : null }
 }
 
+let cacheSingleton: HintCache | undefined
+function hintCache(): HintCache {
+  if (!cacheSingleton) {
+    // Persist ONLY authored boundary keys. polyHint is public + unauthenticated
+    // and casts request.data, so this allowlist stops a hostile caller from
+    // poisoning or growing the shared cache with attacker-chosen keys.
+    const allowlist = new Set(BOUNDARY_SHAPES.map(hintCacheKey))
+    cacheSingleton = firestoreHintCache(getAdminDb(), { allowlist })
+  }
+  return cacheSingleton
+}
+
 export const polyHint = onCall(
   { secrets: [OPENAI_API_KEY] },
   async (request): Promise<HintResult> => {
     try {
       const completer = openAICompleter(createClient(OPENAI_API_KEY.value()))
-      return await generateHint(completer, resolveModel(), request.data as HintArgs)
+      return await generateHint(
+        completer,
+        resolveModel(),
+        request.data as HintArgs,
+        hintCache(),
+      )
     } catch (err) {
       logger.error("polyHint failed", err)
       return { hint: null }
