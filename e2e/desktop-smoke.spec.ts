@@ -48,6 +48,46 @@ async function buildConstruct(page: Page) {
   await continueOn(page)
 }
 
+/** Move on from a completion screen. Signed out, the sign-in re-prompt recurs on
+ * every completion, so dismiss it (if shown), then take the "Continue to X" CTA. */
+async function nextLesson(page: Page, cta: RegExp) {
+  const maybeLater = page.getByRole("button", { name: "Maybe later", exact: true })
+  if (await maybeLater.isVisible().catch(() => false)) await maybeLater.click()
+  await page.getByRole("button", { name: cta }).click()
+}
+
+/** Play the Introduction gate that now fronts Lesson 1: the animated welcome, two
+ * reading pages, then four checks (three job MCQs and the faster-object pick).
+ * Completing it unlocks Stacks & Queues. Mirrors the tracer's intro recipe. */
+async function playIntro(page: Page) {
+  await page.getByRole("button", { name: "Begin" }).click() // welcome hero
+  await continueOn(page) // reading page 1
+  await continueOn(page) // reading page 2
+  await page.getByRole("button", { name: "Start the questions" }).click() // jobs page
+  for (let i = 0; i < 3; i++) {
+    await page.locator('[data-testid="answer-card"][data-answer="1"]').first().click()
+    await page.getByRole("button", { name: "Check" }).click()
+    await continueOn(page)
+  }
+  await page.getByRole("button", { name: "Alphabetized" }).click() // faster-object pick
+  await page.getByRole("button", { name: "Check" }).click()
+  await continueOn(page) // commits the last check → completes the intro
+}
+
+/** S&Q shows a Poly "quick check" after each construct (cp-stacks / cp-queues). It
+ * opens in voice mode, unavailable headless, so fall back to typing: reveal the
+ * keyboard if needed, give any explanation, submit, and continue on the recap. */
+async function polyCheckpoint(page: Page) {
+  const box = page.getByPlaceholder("Type your explanation...")
+  await box.waitFor({ state: "visible", timeout: 12_000 }).catch(async () => {
+    await page.getByRole("button", { name: "Type instead" }).click()
+    await box.waitFor({ state: "visible", timeout: 12_000 })
+  })
+  await box.fill("A stack is last in, first out; a queue is first in, first out.")
+  await page.getByRole("button", { name: "Submit", exact: true }).click()
+  await continueOn(page)
+}
+
 test("desktop shell: sidebar nav + command palette", async ({ page }) => {
   await page.goto("/")
 
@@ -81,13 +121,19 @@ test("desktop: a lesson plays end to end (centered, drag, split beats)", async (
   await page.getByRole("button", { name: /Data Structures/ }).click()
   await page.getByRole("button", { name: "Start", exact: true }).click()
 
-  // Stack: demo -> teach -> predict (centered cell) -> real-world -> construct (drag).
+  // The Introduction now gates Lesson 1: play it, then continue to Stacks & Queues.
+  await playIntro(page)
+  await nextLesson(page, /Continue to Stacks & Queues/)
+
+  // Stack: demo -> teach -> predict (centered cell) -> real-world -> construct
+  // (drag) -> Poly quick-check.
   await playDemo(page, /Push/)
   await continueOn(page)
   await answerCell(page)
   await dismissNudge(page)
   await answerCell(page)
   await buildConstruct(page)
+  await polyCheckpoint(page)
 
   // Queue.
   await playDemo(page, /Enqueue/)
@@ -96,6 +142,7 @@ test("desktop: a lesson plays end to end (centered, drag, split beats)", async (
   await dismissNudge(page)
   await answerCell(page)
   await buildConstruct(page)
+  await polyCheckpoint(page)
 
   // Compare gate (split beats): classify, contrast.
   await answerCell(page)
@@ -111,5 +158,10 @@ test("desktop: a lesson plays end to end (centered, drag, split beats)", async (
   await expect(maybeLater).toBeVisible()
   await maybeLater.click()
   await expect(maybeLater).toBeHidden()
-  await expect(page.getByRole("button", { name: /Continue to Arrays/ })).toBeVisible()
+
+  // It then offers the next step. Signed out, in-memory progress overlays only the
+  // active run, so "next" is recomputed without the earlier intro completion (the
+  // mobile tracer signs in to prove the real Arrays unlock). Assert the continue
+  // affordance is present, not a specific lesson.
+  await expect(page.getByRole("button", { name: /^Continue to / })).toBeVisible()
 })
