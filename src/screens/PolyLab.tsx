@@ -198,7 +198,7 @@ export function PolyLab() {
       </div>
       <p className="mt-2 text-center text-sm text-muted-foreground">
         Try the Phase 2 AI features in isolation: the health check, action-grounded hints,
-        and self-explanation checkpoints.
+        and self-explanation teach-backs.
       </p>
 
       <ModeToggle mode={mode} setMode={setMode} />
@@ -865,7 +865,7 @@ function TeachbackPanel({ mode, uid }: { mode: Mode; uid: string | null }) {
   return (
     <DemoCard
       icon={<MessageSquareText className="size-5" />}
-      title="3 · Self-explanation checkpoint"
+      title="3 · Teach-back"
       desc="At a concept boundary, Poly asks you to explain it, scores each idea (the dots), probes the weakest gap, then affirms. Non-gating."
     >
       <div className="flex flex-wrap items-center gap-2">
@@ -892,7 +892,7 @@ function TeachbackPanel({ mode, uid }: { mode: Mode; uid: string | null }) {
       <div className="mt-4 flex min-h-[380px] flex-col rounded-2xl border border-dashed border-border bg-background/40 p-4">
         {completed ? (
           <div className="m-auto text-center">
-            <p className="text-sm font-medium text-foreground">Checkpoint complete.</p>
+            <p className="text-sm font-medium text-foreground">Teach-back complete.</p>
             <p className="mt-1 text-xs text-muted-foreground">
               In a lesson this returns the learner to the next beat.
             </p>
