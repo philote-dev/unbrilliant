@@ -1,5 +1,5 @@
 /**
- * Pure geometry for the literal-arrow NodeGraph. No DOM, no React — given node
+ * Pure geometry for the literal-arrow NodeGraph. No DOM, no React. Given node
  * boxes it computes where each box sits and the SVG path for a `next` arrow
  * between two boxes.
  *
@@ -7,9 +7,9 @@
  * line it travels (it "wraps" the circular rim instead of poking out of a fixed
  * cardinal point), and the shaft stops at the arrowhead's base so the head reads
  * as one **continuous** stroke. Two routings:
- *  - `directArrow` — a straight edge-to-edge arrow between any two circles, used
+ *  - `directArrow` is a straight edge-to-edge arrow between any two circles, used
  *    when nodes are freely placed (the drag demo).
- *  - `arrowGeom` — the structured routing for the tidy row: straight between
+ *  - `arrowGeom` is the structured routing for the tidy row: straight between
  *    row-adjacent nodes, an arc **above** the row for non-adjacent same-row links
  *    (clearing the nodes between), and a diagonal arc to/from a loose node.
  *
@@ -66,7 +66,7 @@ export function columnBoxes(ids: string[]): Map<string, Box> {
 /**
  * Boustrophedon ("snake") wrap into rows of `perRow`: even rows run left→right,
  * odd rows right→left, so each row's last node sits directly above the next row's
- * first node — every consecutive link is a plain neighbour (horizontal or a clean
+ * first node. Every consecutive link is a plain neighbour (horizontal or a clean
  * vertical turn), no backtracking arrows. Keeps nodes full-size on a narrow phone.
  */
 export function wrapBoxes(ids: string[], perRow: number): Map<string, Box> {
@@ -143,7 +143,7 @@ export function isAdjacentRow(a: Box, b: Box): boolean {
 }
 
 export interface ArrowGeom {
-  /** SVG path `d` — the shaft, stopping at the arrowhead's base (continuous head). */
+  /** SVG path `d`, the shaft, stopping at the arrowhead's base (continuous head). */
   d: string
   /** The arrowhead tip, on the target's circular edge. */
   tip: Pt

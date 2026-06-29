@@ -4,9 +4,11 @@ import { render, fireEvent, within } from "@testing-library/react"
 import type { LessonAction } from "@/features/lesson/engine"
 import {
   T_BAL,
+  bstBuildNextStep,
   createTrees,
   currentPartTrees,
   inorder,
+  isBstBuildSolved,
   treesReducer,
   type TreesPart,
   type TreesState,
@@ -40,6 +42,9 @@ afterEach(() => setReducedMotion(false))
 const run = (s: TreesState, ...actions: LessonAction[]) => actions.reduce(treesReducer, s)
 const cont = (s: TreesState) => run(s, { type: "continue" })
 
+const isContinue = (p: TreesPart) =>
+  p === "demo" || p === "teach-descend" || p === "watched-build" || p === "teach-inorder"
+
 /** Clear the current graded beat and advance (mirrors the engine driver). */
 function clear(s: TreesState): TreesState {
   const q = s.question!
@@ -51,6 +56,7 @@ function clear(s: TreesState): TreesState {
   }
   switch (q.kind) {
     case "find-hit":
+    case "find-big":
     case "realworld":
       descend(false)
       r = run(r, { type: "check" })
@@ -60,8 +66,18 @@ function clear(s: TreesState): TreesState {
       descend(true)
       r = run(r, { type: "check" })
       break
+    case "build-bst-1":
+    case "build-bst-2": {
+      let guard = 0
+      while (r.build && !isBstBuildSolved(r.build) && guard++ < 60) {
+        const step = bstBuildNextStep(r.build)!
+        r = run(r, { type: "select", letter: step.kind === "node" ? step.id : `ghost:${step.side}` })
+      }
+      break
+    }
     case "sequence-a":
     case "sequence-b":
+    case "sequence-c":
       for (const id of q.order) r = run(r, { type: "select", letter: id })
       r = run(r, { type: "check" })
       break
@@ -81,8 +97,7 @@ function atPart(target: TreesPart): TreesState {
   let s = createTrees(1)
   let guard = 0
   while (currentPartTrees(s) !== target && guard++ < 40) {
-    const p = currentPartTrees(s)
-    s = p === "demo" || p === "teach-descend" || p === "teach-inorder" ? cont(s) : clear(s)
+    s = isContinue(currentPartTrees(s)) ? cont(s) : clear(s)
   }
   return s
 }
@@ -161,15 +176,15 @@ describe("TreeFigure: straighten payoff", () => {
     expect(done.getByTestId("tree-figure")).toHaveAttribute("data-straightened", "1")
   })
 
-  it("also straightens on Why after a fail (the answer is shown)", () => {
+  it("frontier-gating makes a wrong order impossible to enter (de-cue)", () => {
+    // Trying to tap out of order (the 2nd node first) is rejected, so a learner
+    // can never commit a value-sorted shortcut: there is nothing wrong to grade.
     let s = atPart("sequence-a")
     const order = s.question!.order
-    const swapped = [order[1], order[0], ...order.slice(2)]
-    for (const id of swapped) s = run(s, { type: "select", letter: id })
-    s = run(s, { type: "check" }, { type: "check" }, { type: "reveal" })
-    expect(s.feedback).toBe("fail")
+    s = run(s, { type: "select", letter: order[1] }) // out-of-order: a no-op
+    expect(s.tappedOrder).toEqual([])
     const { getByTestId } = render(<TreeFigure state={s} dispatch={vi.fn()} />)
-    expect(getByTestId("tree-figure")).toHaveAttribute("data-straightened", "1")
+    expect(getByTestId("tree-figure")).toHaveAttribute("data-straightened", "0")
   })
 })
 
@@ -188,25 +203,50 @@ describe("DisplayTree: in-order ranks (teach-inorder order)", () => {
   })
 })
 
-describe("TreeFigure: sequence", () => {
-  it("makes every node tappable and stamps its in-order rank", () => {
+describe("TreeFigure: sequence (frontier-gated)", () => {
+  it("exposes only the next in-order node as tappable, with the answer hook", () => {
     const s = atPart("sequence-a") // T_BAL, inorder n2,n4,n6,n8,n10,n12,n14
     const { container } = render(<TreeFigure state={s} dispatch={vi.fn()} />)
-    expect(container.querySelectorAll("[data-tappable]").length).toBe(7)
-    expect(container.querySelector('[data-node-id="n2"]')).toHaveAttribute("data-inorder-rank", "0")
+    // de-cued: a learner cannot tap by ascending value; only n2 (the frontier) is live.
+    const tappable = [...container.querySelectorAll("[data-tappable]")]
+    expect(tappable).toHaveLength(1)
+    expect(tappable[0]).toHaveAttribute("data-node-id", "n2")
+    expect(tappable[0]).toHaveAttribute("data-answer", "1")
+    // every node still stamps its in-order rank for the layout/tracer.
     expect(container.querySelector('[data-node-id="n8"]')).toHaveAttribute("data-inorder-rank", "3")
-    expect(container.querySelector('[data-node-id="n14"]')).toHaveAttribute("data-inorder-rank", "6")
   })
 
-  it("dispatches a select for the tapped node, and locks tapped nodes", () => {
+  it("advances the frontier as nodes are tapped in order", () => {
     const dispatch = vi.fn()
     let s = atPart("sequence-a")
     s = run(s, { type: "select", letter: "n2" }) // tap the in-order first node
     const { container } = render(<TreeFigure state={s} dispatch={dispatch} />)
-    // n2 is now committed (shows its order badge, no longer a tappable button)
+    // n2 is committed (its order badge, no longer a button); the frontier is now n4.
     expect(container.querySelector('button[data-node-id="n2"]')).toBeNull()
+    const tappable = container.querySelectorAll("[data-tappable]")
+    expect(tappable).toHaveLength(1)
     fireEvent.click(container.querySelector('button[data-node-id="n4"]')!)
     expect(dispatch).toHaveBeenCalledWith({ type: "select", letter: "n4" })
+  })
+})
+
+describe("TreeFigure: build-the-BST", () => {
+  it("descends the incoming key: only the cursor's child + ghosts are live, with the answer hook", () => {
+    const s = atPart("build-bst-1") // grows [6,4,9,2,5,8]; root 6 placed, placing 4 (drops left)
+    const { container } = render(<TreeFigure state={s} dispatch={vi.fn()} />)
+    // at the root with one child path, the empty left slot is the correct drop.
+    const ghosts = [...container.querySelectorAll("[data-ghost-side]")]
+    const answer = container.querySelector('[data-answer="1"]')
+    expect(answer).not.toBeNull()
+    expect(ghosts.length).toBeGreaterThan(0)
+  })
+
+  it("dispatches a ghost drop when the empty slot is tapped", () => {
+    const dispatch = vi.fn()
+    const s = atPart("build-bst-1")
+    const { container } = render(<TreeFigure state={s} dispatch={dispatch} />)
+    fireEvent.click(container.querySelector('[data-ghost-side="left"]')!)
+    expect(dispatch).toHaveBeenCalledWith({ type: "select", letter: "ghost:left" })
   })
 })
 

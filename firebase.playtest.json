@@ -1,0 +1,30 @@
+{
+  "firestore": {
+    "database": "(default)",
+    "location": "nam5",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "emulators": {
+    "singleProjectMode": true,
+    "auth": {
+      "port": 9197
+    },
+    "firestore": {
+      "port": 8197
+    },
+    "functions": {
+      "port": 5297
+    },
+    "hosting": {
+      "port": 5097
+    },
+    "ui": {
+      "enabled": true,
+      "port": 4097
+    }
+  },
+  "auth": {
+    "providers": {}
+  }
+}

@@ -17,7 +17,7 @@ function eachParent(root: TreeNode, fn: (node: TreeNode) => void): void {
   if (root.right) eachParent(root.right, fn)
 }
 
-describe("tidyLayout — x is the in-order index", () => {
+describe("tidyLayout x is the in-order index", () => {
   it("orders nodes left→right exactly by in-order (T_BAL)", () => {
     const { pos } = tidyLayout(T_BAL)
     const xs = inorder(T_BAL).map((id) => pos.get(id)!.x)
@@ -28,7 +28,7 @@ describe("tidyLayout — x is the in-order index", () => {
   it("draws the degenerate stick as a descending staircase", () => {
     const { pos } = tidyLayout(T_STICK)
     const ids = inorder(T_STICK)
-    // x rises with in-order AND y rises with depth — a diagonal (a list as a tree).
+    // x rises with in-order AND y rises with depth, a diagonal (a list as a tree).
     const xs = ids.map((id) => pos.get(id)!.x)
     const ys = ids.map((id) => pos.get(id)!.y)
     expect(xs).toEqual([...xs].sort((a, b) => a - b))
@@ -36,7 +36,7 @@ describe("tidyLayout — x is the in-order index", () => {
   })
 })
 
-describe("compactLayout — non-monotonic, but locally correct", () => {
+describe("compactLayout non-monotonic, but locally correct", () => {
   it("scrambles global pixel-x away from in-order (T_BAL)", () => {
     const { pos } = compactLayout(T_BAL)
     const xs = inorder(T_BAL).map((id) => pos.get(id)!.x)
@@ -69,7 +69,7 @@ describe("compactLayout — non-monotonic, but locally correct", () => {
   })
 })
 
-describe("straighten — compact → tidy", () => {
+describe("straighten compact → tidy", () => {
   it("interpolation endpoints equal the two layouts", () => {
     const compact = compactLayout(T_BAL)
     const tidy = tidyLayout(T_BAL)

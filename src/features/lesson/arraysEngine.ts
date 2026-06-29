@@ -267,10 +267,10 @@ function makeJump(seed: number): { question: ArraysQuestion; next: number } {
   const value = cells[answerIndex]
   const why =
     ask === "last"
-      ? `The last index is ${n - 1}, not ${n}: ${n} cells run 0…${n - 1}.`
+      ? `The last index is ${n - 1}, not ${n}. ${n} cells run 0…${n - 1}.`
       : ask === "first"
         ? "The first element sits at index 0. Counting starts at zero."
-        : `Index ${answerIndex} is a direct hop: you jump straight to that cell instead of searching for it.`
+        : `Index ${answerIndex} is a direct hop. You jump straight to that cell instead of searching for it.`
 
   return {
     question: {
@@ -284,7 +284,7 @@ function makeJump(seed: number): { question: ArraysQuestion; next: number } {
       cost: { word: "free", count: 1, unit: "step" },
       hint: "",
       nudge: "Counting starts at 0. Line the cell up with its ruler tick.",
-      correct: `Right: ${value} at index ${answerIndex}, one jump.`,
+      correct: `Right. ${value} is at index ${answerIndex}, one jump.`,
       why,
     },
     next: a,
@@ -317,8 +317,8 @@ function makeScan(seed: number): { question: ArraysQuestion; next: number } {
       cost: { word: "scales", count: steps, unit: steps === 1 ? "step" : "steps" },
       hint: "",
       nudge: "A value search walks cell by cell from the front.",
-      correct: `Right: ${value} sits at index ${idx}, ${steps} cells in. No shortcut, you scan.`,
-      why: `With only the value you must scan from the front until ${value} matches: ${steps} cell${plural(steps)}. That's why a search scales while an index jump is free.`,
+      correct: `Right. ${value} sits at index ${idx}, ${steps} cells in. No shortcut, you scan.`,
+      why: `With only the value you must scan from the front until ${value} matches. That takes ${steps} cell${plural(steps)}. That's why a search scales while an index jump is free.`,
     },
     next: a,
   }
@@ -349,8 +349,8 @@ function makeInsert(seed: number): { question: ArraysQuestion; next: number } {
       cost: { word: "scales", count: moved, unit: moved === 1 ? "cell moved" : "cells moved" },
       hint: "",
       nudge: "Only the cells from the insert point on move. Count exactly those.",
-      correct: `Right: ${moved} cell${plural(moved)} shift right.`,
-      why: `Everything from index ${index} on slides right by one to open the gap: ${moved} cell${plural(moved)} move.`,
+      correct: `Right. ${moved} cell${plural(moved)} shift right.`,
+      why: `Everything from index ${index} on slides right by one to open the gap. ${moved} cell${plural(moved)} move.`,
     },
     next: a,
   }
@@ -381,8 +381,8 @@ function makeDelete(seed: number): { question: ArraysQuestion; next: number } {
       cost: { word: "scales", count: moved, unit: moved === 1 ? "cell moved" : "cells moved" },
       hint: "",
       nudge: "Only the cells after the gap move. Count exactly those.",
-      correct: `Right: ${moved} cell${plural(moved)} shift left.`,
-      why: `Everything after index ${index} slides left to close the gap: ${moved} cell${plural(moved)} move.`,
+      correct: `Right. ${moved} cell${plural(moved)} shift left.`,
+      why: `Everything after index ${index} slides left to close the gap. ${moved} cell${plural(moved)} move.`,
     },
     next: a,
   }
@@ -408,7 +408,7 @@ function makePlaceCheapest(seed: number): { question: ArraysQuestion; next: numb
       cost: { word: "free", count: 0, unit: "cells moved" },
       hint: "",
       nudge: "Adding at the head shoves every cell over. The open end past the tail shoves nothing.",
-      correct: "Right: the tail is free, nothing comes after it, so nothing moves.",
+      correct: "Right. The tail is free, nothing comes after it, so nothing moves.",
       why: `Inserting at the head shifts all ${n} cells; the middle shifts ${n - 2}; the tail shifts 0. Add past the tail and nothing has to move.`,
     },
     next: a,
@@ -460,8 +460,8 @@ function makeRealworld(seed: number): { question: ArraysQuestion; next: number }
       cost: { word: "scales", count: moved, unit: moved === 1 ? "row moved" : "rows moved" },
       hint: "",
       nudge: "Only the rows past the spot move. Count exactly those.",
-      correct: `Right: ${moved} row${plural(moved)} shift.`,
-      why: `Rows sit in one unbroken block, so a change at row ${index + 1} slides every row after it: ${moved} move.`,
+      correct: `Right. ${moved} row${plural(moved)} shift.`,
+      why: `Rows sit in one unbroken block, so a change at row ${index + 1} slides every row after it. ${moved} move.`,
     },
     next: a,
   }
@@ -493,7 +493,7 @@ function makeGrow(seed: number): { question: ArraysQuestion; next: number } {
       cost: { word: "usually free", count: size, unit: "items copied" },
       hint: "",
       nudge: "A full block can't take a quick fix. Think about what the very next item would cost.",
-      correct: `Right: it doubles to ${capacity * 2} and copies all ${capacity} across.`,
+      correct: `Right. It doubles to ${capacity * 2} and copies all ${capacity} across.`,
       why: "A full block has no room, so it makes a bigger one and copies every item over. Make it twice as big and those copies stay rare. Usually free, with the occasional big reshuffle.",
     },
     next: a,
@@ -823,7 +823,7 @@ export function shiftFrames(array: string[], op: ArrayOp): ShiftFrame[] {
     const frames: ShiftFrame[] = [
       {
         cells: calm(cells),
-        caption: `Insert ${inserted} at index ${i}: first make room.`,
+        caption: `Insert ${inserted} at index ${i}. First make room.`,
         columns,
       },
     ]
@@ -903,7 +903,7 @@ export function resizeFrames(r: ArrayResize): ResizeFrame[] {
         filled: size + 1,
         copying: null,
         phase: "place",
-        caption: "Room to spare: the new item drops straight in.",
+        caption: "Room to spare. The new item drops straight in.",
       },
     ]
   }
@@ -960,19 +960,22 @@ export interface AmortizedRun {
 
 /**
  * Deterministic amortized tally: append `count` items into a block that starts at
- * `startCapacity`, growing by the policy when full ("double" = capacity * 2,
- * "plusOne" = capacity + 1). A grow copies every current item, so `totalCopied`
- * is the headline cost. PURE and view-only: same args, same run. Used by the
- * grow-summary figure to contrast doubling (rare copies) with grow-by-one (a copy
- * on almost every append).
+ * `startCapacity` already holding `startSize` items, growing by the policy when full
+ * ("double" = capacity * 2, "plusOne" = capacity + 1). A grow copies every current
+ * item, so `totalCopied` is the headline cost. Starting part-full (e.g. a full block
+ * of 4) models "you already have N items, now keep appending" without counting the
+ * copies it took to build up to N. PURE and view-only: same args, same run. Used by
+ * the grow-summary figure to contrast doubling (rare copies) with grow-by-one (a
+ * copy on almost every append).
  */
 export function appendRun(
   count: number,
   mode: "double" | "plusOne",
   startCapacity = 1,
+  startSize = 0,
 ): AmortizedRun {
   let capacity = Math.max(1, startCapacity)
-  let size = 0
+  let size = Math.min(startSize, capacity)
   let totalCopied = 0
   const steps: AppendStep[] = []
   for (let n = 1; n <= count; n++) {

@@ -35,11 +35,13 @@ const LESSON_SUBSKILLS: Record<string, string[]> = {
     "playlist",
     "contrastInsert",
     "contrastReach",
+    "doublySplice",
+    "doublyWalk",
   ],
-  "hash-tables": ["hash", "collision", "lookup"],
-  trees: ["locate", "sequence", "comparison"],
-  heaps: ["siftUp", "siftDown", "mapping", "contrast"],
-  graphs: ["read", "draw", "same"],
+  "hash-tables": ["hash", "collision", "design", "lookup"],
+  trees: ["locate", "sequence", "build", "comparison"],
+  heaps: ["siftUp", "build", "siftDown", "mapping", "contrast", "synthesis"],
+  graphs: ["read", "draw", "build", "same"],
 }
 
 /**

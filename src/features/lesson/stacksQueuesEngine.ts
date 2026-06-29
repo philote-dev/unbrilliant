@@ -327,7 +327,7 @@ function makeGraded(
             prompt: "Pop twice. After two pops, which card is on top?",
             hint: "Each pop lifts off the top card, so two pops clear the top two.",
             nudge: "Take the top two cards away, then read off the new top.",
-            correct: "Right: D pops, then C, so B is on top.",
+            correct: "Right. D pops, then C, so B is on top.",
             why: "Pop removes the top card. D leaves first, then C, which leaves B on top.",
           },
         ),
@@ -353,7 +353,7 @@ function makeGraded(
             prompt: "You opened these pages in order, then press Back. Which page leaves the top of the history?",
             hint: "Browser history is a stack. Back returns you from the page you are on now.",
             nudge: "Which page did you open most recently?",
-            correct: "Right: the page you opened most recently sits on top, so Back leaves it first.",
+            correct: "Right. The page you opened most recently sits on top, so Back leaves it first.",
             why: "History is a stack. The newest page is on top, so Back leaves it before the older ones.",
           },
         ),
@@ -367,7 +367,7 @@ function makeGraded(
           prompt: "Push the cards so they pop out in the order shown.",
           hint: "",
           nudge: "To pop A first, A has to be pushed last, on top.",
-          correct: "Right: push C, B, A and they pop out A, B, C.",
+          correct: "Right. Push C, B, A and they pop out A, B, C.",
           why: "A stack reverses order. To get A out first, push it last, so push C, then B, then A.",
         }),
         construct: { loose: shuffle(["A", "B", "C"], a).result, pushed: [] },
@@ -387,8 +387,8 @@ function makeGraded(
             prompt: "Dequeue one item. Which leaves?",
             hint: "A queue lets items out the front, the end that has waited longest.",
             nudge: "Which item has been waiting the longest?",
-            correct: "Right: A arrived first, so it leaves first.",
-            why: "First in, first out: A joined first, so it is at the front and leaves first.",
+            correct: "Right. A arrived first, so it leaves first.",
+            why: "A joined first, so it is at the front and leaves first. That is first in, first out.",
           },
         ),
         construct: null,
@@ -410,9 +410,9 @@ function makeGraded(
           { kind: "first-out" },
           {
             prompt: "Documents are sent to the printer in this order. Which one prints first?",
-            hint: "A print queue is a queue: first in, first out.",
+            hint: "A print queue is a queue, so it is first in, first out.",
             nudge: "Which document has been waiting in the queue the longest?",
-            correct: "Right: the document sent first is at the front, so it prints first.",
+            correct: "Right. The document sent first is at the front, so it prints first.",
             why: "A print queue is first in, first out. The document sent first is at the front, so it prints before the rest.",
           },
         ),
@@ -426,8 +426,8 @@ function makeGraded(
           prompt: "Add the items so they come out in the order shown.",
           hint: "",
           nudge: "Whatever order you add them in is the order they leave.",
-          correct: "Right: a queue preserves order, so add C, A, B.",
-          why: "A queue is first in, first out: order is preserved, so to get C, A, B out, add them C, A, B.",
+          correct: "Right. A queue preserves order, so add C, A, B.",
+          why: "A queue is first in, first out. Order is preserved, so to get C, A, B out, add them C, A, B.",
         }),
         construct: { loose: shuffle(["A", "B", "C"], a).result, pushed: [] },
         next: shuffle(["A", "B", "C"], a).next,
@@ -448,13 +448,13 @@ function classifyCopy(answer: "stack" | "queue" | "neither"): Copy {
   const prompt =
     "Everything goes in, then everything comes out. Which structure produced this order?"
   const hint = ""
-  const nudge = "Check both: is the output the exact reverse, the exact same order, or neither?"
+  const nudge = "Check whether the output is the exact reverse, the exact same order, or neither."
   if (answer === "stack") {
     return {
       prompt,
       hint,
       nudge,
-      correct: "Right: the output is the exact reverse, which is last in, first out. A stack.",
+      correct: "Right. The output is the exact reverse, which is last in, first out. A stack.",
       why: "Out is the reverse of in, and only a stack reverses a no-interleave batch (last in, first out).",
     }
   }
@@ -463,7 +463,7 @@ function classifyCopy(answer: "stack" | "queue" | "neither"): Copy {
       prompt,
       hint,
       nudge,
-      correct: "Right: the output keeps the input order, which is first in, first out. A queue.",
+      correct: "Right. The output keeps the input order, which is first in, first out. A queue.",
       why: "Out matches in, and a queue keeps a no-interleave batch in order (first in, first out).",
     }
   }
@@ -471,8 +471,8 @@ function classifyCopy(answer: "stack" | "queue" | "neither"): Copy {
     prompt,
     hint,
     nudge,
-    correct: "Right: that order is not a clean reverse or the same order, so it is neither.",
-    why: "Everything goes in, then comes out: a stack gives the reverse, a queue the same order. This is neither, so no single structure produces it.",
+    correct: "Right. That order is not a clean reverse or the same order, so it is neither.",
+    why: "Everything goes in, then comes out. A stack gives the reverse, and a queue gives the same order. This is neither, so no single structure produces it.",
   }
 }
 
@@ -533,7 +533,7 @@ function makeContrast(rng: number): {
     prompt: `${arrival.join(", ")} go into both a stack and a queue. Which one hands you ${target} first?`,
     hint: "",
     nudge: "A stack serves the newest item; a queue serves the oldest.",
-    correct: `Right: a stack serves the most recent, so it hands you ${target} first.`,
+    correct: `Right. A stack serves the most recent, so it hands you ${target} first.`,
     why: `${target} arrived last. A stack is last in, first out, so it serves ${target} first; the queue serves ${arrival[0]} first.`,
   }
   return { question: q, construct: null, next: sh.next }

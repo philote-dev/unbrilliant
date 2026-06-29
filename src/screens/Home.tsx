@@ -26,6 +26,8 @@ import {
   lessonName,
   lessonStructure,
 } from "@/lessons/catalog"
+import { withTrialNodes } from "@/trials/coursePath"
+import { getTrial } from "@/trials/registry"
 
 export function Home() {
   const { currentCourseId } = useCourseProgress()
@@ -174,7 +176,7 @@ function DashboardHomeMobile({ courseId }: { courseId: string }) {
         <Flame tier={comboToTier(streak.current)} size={26} />
         <span className="text-sm text-muted-foreground">
           {streak.longest > 0
-            ? `Best streak: ${streak.longest} in a row`
+            ? `Best streak is ${streak.longest} in a row`
             : "Stack correct answers to catch fire"}
         </span>
       </div>
@@ -217,19 +219,28 @@ function DashboardHomeMobile({ courseId }: { courseId: string }) {
 
 function DashboardHomeDesktop({ courseId }: { courseId: string }) {
   const { navigate } = useNavigation()
-  const { progressByLesson, courseProgress, streak } = useCourseProgress()
+  const { progressByLesson, courseProgress, streak, completedTrials } =
+    useCourseProgress()
   const metrics = useProgressMetrics()
   const course = getCourse(courseId) ?? getCourse("data-structures")!
 
   const pct = courseProgress(course.id)
   const resumeId = currentLessonId(progressByLesson)
   const resumeName = lessonName(resumeId)
-  const nodes = derivePathNodes(progressByLesson)
+  const nodes = withTrialNodes(
+    derivePathNodes(progressByLesson),
+    progressByLesson,
+    completedTrials,
+  )
   const Layout = pathLayoutFor(lessonStructure(resumeId))
 
   const onSelectNode = (node: PathNode) => {
     if (node.state === "locked") return
-    navigate({ name: "lesson", lessonId: node.id })
+    if (getTrial(node.id)) {
+      navigate({ name: "trial", trialId: node.id })
+    } else {
+      navigate({ name: "lesson", lessonId: node.id })
+    }
   }
 
   return (
@@ -245,7 +256,7 @@ function DashboardHomeDesktop({ courseId }: { courseId: string }) {
           <Flame tier={comboToTier(streak.current)} size={26} />
           <span className="text-sm text-muted-foreground">
             {streak.longest > 0
-              ? `Best streak: ${streak.longest} in a row`
+              ? `Best streak is ${streak.longest} in a row`
               : "Stack correct answers to catch fire"}
           </span>
         </div>

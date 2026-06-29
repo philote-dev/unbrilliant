@@ -5,6 +5,7 @@ import type {
   ProgressRepository,
   UserDoc,
 } from "@/features/progress/ProgressRepository"
+import type { TrialSaveState } from "@/features/trials/saveState"
 
 /**
  * In-memory fake of the persistence boundary — for engine/unit tests, with no
@@ -15,6 +16,7 @@ export function createInMemoryProgressRepository(): ProgressRepository {
   const users = new Map<string, UserDoc>()
   const activity = new Map<string, Map<string, { attempted: number; correct: number }>>()
   const conceptReviews = new Map<string, Map<string, ConceptReview>>()
+  const trialProgress = new Map<string, Map<string, TrialSaveState>>()
   const key = (uid: string, lessonId: string) => `${uid}::${lessonId}`
 
   return {
@@ -82,6 +84,25 @@ export function createInMemoryProgressRepository(): ProgressRepository {
         conceptReviews.set(uid, rows)
       }
       rows.set(review.conceptId, { ...review })
+    },
+    async getTrialProgress(uid, trialId) {
+      const found = trialProgress.get(uid)?.get(trialId)
+      return found ? { ...found } : null
+    },
+    async saveTrialProgress(uid, trialId, slice) {
+      let rows = trialProgress.get(uid)
+      if (!rows) {
+        rows = new Map()
+        trialProgress.set(uid, rows)
+      }
+      rows.set(trialId, { ...slice })
+    },
+    async listCompletedTrials(uid) {
+      const rows = trialProgress.get(uid)
+      if (!rows) return []
+      return [...rows.entries()]
+        .filter(([, slice]) => slice.completed)
+        .map(([trialId]) => trialId)
     },
   }
 }

@@ -1,6 +1,6 @@
 import { useReducer } from "react"
 import { describe, it, expect, beforeAll, vi } from "vitest"
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 
 import {
   resumeStacksQueues,
@@ -147,7 +147,7 @@ describe("S&Q stage: compare resolving motion", () => {
 })
 
 describe("S&Q stage: teach end-markers (subtle, teach-only)", () => {
-  it("stack teach marks the TOP opening and highlights 'top' in the prose", () => {
+  it("stack teach marks the TOP end and highlights 'top' in the prose", () => {
     render(<Harness initial={stateAt("stack-teach")} />)
     expect(screen.getByTestId("end-marker-top")).toBeInTheDocument()
     expect(screen.queryByTestId("end-marker-front")).toBeNull()
@@ -186,6 +186,39 @@ describe("S&Q stage: de-cued stack predict", () => {
     expect(document.querySelectorAll('[data-answer="1"]').length).toBeGreaterThanOrEqual(1)
     clickCorrect()
     expect(screen.getByRole("button", { name: "Continue" })).toBeInTheDocument()
+  })
+
+  // The preview demo only ever scrubs to the predict point (k-1). Pressing Play
+  // again from there used to be a silent dead button; now it surfaces a gentle
+  // reminder and must NEVER replay to reveal the k-th pop (the answer).
+  it("nudges the learner to commit when Play is pressed again, never replaying to the answer", async () => {
+    render(<Harness initial={stateAt("stack-predict")} />)
+
+    // The marked answer cell carries no verdict icon while the answer is hidden.
+    const answerVerdictIcon = () =>
+      (document.querySelector('[data-answer="1"]') as HTMLElement | null)?.querySelector("svg")
+    expect(answerVerdictIcon()).toBeFalsy()
+
+    // First play: the short demo runs to the predict point and stops on its own.
+    fireEvent.click(screen.getByRole("button", { name: "Play" }))
+    expect(screen.getByRole("button", { name: "Pause" })).toBeInTheDocument()
+    await waitFor(
+      () => expect(screen.getByRole("button", { name: "Play" })).toBeInTheDocument(),
+      { timeout: 2000 },
+    )
+    // No reminder after a single, legitimate play; the answer is still withheld.
+    expect(screen.queryByText("Make your prediction first")).toBeNull()
+    expect(answerVerdictIcon()).toBeFalsy()
+
+    // Second play press: instead of a dead button, a friendly reminder appears.
+    fireEvent.click(screen.getByRole("button", { name: "Play" }))
+    expect(screen.getByText("Make your prediction first")).toBeInTheDocument()
+
+    // It did not start (re)playing and it did not reveal the answer.
+    expect(screen.getByRole("button", { name: "Play" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Pause" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "Continue" })).toBeNull()
+    expect(answerVerdictIcon()).toBeFalsy()
   })
 })
 

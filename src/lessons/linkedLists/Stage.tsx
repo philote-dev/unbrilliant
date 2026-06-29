@@ -1,4 +1,4 @@
-import { Fragment, useState, type Dispatch } from "react"
+import { useState, type Dispatch, type ReactNode } from "react"
 import { ArrowLeft, ArrowRight, Check } from "lucide-react"
 import { motion, useReducedMotion } from "motion/react"
 
@@ -8,30 +8,48 @@ import { Button } from "@/components/ui/button"
 import { AnswerCard, type AnswerState } from "@/components/willow/AnswerCard"
 import { CostReadout, type CostWord } from "@/components/willow/CostReadout"
 import { FeedbackFooter } from "@/components/willow/FeedbackFooter"
+import { StatusChip } from "@/components/willow/StatusChip"
 import { RewireSurface } from "@/components/rewire/RewireSurface"
 import type { LessonAction } from "@/features/lesson/engine"
 import {
   currentPartLL,
+  deleteWriteFrames,
+  insertWriteFrames,
   isStuckLL,
   isTerminalLL,
+  isWriteDoneLL,
   legalTargets,
   orphanedNodes,
+  playlistOrphanedLL,
+  playlistPhaseIndexLL,
+  playlistStepLL,
+  predictBreakFrames,
+  remainingScriptLL,
+  walkCursorLL,
+  walkFrontierLL,
+  type DoublyWrite,
   type LinkedListsState,
+  type LLQuestion,
+  type RewireFrame,
 } from "@/features/lesson/linkedListsEngine"
 import {
   diagnoseLinkedListInsert,
   describeWritesGeneric,
 } from "@/features/poly/diagnoseLinkedList"
 import { StageSplit, StageCenter } from "@/components/willow/lesson/StageLayout"
+import { FrameSequence } from "@/components/willow/lesson/FrameSequence"
 import { ArrayRow } from "@/lessons/arrays/ArrayRow"
 import { NodeGraph } from "./NodeGraph"
 import { PlaylistQueue } from "./PlaylistQueue"
+import { DoublyChain, DoublySplice } from "./DoublyGraph"
 
 /**
- * The Linked Lists stage. Slices 1–2 route the first four beats: a node-drag
- * demo (position is meaningless), a teach screen (pointers are the structure),
- * the tap-to-walk traverse (L1, MCQ after the felt walk), and the write-order
- * rewire-insert (L2). All verdict UX flows through the shared FeedbackFooter.
+ * The Linked Lists stage (12 beats, 9 graded). Forced-walk traverse, animated
+ * pointer-write reveals (insert / delete / predict via the shared FrameSequence),
+ * the multi-step playlist synthesis on the Spotify skin, the two-step contrast
+ * (pick -> why-MCQ), and the doubly segment (demo, splice, backward walk). Verdict
+ * UX flows through the shared FeedbackFooter; every animated path snaps under
+ * reduced motion.
  */
 export function LinkedListsStage({
   state,
@@ -57,9 +75,53 @@ export function LinkedListsStage({
     case "contrast-insert":
     case "contrast-reach":
       return <ContrastPart state={state} dispatch={dispatch} />
-    case "doubly":
-      return <DoublyPart state={state} dispatch={dispatch} />
+    case "doubly-demo":
+      return <DoublyDemoPart state={state} dispatch={dispatch} />
+    case "doubly-splice":
+      return <DoublySplicePart state={state} dispatch={dispatch} />
+    case "doubly-walk":
+      return <DoublyWalkPart state={state} dispatch={dispatch} />
   }
+}
+
+/* -------------------------------- shared bits ------------------------------- */
+
+/** The house teach/intro kicker: a small, wide-tracked lilac eyebrow. */
+function Eyebrow({ children }: { children: ReactNode }) {
+  return (
+    <p className="text-center text-xs font-semibold uppercase tracking-[0.18em] text-lilac-strong">
+      {children}
+    </p>
+  )
+}
+
+const feedbackCopy = (q: LLQuestion) => ({
+  prompt: q.prompt,
+  hint: q.hint,
+  nudge: q.nudge,
+  correct: q.correct,
+  why: q.why,
+})
+
+function CompareLabel({ children }: { children: ReactNode }) {
+  return (
+    <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{children}</span>
+  )
+}
+
+function LabeledCost({
+  label,
+  cost,
+}: {
+  label: string
+  cost: { word: CostWord; count: number; unit: string }
+}) {
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <CompareLabel>{label}</CompareLabel>
+      <CostReadout word={cost.word} count={cost.count} unit={cost.unit} />
+    </div>
+  )
 }
 
 /* --------------------------------- beat 1 --------------------------------- */
@@ -76,7 +138,8 @@ function DemoPart({
   return (
     <StageCenter>
       <div className="mt-7 text-center">
-        <h2 className="text-xl font-bold text-foreground lg:text-2xl">Linked Lists: it's the arrows</h2>
+        <Eyebrow>Linked Lists</Eyebrow>
+        <h2 className="mt-2 text-xl font-bold text-foreground lg:text-2xl">It's the arrows</h2>
         <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground lg:max-w-sm lg:text-base">{q.prompt}</p>
       </div>
 
@@ -86,7 +149,8 @@ function DemoPart({
 
       <div className="mt-auto">
         <p className="mb-3 text-center text-sm text-muted-foreground">
-          Move a node anywhere — the order doesn't change. Only the arrows say what comes next.
+          Move a node anywhere - the order doesn't change. Only the <span className="concept">arrows</span> say what
+          comes next.
         </p>
         <Button variant="tactile" size="lg" className="w-full" onClick={() => dispatch({ type: "continue" })}>
           Continue
@@ -106,23 +170,35 @@ function TeachPart({
   dispatch: Dispatch<LessonAction>
 }) {
   const q = state.question
+  const reduced = useReducedMotion() ?? false
   if (!q) return null
+  // Animation-driven teach: a head-to-tail walk lights up hop by hop.
+  const frames = Array.from({ length: q.nodes.length + 1 }, (_, i) => i)
+
   return (
     <StageCenter>
       <div className="mt-7 text-center">
-        <h2 className="text-xl font-bold text-foreground lg:text-2xl">Pointers, not position</h2>
+        <Eyebrow>Pointers, not position</Eyebrow>
+        <h2 className="mt-2 text-xl font-bold text-foreground lg:text-2xl">Walk from the head</h2>
       </div>
 
       <div className="flex flex-1 flex-col items-center justify-center gap-6 py-6">
-        <NodeGraph mode="walk" nodes={q.nodes} cursor={q.nodes.length} layout="wrap" />
-        <div className="mx-auto max-w-xs space-y-3 text-sm text-muted-foreground">
+        <FrameSequence frames={frames} autoPlayMs={(i) => (i === 0 ? 700 : 520)} reduced={reduced}>
+          {(cursor) => (
+            <NodeGraph mode="walk" nodes={q.nodes} cursor={cursor} layout="wrap" reducedMotion={reduced} />
+          )}
+        </FrameSequence>
+        <div className="mx-auto max-w-xs space-y-3 text-center text-sm text-muted-foreground lg:text-base">
           <p>
             Each node points to the next. To reach the k-th node you{" "}
-            <span className="font-semibold text-foreground">walk from the head</span> — there's no jump.
+            <span className="concept">walk from the head</span> - there's no jump.
           </p>
           <p>
-            And the <span className="font-semibold text-foreground">head is sacred</span>: lose it and the
-            whole list is gone.
+            And the{" "}
+            <span className="concept" style={{ animationDelay: "550ms" }}>
+              head is sacred
+            </span>
+            : lose it and the whole list is gone.
           </p>
         </div>
       </div>
@@ -146,17 +222,15 @@ function TraversePart({
   dispatch: Dispatch<LessonAction>
 }) {
   const q = state.question
+  const reduced = useReducedMotion() ?? false
   if (!q) return null
   const { feedback, selected, showWhy } = state
   const terminal = isTerminalLL(state)
 
-  // Click-to-answer: the selected node is the answer; tapping any node lights the
-  // head→node path and shows the hop cost. On a full fail, Why? reveals the
-  // correct node's path instead.
-  const selectedIdx = selected ? q.nodes.indexOf(selected) : -1
   const answerIdx = q.nodes.indexOf(q.answer)
   const reveal = feedback === "fail" && showWhy
-  const cursor = reveal ? answerIdx : selectedIdx
+  const cursor = reveal ? answerIdx : walkCursorLL(state)
+  const frontier = terminal ? -1 : walkFrontierLL(state)
   const tone: "active" | "correct" | "wrong" =
     feedback === "correct" || reveal
       ? "correct"
@@ -169,7 +243,7 @@ function TraversePart({
   return (
     <StageCenter>
       <div className="mt-7">
-        <p className="text-center text-xs font-medium uppercase tracking-wide text-lilac-strong">Traverse</p>
+        <Eyebrow>Traverse</Eyebrow>
         <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground lg:text-2xl">{q.prompt}</h2>
       </div>
 
@@ -180,14 +254,17 @@ function TraversePart({
           cursor={cursor}
           cursorTone={tone}
           answerIndex={answerIdx}
+          frontier={frontier}
           layout="wrap"
+          reducedMotion={reduced}
           onTapNode={terminal ? undefined : (i) => dispatch({ type: "select", letter: q.nodes[i] })}
         />
         {showCost && (
           <CostReadout word="scales" count={costCount} unit={costCount === 1 ? "hop" : "hops"} />
         )}
         <p className="max-w-xs text-center text-xs text-muted-foreground">
-          Tap a node to walk there from the head — the arrows are the only path.
+          Tap the next node to take one <span className="concept">hop</span> - the arrows are the only path. Commit when
+          you've arrived.
         </p>
       </div>
 
@@ -196,7 +273,7 @@ function TraversePart({
         selected={selected}
         showWhy={showWhy}
         hideFailHint
-        copy={{ prompt: q.prompt, hint: q.hint, nudge: q.nudge, correct: q.correct, why: q.why }}
+        copy={feedbackCopy(q)}
         dispatch={dispatch}
       />
     </StageCenter>
@@ -213,6 +290,7 @@ function RewirePart({
   dispatch: Dispatch<LessonAction>
 }) {
   const q = state.question
+  const reduced = useReducedMotion() ?? false
   const wrong = state.feedback === "nudge" || state.feedback === "fail"
   // Build the giveaway-free diagnose question only for a wrong insert attempt.
   // The hint hook runs before any early return so hook order stays stable.
@@ -246,37 +324,46 @@ function RewirePart({
   const { feedback, showWhy } = state
   const canCheck = state.writes.length > 0
   const stuck = isStuckLL(state)
+  const reveal = feedback === "correct" || (feedback === "fail" && showWhy)
+  const frames = q.kind === "rewire-insert" ? insertWriteFrames(q) : deleteWriteFrames(q)
 
   return (
     <StageCenter>
       <div className="mt-7 flex flex-col items-center">
-        <p className="text-center text-xs font-medium uppercase tracking-wide text-lilac-strong">Rewire</p>
+        <Eyebrow>Rewire</Eyebrow>
         <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground lg:text-2xl">{q.prompt}</h2>
       </div>
 
       <div className="flex flex-1 flex-col justify-center py-6">
-        <RewireSurface
-          legalTargets={legalTargets(state)}
-          onRewire={(from, to) => dispatch({ type: "rewire", from, to })}
-          label="Rewire the chain by dragging a node's arrow onto another node"
-          className="flex flex-col items-center"
-        >
-          <NodeGraph
-            mode="rewire"
-            nodes={q.nodes}
-            newNode={q.newNode}
-            prev={q.prev}
-            at={q.at}
-            workingNext={state.workingNext}
-            orphaned={orphanedNodes(state)}
-            rewires={q.rewires}
-          />
-        </RewireSurface>
+        {reveal ? (
+          <RewireReplay frames={frames} q={q} reduced={reduced} />
+        ) : (
+          <>
+            <RewireSurface
+              legalTargets={legalTargets(state)}
+              onRewire={(from, to) => dispatch({ type: "rewire", from, to })}
+              label="Rewire the chain by dragging a node's arrow onto another node"
+              className="flex flex-col items-center"
+            >
+              <NodeGraph
+                mode="rewire"
+                nodes={q.nodes}
+                newNode={q.newNode}
+                prev={q.prev}
+                at={q.at}
+                workingNext={state.workingNext}
+                orphaned={orphanedNodes(state)}
+                rewires={q.rewires}
+                reducedMotion={reduced}
+              />
+            </RewireSurface>
 
-        {stuck && feedback !== "fail" && (
-          <p className="mt-4 text-center text-sm text-faint">
-            The tail floated off — there's no pointer left to reach it.
-          </p>
+            {stuck && feedback !== "fail" && (
+              <p className="mt-4 text-center text-sm text-faint">
+                The tail floated off - there's no pointer left to reach it.
+              </p>
+            )}
+          </>
         )}
       </div>
 
@@ -292,7 +379,7 @@ function RewirePart({
         canCheck={canCheck}
         showWhy={showWhy}
         hideFailHint
-        copy={{ prompt: q.prompt, hint: q.hint, nudge: q.nudge, correct: q.correct, why: q.why }}
+        copy={feedbackCopy(q)}
         dispatch={dispatch}
         aiHint={aiHint}
       />
@@ -300,14 +387,175 @@ function RewirePart({
   )
 }
 
-/* ------------------------------- beat 7 (playlist) ------------------------ */
+/** The post-commit replay of the pointer writes (save-first splice / bypass). */
+function RewireReplay({
+  frames,
+  q,
+  reduced,
+}: {
+  frames: RewireFrame[]
+  q: LLQuestion
+  reduced: boolean
+}) {
+  return (
+    <FrameSequence
+      frames={frames}
+      autoPlayMs={(i) => (i === 0 ? 900 : 820)}
+      controls
+      reduced={reduced}
+      className="items-center"
+    >
+      {(frame) => (
+        <>
+          <NodeGraph
+            mode="replay"
+            nodes={q.nodes}
+            newNode={q.newNode}
+            prev={q.prev}
+            at={q.at}
+            workingNext={frame.workingNext}
+            orphaned={frame.orphaned}
+            reducedMotion={reduced}
+          />
+          <p className="max-w-xs text-center text-xs text-muted-foreground">{frame.caption}</p>
+        </>
+      )}
+    </FrameSequence>
+  )
+}
 
-/**
- * The real-world skin of the insert: a Spotify-style queue. Same engine + rewire
- * surface as RewirePart, but the page transitions into a dark/green theme and the
- * chain renders as a vertical track list. The new song is queued by re-aiming two
- * pointers in the save-first order (drag a track's arrow onto another track).
- */
+/* ------------------------------- beat 6 (predict) ------------------------- */
+
+function PredictPart({
+  state,
+  dispatch,
+}: {
+  state: LinkedListsState
+  dispatch: Dispatch<LessonAction>
+}) {
+  const q = state.question
+  const reduced = useReducedMotion() ?? false
+  if (!q) return null
+  const { feedback, selected, showWhy } = state
+  const terminal = isTerminalLL(state)
+  const reveal = feedback === "correct" || (feedback === "fail" && showWhy)
+  const frames = predictBreakFrames(q)
+
+  const cardState = (id: string): AnswerState => {
+    if (feedback === "correct") return id === q.answer ? "correct" : "default"
+    if (feedback === "nudge") return id === selected ? "nudge" : "default"
+    if (feedback === "fail") {
+      if (showWhy && id === q.answer) return "correct"
+      if (id === selected) return "fail"
+      return "default"
+    }
+    return id === selected ? "selected" : "default"
+  }
+
+  return (
+    <StageSplit
+      header={
+        <div className="mt-7">
+          <Eyebrow>Predict the break</Eyebrow>
+          <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground lg:text-2xl">{q.prompt}</h2>
+        </div>
+      }
+      figure={
+        <div className="flex justify-center py-5">
+          {reveal ? (
+            <FrameSequence
+              frames={frames}
+              autoPlayMs={(i) => (i === 0 ? 800 : 1)}
+              reduced={reduced}
+              className="items-center"
+            >
+              {(frame) => (
+                <>
+                  <NodeGraph
+                    mode="replay"
+                    nodes={q.nodes}
+                    newNode={q.newNode}
+                    prev={q.prev}
+                    at={q.at}
+                    workingNext={frame.workingNext}
+                    orphaned={frame.orphaned}
+                    reducedMotion={reduced}
+                  />
+                  <p className="max-w-xs text-center text-xs text-muted-foreground">{frame.caption}</p>
+                </>
+              )}
+            </FrameSequence>
+          ) : (
+            <NodeGraph mode="walk" nodes={q.nodes} cursor={q.nodes.length} layout="wrap" reducedMotion={reduced} />
+          )}
+        </div>
+      }
+      interaction={
+        <>
+          <div className="flex flex-col gap-3">
+            {q.options.map((opt, i) => (
+              <AnswerCard
+                key={opt.id}
+                letter={String.fromCharCode(65 + i)}
+                label={opt.label}
+                state={cardState(opt.id)}
+                disabled={terminal}
+                answerMarker={opt.id === q.answer}
+                onSelect={() => dispatch({ type: "select", letter: opt.id })}
+              />
+            ))}
+          </div>
+
+          <FeedbackFooter
+            feedback={feedback}
+            selected={selected}
+            showWhy={showWhy}
+            hideFailHint
+            copy={feedbackCopy(q)}
+            dispatch={dispatch}
+          />
+        </>
+      }
+    />
+  )
+}
+
+/* ------------------------------- beat 7 (playlist synthesis) ------------- */
+
+const PHASE_LABEL: Record<string, string> = {
+  insert: "Queue",
+  delete: "Remove",
+  reorder: "Reorder",
+}
+
+function PhaseRail({ phaseIndex, solved }: { phaseIndex: number; solved: boolean }) {
+  const phases = ["insert", "delete", "reorder"]
+  const active = solved ? phases.length : phaseIndex
+  return (
+    <div aria-hidden className="mt-3 flex items-center justify-center gap-1.5">
+      {phases.map((p, i) => {
+        const done = i < active
+        const isActive = i === active
+        return (
+          <span
+            key={p}
+            className={cn(
+              "rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide transition-colors",
+              done
+                ? "border-[#1db954]/40 bg-[#1db954]/10 text-[#1db954]"
+                : isActive
+                  ? "border-[#1db954] bg-[#1db954]/15 text-white"
+                  : "border-white/10 bg-white/[0.03] text-white/40",
+            )}
+          >
+            {PHASE_LABEL[p]}
+          </span>
+        )
+      })}
+    </div>
+  )
+}
+
 function PlaylistPart({
   state,
   dispatch,
@@ -318,9 +566,10 @@ function PlaylistPart({
   const q = state.question
   const reduced = useReducedMotion()
   if (!q) return null
-  const { feedback, showWhy } = state
-  const canCheck = state.writes.length > 0
-  const stuck = isStuckLL(state)
+  const { feedback } = state
+  const solved = feedback === "correct"
+  const step = playlistStepLL(state)
+  const phaseIndex = playlistPhaseIndexLL(state)
 
   return (
     <StageCenter>
@@ -340,32 +589,28 @@ function PlaylistPart({
           <span className="rounded-full bg-white/10 px-4 py-1.5 text-sm font-semibold">Edit</span>
         </div>
 
-        <p className="mt-3 text-sm text-white/70">{q.prompt}</p>
+        <PhaseRail phaseIndex={phaseIndex} solved={solved} />
+        <p className="mt-3 text-center text-sm text-white/70">{solved ? q.correct : step?.prompt ?? q.prompt}</p>
 
         <div className="flex flex-1 flex-col justify-center py-3">
           <RewireSurface
             legalTargets={legalTargets(state)}
             onRewire={(from, to) => dispatch({ type: "rewire", from, to })}
-            label="Re-aim a track's arrow onto another track to queue the new song"
+            label="Re-aim a track's arrow onto another track to edit the queue"
           >
             <PlaylistQueue
               nodes={q.nodes}
               newNode={q.newNode}
               prev={q.prev}
               workingNext={state.workingNext}
-              orphaned={orphanedNodes(state)}
-              rewires={q.rewires}
+              orphaned={playlistOrphanedLL(state)}
+              rewires={remainingScriptLL(state)}
+              reducedMotion={reduced ?? false}
             />
           </RewireSurface>
-
-          {stuck && feedback !== "fail" && (
-            <p className="mt-4 text-center text-sm text-white/45">
-              The rest of the queue floated off — nothing points to it anymore.
-            </p>
-          )}
         </div>
 
-        <PlaylistFooter state={state} dispatch={dispatch} canCheck={canCheck} showWhy={showWhy} />
+        <PlaylistFooter state={state} dispatch={dispatch} />
       </motion.div>
     </StageCenter>
   )
@@ -374,57 +619,26 @@ function PlaylistPart({
 function PlaylistFooter({
   state,
   dispatch,
-  canCheck,
-  showWhy,
 }: {
   state: LinkedListsState
   dispatch: Dispatch<LessonAction>
-  canCheck: boolean
-  showWhy: boolean
 }) {
   const q = state.question!
   const { feedback } = state
+  const step = playlistStepLL(state)
   return (
     <div className="mt-auto min-h-[124px] pt-2">
-      {feedback === "idle" && (
-        <>
-          <p className="mb-3 text-center text-sm text-white/55">{q.hint}</p>
-          <SpotifyButton disabled={!canCheck} onClick={() => dispatch({ type: "check" })}>
-            Check
-          </SpotifyButton>
-        </>
-      )}
-      {feedback === "nudge" && (
-        <>
-          <SpotifyChip tone="hint">{q.nudge}</SpotifyChip>
-          <SpotifyButton disabled={!canCheck} onClick={() => dispatch({ type: "check" })}>
-            Check
-          </SpotifyButton>
-        </>
-      )}
       {feedback === "correct" && (
         <>
           <SpotifyChip tone="ok">{q.correct}</SpotifyChip>
           <SpotifyButton onClick={() => dispatch({ type: "next" })}>Continue</SpotifyButton>
         </>
       )}
-      {feedback === "fail" && (
-        <>
-          <SpotifyChip tone="bad">
-            {showWhy ? q.why : "Not quite — tap Why for the answer, or reattempt."}
-          </SpotifyChip>
-          <div className="flex gap-3">
-            <button
-              type="button"
-              disabled={showWhy}
-              onClick={() => dispatch({ type: "reveal" })}
-              className="flex-1 rounded-full bg-white/10 py-3.5 font-semibold text-white outline-none transition-colors hover:bg-white/15 disabled:opacity-40"
-            >
-              Why?
-            </button>
-            <SpotifyButton onClick={() => dispatch({ type: "reattempt" })}>Reattempt</SpotifyButton>
-          </div>
-        </>
+      {feedback === "nudge" && <SpotifyChip tone="hint">{step?.nudge ?? q.nudge}</SpotifyChip>}
+      {feedback === "idle" && (
+        <p className="text-center text-sm text-white/55">
+          Drag a track's arrow onto another track to do this step.
+        </p>
       )}
     </div>
   )
@@ -435,7 +649,7 @@ function SpotifyButton({
   onClick,
   disabled,
 }: {
-  children: React.ReactNode
+  children: ReactNode
   onClick: () => void
   disabled?: boolean
 }) {
@@ -451,9 +665,8 @@ function SpotifyButton({
   )
 }
 
-function SpotifyChip({ tone, children }: { tone: "ok" | "bad" | "hint"; children: React.ReactNode }) {
-  const dot =
-    tone === "ok" ? "bg-[#1db954]" : tone === "bad" ? "bg-red-500" : "bg-white/50"
+function SpotifyChip({ tone, children }: { tone: "ok" | "bad" | "hint"; children: ReactNode }) {
+  const dot = tone === "ok" ? "bg-[#1db954]" : tone === "bad" ? "bg-red-500" : "bg-white/50"
   return (
     <div className="mb-4 flex flex-col items-center gap-2 text-center">
       <span className={cn("size-2.5 rounded-full", dot)} aria-hidden />
@@ -462,77 +675,7 @@ function SpotifyChip({ tone, children }: { tone: "ok" | "bad" | "hint"; children
   )
 }
 
-/* --------------------------------- beat 6 --------------------------------- */
-
-function PredictPart({
-  state,
-  dispatch,
-}: {
-  state: LinkedListsState
-  dispatch: Dispatch<LessonAction>
-}) {
-  const q = state.question
-  if (!q) return null
-  const { feedback, selected, showWhy } = state
-  const terminal = isTerminalLL(state)
-
-  const cardState = (id: string): AnswerState => {
-    if (feedback === "correct") return id === q.answer ? "correct" : "default"
-    if (feedback === "nudge") return id === selected ? "nudge" : "default"
-    if (feedback === "fail") {
-      if (showWhy && id === q.answer) return "correct"
-      if (id === selected) return "fail"
-      return "default"
-    }
-    return id === selected ? "selected" : "default"
-  }
-
-  return (
-    <StageSplit
-      header={
-        <div className="mt-7">
-          <p className="text-center text-xs font-medium uppercase tracking-wide text-lilac-strong">
-            Predict the break
-          </p>
-          <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground lg:text-2xl">{q.prompt}</h2>
-        </div>
-      }
-      figure={
-        <div className="flex justify-center py-5">
-          <NodeGraph mode="walk" nodes={q.nodes} cursor={q.nodes.length} layout="wrap" />
-        </div>
-      }
-      interaction={
-        <>
-          <div className="flex flex-col gap-3">
-            {q.options.map((opt, i) => (
-              <AnswerCard
-                key={opt.id}
-                letter={String.fromCharCode(65 + i)}
-                label={opt.label}
-                state={cardState(opt.id)}
-                disabled={terminal}
-                answerMarker={opt.id === q.answer}
-                onSelect={() => dispatch({ type: "select", letter: opt.id })}
-              />
-            ))}
-          </div>
-
-          <FeedbackFooter
-            feedback={feedback}
-            selected={selected}
-            showWhy={showWhy}
-            hideFailHint
-            copy={{ prompt: q.prompt, hint: q.hint, nudge: q.nudge, correct: q.correct, why: q.why }}
-            dispatch={dispatch}
-          />
-        </>
-      }
-    />
-  )
-}
-
-/* ------------------------------- beats 8 & 9 ----------------------------- */
+/* ------------------------------- beats 8 & 9 (contrast) ----------------------------- */
 
 function ContrastPart({
   state,
@@ -542,23 +685,25 @@ function ContrastPart({
   dispatch: Dispatch<LessonAction>
 }) {
   const q = state.question
+  const reduced = useReducedMotion() ?? false
   if (!q) return null
-  const { feedback, selected, showWhy } = state
+  const { feedback, selected, showWhy, contrastPhase, pick } = state
   const terminal = isTerminalLL(state)
   const isInsert = currentPartLL(state) === "contrast-insert"
   const items = q.array ?? q.nodes
   const arrayHighlight = isInsert ? Math.floor(items.length / 2) : items.length - 1
-  // Insert is a "rewire 2 pointers" beat: spotlight only the middle insertion
-  // point (mirroring the array's single highlighted cell) instead of lighting the
-  // whole head->cursor path, which would read like a full traversal. Reach still
-  // walks to the asked node, so its lit path is the honest cost.
   const listCursor = isInsert ? Math.floor(q.nodes.length / 2) : q.targetIndex
+  const inWhy = contrastPhase === "why"
+  const options = inWhy ? q.whyOptions : q.pickOptions
+  const answerId = inWhy ? q.whyAnswer : q.pickAnswer
+  const pickLabel = pick ? q.pickOptions.find((o) => o.id === pick)?.label : null
 
   const cardState = (id: string): AnswerState => {
-    if (feedback === "correct") return id === q.answer ? "correct" : "default"
+    if (!inWhy) return id === selected ? "selected" : "default" // pick is low-stakes
+    if (feedback === "correct") return id === q.whyAnswer ? "correct" : "default"
     if (feedback === "nudge") return id === selected ? "nudge" : "default"
     if (feedback === "fail") {
-      if (showWhy && id === q.answer) return "correct"
+      if (showWhy && id === q.whyAnswer) return "correct"
       if (id === selected) return "fail"
       return "default"
     }
@@ -569,10 +714,15 @@ function ContrastPart({
     <StageSplit
       header={
         <div className="mt-7">
-          <p className="text-center text-xs font-medium uppercase tracking-wide text-lilac-strong">
-            Array vs list
-          </p>
-          <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground lg:text-2xl">{q.prompt}</h2>
+          <Eyebrow>Array vs list</Eyebrow>
+          <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground lg:text-2xl">
+            {inWhy ? "Why?" : q.prompt}
+          </h2>
+          {inWhy && pickLabel && (
+            <p className="mt-1 text-center text-xs text-muted-foreground">
+              You picked <span className="font-semibold text-foreground">{pickLabel}</span>. Now, why?
+            </p>
+          )}
         </div>
       }
       figure={
@@ -584,7 +734,7 @@ function ContrastPart({
             </div>
             <div className="flex flex-col items-center gap-1.5">
               <CompareLabel>List</CompareLabel>
-              <NodeGraph mode="walk" nodes={q.nodes} cursor={listCursor} layout="wrap" spotlight={isInsert} />
+              <NodeGraph mode="walk" nodes={q.nodes} cursor={listCursor} layout="wrap" spotlight={isInsert} reducedMotion={reduced} />
             </div>
           </div>
 
@@ -599,14 +749,14 @@ function ContrastPart({
       interaction={
         <>
           <div className="flex flex-col gap-3">
-            {q.options.map((opt, i) => (
+            {options.map((opt, i) => (
               <AnswerCard
                 key={opt.id}
                 letter={String.fromCharCode(65 + i)}
                 label={opt.label}
                 state={cardState(opt.id)}
                 disabled={terminal}
-                answerMarker={opt.id === q.answer}
+                answerMarker={opt.id === answerId}
                 onSelect={() => dispatch({ type: "select", letter: opt.id })}
               />
             ))}
@@ -617,7 +767,13 @@ function ContrastPart({
             selected={selected}
             showWhy={showWhy}
             hideFailHint
-            copy={{ prompt: q.prompt, hint: q.hint, nudge: q.nudge, correct: q.correct, why: q.why }}
+            copy={{
+              prompt: q.prompt,
+              hint: inWhy ? "" : "Make your pick, then we'll dig into why.",
+              nudge: q.nudge,
+              correct: q.correct,
+              why: q.why,
+            }}
             dispatch={dispatch}
           />
         </>
@@ -626,30 +782,9 @@ function ContrastPart({
   )
 }
 
-function CompareLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{children}</span>
-  )
-}
+/* --------------------------------- beat 10 (doubly demo) -------------------------- */
 
-function LabeledCost({
-  label,
-  cost,
-}: {
-  label: string
-  cost: { word: CostWord; count: number; unit: string }
-}) {
-  return (
-    <div className="flex flex-col items-center gap-1">
-      <CompareLabel>{label}</CompareLabel>
-      <CostReadout word={cost.word} count={cost.count} unit={cost.unit} />
-    </div>
-  )
-}
-
-/* --------------------------------- beat 10 -------------------------------- */
-
-function DoublyPart({
+function DoublyDemoPart({
   state,
   dispatch,
 }: {
@@ -658,40 +793,18 @@ function DoublyPart({
 }) {
   const q = state.question
   const [cursor, setCursor] = useState(0)
-  const [writes, setWrites] = useState(0)
   if (!q) return null
   const nodes = q.nodes
-  const A = q.prev ?? nodes[0]
-  const B = q.at ?? nodes[1]
-  const X = q.newNode ?? "X"
-  const steps = [`${X}.next = ${B}`, `${X}.prev = ${A}`, `${A}.next = ${X}`, `${B}.prev = ${X}`]
 
   return (
     <StageCenter>
       <div className="mt-7 text-center">
-        <p className="text-xs font-medium uppercase tracking-wide text-lilac-strong">
-          Doubly-linked · the twist
-        </p>
+        <Eyebrow>Doubly-linked · the twist</Eyebrow>
         <h2 className="mx-auto mt-2 max-w-sm text-xl font-bold text-foreground lg:text-2xl">{q.prompt}</h2>
       </div>
 
-      <div className="flex flex-col items-center gap-4 py-5">
-        <div className="flex flex-wrap items-center justify-center gap-1">
-          {nodes.map((n, i) => (
-            <Fragment key={n}>
-              <span
-                className={cn(
-                  "flex h-12 min-w-12 items-center justify-center rounded-xl border-2 px-3 font-bold text-foreground transition-colors",
-                  i === cursor ? "border-lilac-strong bg-lilac-soft" : "border-border bg-card",
-                )}
-              >
-                {n}
-              </span>
-              {i < nodes.length - 1 && <BiArrow />}
-            </Fragment>
-          ))}
-        </div>
-
+      <div className="flex flex-1 flex-col items-center justify-center gap-6 py-5">
+        <DoublyChain nodes={nodes} cursor={cursor} />
         <div className="flex items-center gap-3">
           <Button
             variant="secondary"
@@ -711,61 +824,187 @@ function DoublyPart({
             Forward <ArrowRight className="size-4" />
           </Button>
         </div>
-        <p className="text-center text-xs text-muted-foreground">
-          A back-pointer means you can walk either direction.
+        <p className="mx-auto max-w-xs text-center text-sm text-muted-foreground">
+          A <span className="concept">back-pointer</span> means you can walk{" "}
+          <span className="concept" style={{ animationDelay: "450ms" }}>
+            either direction
+          </span>
+          .
         </p>
       </div>
 
-      <div className="rounded-2xl border border-border bg-card p-4">
-        <p className="text-sm text-foreground">
-          Splicing in a node now takes <span className="font-semibold">4 ordered writes</span>:
-        </p>
-        <ol className="mt-3 space-y-2">
-          {steps.map((s, i) => (
-            <li
-              key={s}
-              className={cn(
-                "flex items-center gap-2 font-mono text-sm",
-                i < writes ? "text-foreground" : "text-faint",
-              )}
-            >
-              <span
-                className={cn(
-                  "flex size-5 shrink-0 items-center justify-center rounded-full",
-                  i < writes ? "bg-success text-white" : "bg-muted text-muted-foreground",
-                )}
-              >
-                {i < writes ? <Check className="size-3" strokeWidth={3} /> : <span className="text-[10px]">{i + 1}</span>}
-              </span>
-              {s}
-            </li>
-          ))}
-        </ol>
-        {writes < 4 ? (
-          <Button variant="soft" size="sm" className="mt-3 w-full" onClick={() => setWrites((w) => w + 1)}>
-            Show write {writes + 1}
-          </Button>
-        ) : (
-          <p className="mt-3 text-center text-sm text-muted-foreground">
-            Four writes — and the list stays linked both directions.
-          </p>
-        )}
-      </div>
-
-      <div className="mt-auto pt-4">
+      <div className="mt-auto">
         <Button variant="tactile" size="lg" className="w-full" onClick={() => dispatch({ type: "continue" })}>
-          Finish lesson
+          Continue
         </Button>
       </div>
     </StageCenter>
   )
 }
 
-function BiArrow() {
+/* --------------------------------- beat 11 (doubly splice) ----------------------- */
+
+function DoublySplicePart({
+  state,
+  dispatch,
+}: {
+  state: LinkedListsState
+  dispatch: Dispatch<LessonAction>
+}) {
+  const q = state.question
+  if (!q) return null
+  const { feedback } = state
+  const solved = feedback === "correct"
+  const performed = state.writes
+    .map((w) => q.doublyWrites.find((d) => d.from === w.from && d.to === w.to))
+    .filter((d): d is DoublyWrite => d != null)
+  // Stable display order for the chips: shuffled once per question by label hash.
+  const chips = orderChips(q.doublyWrites)
+
   return (
-    <span className="flex flex-col items-center text-faint" aria-hidden>
-      <ArrowRight className="size-3.5" strokeWidth={2.4} />
-      <ArrowLeft className="-mt-1 size-3.5" strokeWidth={2.4} />
-    </span>
+    <StageCenter>
+      <div className="mt-7">
+        <Eyebrow>Doubly splice · 4 writes</Eyebrow>
+        <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground lg:text-2xl">{q.prompt}</h2>
+      </div>
+
+      <div className="flex flex-1 flex-col items-center justify-center gap-5 py-5">
+        <DoublySplice nodes={q.nodes} newNode={q.newNode!} prev={q.prev!} at={q.at!} performed={performed} />
+
+        <div className="grid w-full max-w-sm grid-cols-2 gap-2.5">
+          {chips.map((w) => {
+            const done = isWriteDoneLL(state, w)
+            return (
+              <button
+                key={w.label}
+                type="button"
+                disabled={done || solved}
+                onClick={() => dispatch({ type: "rewire", from: w.from, to: w.to })}
+                className={cn(
+                  "flex items-center justify-center gap-1.5 rounded-xl border-2 px-3 py-2.5 font-mono text-sm font-semibold outline-none transition-colors",
+                  "focus-visible:ring-2 focus-visible:ring-lilac-strong/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                  done
+                    ? "border-success bg-success-soft text-foreground"
+                    : "cursor-pointer border-border bg-card text-foreground hover:border-lilac-strong/50",
+                )}
+              >
+                {done && <Check className="size-3.5 text-success" strokeWidth={3} />}
+                {w.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      <DoublyFooter state={state} dispatch={dispatch} />
+    </StageCenter>
+  )
+}
+
+/** Deterministic chip order (a stable scramble so the correct order is not handed over). */
+function orderChips(writes: DoublyWrite[]): DoublyWrite[] {
+  // A fixed reordering: 3rd, 1st, 4th, 2nd. Stable and not the answer order.
+  const order = [2, 0, 3, 1]
+  return order.map((i) => writes[i]).filter((w): w is DoublyWrite => w != null)
+}
+
+function DoublyFooter({
+  state,
+  dispatch,
+}: {
+  state: LinkedListsState
+  dispatch: Dispatch<LessonAction>
+}) {
+  const q = state.question!
+  const { feedback } = state
+  return (
+    <div className="mt-auto min-h-[120px] pt-2">
+      {feedback === "correct" ? (
+        <div className="animate-fade-in">
+          <div className="mb-4 flex flex-col items-center gap-2 text-center">
+            <StatusChip status="correct" />
+            <p className="text-sm text-muted-foreground lg:text-base">{q.correct}</p>
+          </div>
+          <Button variant="tactile" size="lg" className="w-full" onClick={() => dispatch({ type: "next" })}>
+            Continue
+          </Button>
+        </div>
+      ) : feedback === "nudge" ? (
+        <div className="mb-4 flex flex-col items-center gap-2 text-center" role="status">
+          <StatusChip status="hint" />
+          <p className="text-sm text-muted-foreground lg:text-base">{q.nudge}</p>
+        </div>
+      ) : (
+        <p className="text-center text-sm text-muted-foreground lg:text-base">
+          Tap the writes in the safe order, with the newcomer's own pointers first.
+        </p>
+      )}
+    </div>
+  )
+}
+
+/* --------------------------------- beat 12 (doubly walk) ------------------------- */
+
+function DoublyWalkPart({
+  state,
+  dispatch,
+}: {
+  state: LinkedListsState
+  dispatch: Dispatch<LessonAction>
+}) {
+  const q = state.question
+  if (!q) return null
+  const { feedback, selected, showWhy } = state
+  const terminal = isTerminalLL(state)
+  const tail = q.nodes.length - 1
+  const answerIdx = q.nodes.indexOf(q.answer)
+  const reveal = feedback === "fail" && showWhy
+  const cursor = reveal ? answerIdx : walkCursorLL(state)
+  const frontier = terminal ? undefined : walkFrontierLL(state)
+  const tone: "active" | "correct" | "wrong" =
+    feedback === "correct" || reveal ? "correct" : feedback === "nudge" || feedback === "fail" ? "wrong" : "active"
+  const backHops = tail - cursor
+  const showCost = backHops >= 1 || feedback === "correct"
+
+  return (
+    <StageCenter>
+      <div className="mt-7">
+        <Eyebrow>Doubly walk · backward</Eyebrow>
+        <h2 className="mx-auto mt-2 max-w-sm text-center text-xl font-bold text-foreground lg:text-2xl">{q.prompt}</h2>
+      </div>
+
+      <div className="flex flex-1 flex-col items-center justify-center gap-4 py-5">
+        <DoublyChain
+          nodes={q.nodes}
+          cursor={cursor}
+          litFrom={cursor}
+          litTo={tail}
+          litDir="prev"
+          tone={tone}
+          frontier={frontier}
+          onTapNode={terminal ? undefined : (i) => dispatch({ type: "select", letter: q.nodes[i] })}
+        />
+        {showCost && (
+          <CostReadout
+            word="scales"
+            count={feedback === "correct" ? q.cost.count : Math.max(0, backHops)}
+            unit={backHops === 1 ? "hop" : "hops"}
+          />
+        )}
+        <p className="max-w-xs text-center text-xs text-muted-foreground">
+          Follow the <span className="concept">prev pointer</span> one hop at a time from the tail. Commit when you've
+          arrived.
+        </p>
+      </div>
+
+      <FeedbackFooter
+        feedback={feedback}
+        selected={selected}
+        showWhy={showWhy}
+        hideFailHint
+        copy={feedbackCopy(q)}
+        dispatch={dispatch}
+      />
+    </StageCenter>
   )
 }

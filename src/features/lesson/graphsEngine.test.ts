@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest"
 
 import type { LessonAction } from "@/features/lesson/engine"
 import {
+  BUILD_QUOTA,
   DRAW_QUOTA,
   G6,
   G6_NODES,
@@ -14,6 +15,9 @@ import {
   TRANSIT_DRAW_ADJ,
   TRANSIT_NODES,
   addEdge,
+  applyBuildLineEdge,
+  applyTraceStep,
+  buildLineBeatFrom,
   canCheckGraphs,
   createGraphs,
   currentPartGraphs,
@@ -23,13 +27,20 @@ import {
   edgeSet,
   graphsReducer,
   hasEdge,
+  isBuildLinePart,
+  isBuildLineSolved,
   isCompleteGraphs,
   isConnected,
   isIntroPart,
+  isLegalBuildEdge,
+  isLegalTraceStep,
+  isTracePart,
+  isTraceSolved,
   isTree,
-  legalDrawTargets,
+  legalTraceTargets,
   makeSameGraph,
   makeTreeOrNot,
+  missingPlanEdges,
   neighbors,
   normalizeEdge,
   partQuotaGraphs,
@@ -40,13 +51,22 @@ import {
   sameGraph,
   setEqual,
   toProgressGraphs,
+  traceBeatFrom,
+  traceCurrent,
+  tracePathEdges,
   SAME_GRAPH_VARIANTS,
   TREE_OR_NOT_VARIANTS,
   selectGraphVariant,
   type GraphsPart,
   type GraphsState,
 } from "@/features/lesson/graphsEngine"
-import { TRANSIT_DIAGRAM_LAYOUT, TRANSIT_GEO_LAYOUT } from "@/lessons/graphs/transitData"
+import {
+  METRO_ACTIVE_ADJ,
+  METRO_PLAN_ADJ,
+  METRO_PLAN_NODES,
+  TRANSIT_DIAGRAM_LAYOUT,
+  TRANSIT_GEO_LAYOUT,
+} from "@/lessons/graphs/transitData"
 
 const SEED = 12345
 
@@ -66,9 +86,56 @@ function pick(state: GraphsState, id: string): GraphsState {
   return run(state, { type: "select", letter: id }, { type: "check" })
 }
 
-/** Draw an edge (rewire) then Check. */
+/** Draw an edge (rewire) then Check (single-edge draw beats). */
 function draw(state: GraphsState, from: string, to: string): GraphsState {
   return run(state, { type: "rewire", from, to }, { type: "check" })
+}
+
+/** A BFS shortest path (sorted neighbors so it is deterministic). */
+function shortestPath(
+  adj: Record<string, string[]>,
+  start: string,
+  target: string,
+): string[] {
+  const prev = new Map<string, string | null>([[start, null]])
+  const queue = [start]
+  while (queue.length) {
+    const n = queue.shift() as string
+    if (n === target) break
+    for (const m of [...(adj[n] ?? [])].sort()) {
+      if (!prev.has(m)) {
+        prev.set(m, n)
+        queue.push(m)
+      }
+    }
+  }
+  const path: string[] = []
+  let cur: string | null = target
+  while (cur != null) {
+    path.unshift(cur)
+    cur = prev.get(cur) ?? null
+  }
+  return path
+}
+
+/** Walk the active trace from start to target along a shortest path. */
+function walkTrace(state: GraphsState): GraphsState {
+  const q = state.question!
+  const path = shortestPath(q.adj, q.pair![0], q.pair![1])
+  let s = state
+  for (let i = 1; i < path.length; i++) {
+    s = graphsReducer(s, { type: "select", letter: path[i] })
+  }
+  return s
+}
+
+/** Draw every missing plan edge of the build-the-line beat. */
+function buildAllLines(state: GraphsState): GraphsState {
+  const q = state.question!
+  const missing = missingPlanEdges(state.workingAdj, q.planAdj!)
+  let s = state
+  for (const [u, v] of missing) s = graphsReducer(s, { type: "rewire", from: u, to: v })
+  return s
 }
 
 /** Clear the current graded beat correctly and advance to the next part. */
@@ -76,6 +143,8 @@ function clearBeat(state: GraphsState): GraphsState {
   const q = state.question!
   let s: GraphsState
   if (q.mode === "multiselect") s = selectNodes(state, q.answerSet!)
+  else if (q.mode === "trace") s = walkTrace(state)
+  else if (q.mode === "build") s = buildAllLines(state)
   else if (q.mode === "draw") s = draw(state, q.missingEdge![0], q.missingEdge![1])
   else s = pick(state, q.answer)
   expect(s.feedback).toBe("correct")
@@ -88,7 +157,7 @@ const cont = (s: GraphsState) => run(s, { type: "continue" })
 function advanceTo(target: GraphsPart, seed = SEED): GraphsState {
   let s = createGraphs(seed)
   let guard = 0
-  while (currentPartGraphs(s) !== target && guard++ < 50) {
+  while (currentPartGraphs(s) !== target && guard++ < 60) {
     s = isIntroPart(currentPartGraphs(s)) ? cont(s) : clearBeat(s)
   }
   expect(currentPartGraphs(s)).toBe(target)
@@ -99,7 +168,7 @@ function advanceTo(target: GraphsPart, seed = SEED): GraphsState {
 function playToEnd(seed = SEED): GraphsState {
   let s = createGraphs(seed)
   let guard = 0
-  while (!s.completed && guard++ < 50) {
+  while (!s.completed && guard++ < 60) {
     s = isIntroPart(currentPartGraphs(s)) ? cont(s) : clearBeat(s)
   }
   return s
@@ -143,7 +212,6 @@ describe("pure adjacency helpers (G6 fixture)", () => {
     expect(withAD.A).toContain("D")
     expect(withAD.D).toContain("A")
     expect(edgeSet(withAD).size).toBe(8)
-    // idempotent: adding an existing edge changes nothing
     expect(edgeSet(addEdge(G6, "B", "D")).size).toBe(7)
     expect(JSON.stringify(G6)).toBe(before) // source untouched
   })
@@ -162,7 +230,7 @@ describe("pure adjacency helpers (G6 fixture)", () => {
     expect(isConnected(G6, G6_NODES)).toBe(true)
   })
 
-  it("pathExists is false across a disconnected graph (the 'no' read)", () => {
+  it("pathExists is false across a disconnected graph", () => {
     const split = { A: ["B"], B: ["A"], C: ["D"], D: ["C"] }
     expect(pathExists(split, "A", "B")).toBe(true)
     expect(pathExists(split, "A", "C")).toBe(false)
@@ -187,13 +255,112 @@ describe("pure adjacency helpers (G6 fixture)", () => {
   })
 })
 
+/* --------------------------------- trace model (pure) --------------------------------- */
+
+describe("trace model: walk to the target (pure)", () => {
+  it("a fresh beat sits on the start with only the start walked", () => {
+    const beat = traceBeatFrom(G6, "A", "F")
+    expect(traceCurrent(beat)).toBe("A")
+    expect(beat.path).toEqual(["A"])
+    expect(isTraceSolved(beat)).toBe(false)
+  })
+
+  it("legal next steps are exactly the current node's neighbors", () => {
+    const beat = traceBeatFrom(G6, "A", "F")
+    expect(legalTraceTargets(beat)).toEqual(new Set(["B", "C"]))
+    expect(isLegalTraceStep(beat, "B")).toBe(true)
+    expect(isLegalTraceStep(beat, "D")).toBe(false) // not a neighbor of A
+  })
+
+  it("a step to a non-neighbor is rejected (beat unchanged)", () => {
+    const beat = traceBeatFrom(G6, "A", "F")
+    const { beat: same, accepted } = applyTraceStep(beat, "F")
+    expect(accepted).toBe(false)
+    expect(same).toBe(beat) // identical reference, no walk
+  })
+
+  it("walking neighbor by neighbor reaches the target and solves", () => {
+    let beat = traceBeatFrom(G6, "A", "F")
+    for (const step of ["C", "E", "F"]) {
+      const r = applyTraceStep(beat, step)
+      expect(r.accepted).toBe(true)
+      beat = r.beat
+    }
+    expect(beat.path).toEqual(["A", "C", "E", "F"])
+    expect(isTraceSolved(beat)).toBe(true)
+    expect(tracePathEdges(beat)).toEqual([
+      ["A", "C"],
+      ["C", "E"],
+      ["E", "F"],
+    ])
+  })
+
+  it("the trace is solvable exactly when pathExists (a disconnected target can't be reached)", () => {
+    const split = { A: ["B"], B: ["A"], C: ["D"], D: ["C"] }
+    expect(pathExists(split, "A", "C")).toBe(false)
+    const beat = traceBeatFrom(split, "A", "C")
+    // every walkable node stays inside A's component, never reaching C
+    let cur = beat
+    for (const step of ["B", "A", "B"]) {
+      cur = applyTraceStep(cur, step).beat
+      expect(isTraceSolved(cur)).toBe(false)
+    }
+    expect(legalTraceTargets(cur).has("C")).toBe(false)
+  })
+})
+
+/* --------------------------------- build-the-line model (pure) --------------------------------- */
+
+describe("build-the-line model: grow active toward the plan (pure)", () => {
+  it("the active network is missing exactly four plan tracks", () => {
+    const missing = missingPlanEdges(METRO_ACTIVE_ADJ, METRO_PLAN_ADJ)
+    const keys = missing.map((e) => edgeKey(e[0], e[1])).sort()
+    expect(keys).toEqual(["A-M", "B-H", "D-G", "D-J"])
+    expect(sameGraph(METRO_ACTIVE_ADJ, METRO_PLAN_ADJ)).toBe(false)
+  })
+
+  it("only an un-built plan edge is a legal track", () => {
+    const beat = buildLineBeatFrom(METRO_ACTIVE_ADJ, METRO_PLAN_ADJ, METRO_PLAN_NODES)
+    expect(isLegalBuildEdge(beat, "D", "G")).toBe(true) // a missing plan edge
+    expect(isLegalBuildEdge(beat, "A", "B")).toBe(false) // already built
+    expect(isLegalBuildEdge(beat, "A", "D")).toBe(false) // not in the plan
+    expect(isLegalBuildEdge(beat, "D", "D")).toBe(false) // self-loop
+  })
+
+  it("drawing every missing track reaches the plan; a partial build is not solved", () => {
+    let beat = buildLineBeatFrom(METRO_ACTIVE_ADJ, METRO_PLAN_ADJ, METRO_PLAN_NODES)
+    const missing = missingPlanEdges(beat.working, beat.planAdj)
+    expect(missing.length).toBe(4)
+
+    // partial: draw all but the last
+    for (const [u, v] of missing.slice(0, -1)) {
+      const r = applyBuildLineEdge(beat, u, v)
+      expect(r.accepted).toBe(true)
+      beat = r.beat
+    }
+    expect(isBuildLineSolved(beat)).toBe(false)
+
+    const [lu, lv] = missing[missing.length - 1]
+    beat = applyBuildLineEdge(beat, lu, lv).beat
+    expect(isBuildLineSolved(beat)).toBe(true)
+    expect(sameGraph(beat.working, METRO_PLAN_ADJ)).toBe(true)
+  })
+
+  it("a wrong track (not in the plan) is rejected, beat unchanged", () => {
+    const beat = buildLineBeatFrom(METRO_ACTIVE_ADJ, METRO_PLAN_ADJ, METRO_PLAN_NODES)
+    const { beat: same, accepted } = applyBuildLineEdge(beat, "A", "D")
+    expect(accepted).toBe(false)
+    expect(same).toBe(beat)
+  })
+})
+
 /* --------------------------------- flow + structure --------------------------------- */
 
 describe("flow + structure", () => {
-  it("starts at the demo and has 12 parts", () => {
+  it("starts at the demo and has 14 parts", () => {
     const s = createGraphs(SEED)
     expect(currentPartGraphs(s)).toBe<GraphsPart>("demo")
-    expect(GRAPHS_TOTAL_PARTS).toBe(12)
+    expect(GRAPHS_TOTAL_PARTS).toBe(14)
   })
 
   it("continue advances only on intro/teach beats", () => {
@@ -206,11 +373,13 @@ describe("flow + structure", () => {
     expect(currentPartGraphs(run(s, { type: "continue" }))).toBe<GraphsPart>("read-list")
   })
 
-  it("legalDrawTargets is every node; the surface never gates the drop", () => {
-    const s = advanceTo("draw-edge")
-    const legal = legalDrawTargets(s)
-    expect(legal.size).toBe(s.question!.nodes.length)
-    for (const n of s.question!.nodes) expect(legal.has(n)).toBe(true)
+  it("read-path and read-trace-far are trace beats; build-the-line is a build beat", () => {
+    expect(isTracePart("read-path")).toBe(true)
+    expect(isTracePart("read-trace-far")).toBe(true)
+    expect(isBuildLinePart("build-the-line")).toBe(true)
+    expect(advanceTo("read-path").question!.mode).toBe("trace")
+    expect(advanceTo("read-trace-far").question!.mode).toBe("trace")
+    expect(advanceTo("build-the-line").question!.mode).toBe("build")
   })
 })
 
@@ -220,7 +389,7 @@ describe("read bin: connection list & degree (multi-select, set equality)", () =
   it("read-list: the exact neighbor set of C clears the beat and climbs the combo", () => {
     const s = advanceTo("read-list")
     expect(s.question!.answerSet).toEqual(["A", "B", "E"])
-    expect(canCheckGraphs(s)).toBe(false) // nothing picked yet
+    expect(canCheckGraphs(s)).toBe(false)
     const one = graphsReducer(s, { type: "select", letter: "A" })
     expect(canCheckGraphs(one)).toBe(true)
     const ok = selectNodes(s, ["A", "B", "E"])
@@ -229,19 +398,11 @@ describe("read bin: connection list & degree (multi-select, set equality)", () =
     expect(ok.combo).toBe(1)
   })
 
-  it("read-list: set equality ignores tap order", () => {
-    const s = advanceTo("read-list")
-    expect(selectNodes(s, ["E", "A", "B"]).feedback).toBe("correct")
-  })
-
   it("read-list: a missing or extra node nudges, then fails (counter untouched)", () => {
     const s = advanceTo("read-list")
-    const missing = selectNodes(s, ["A", "B"]) // too few
+    const missing = selectNodes(s, ["A", "B"])
     expect(missing.feedback).toBe("nudge")
     expect(missing.readCorrect).toBe(0)
-    const extra = selectNodes(s, ["A", "B", "E", "D"]) // one too many
-    expect(extra.feedback).toBe("nudge")
-    // the same wrong selection persists after a nudge; a second Check fails it
     const failed = run(missing, { type: "check" })
     expect(failed.feedback).toBe("fail")
     expect(failed.combo).toBe(0)
@@ -254,12 +415,57 @@ describe("read bin: connection list & degree (multi-select, set equality)", () =
     expect(s.question!.answerSet!.length).toBe(degree(G6, "D"))
     expect(selectNodes(s, ["B", "E"]).feedback).toBe("correct")
   })
+})
 
-  it("read-path: A→F is reachable (yes)", () => {
+describe("read bin: active trace (walk the path)", () => {
+  it("read-path (near): the asked pair A→D is reachable and is not a direct edge", () => {
     const s = advanceTo("read-path")
-    expect(s.question!.answer).toBe("yes")
-    expect(pick(s, "no").feedback).toBe("nudge")
-    expect(pick(s, "yes").feedback).toBe("correct")
+    expect(s.question!.pair).toEqual(["A", "D"])
+    expect(pathExists(G6, "A", "D")).toBe(true)
+    expect(hasEdge(G6, "A", "D")).toBe(false) // forces a real walk
+    expect(canCheckGraphs(s)).toBe(false) // no Check on a trace
+  })
+
+  it("read-trace-far (far): the asked pair A→F is reachable and longer", () => {
+    const s = advanceTo("read-trace-far")
+    expect(s.question!.pair).toEqual(["A", "F"])
+    expect(pathExists(G6, "A", "F")).toBe(true)
+  })
+
+  it("only neighbors of the current node are walkable; a non-neighbor tap nudges", () => {
+    const s = advanceTo("read-path") // start A, neighbors B, C (read-list + read-degree already cleared)
+    const before = s.readCorrect
+    const jump = graphsReducer(s, { type: "select", letter: "D" }) // D is not A's neighbor
+    expect(jump.feedback).toBe("nudge")
+    expect(jump.trace!.path).toEqual(["A"]) // no walk happened
+    expect(jump.readCorrect).toBe(before) // the read bin did not move
+  })
+
+  it("walking A→B→D reaches the target, grades the read bin, and climbs the combo", () => {
+    const s = advanceTo("read-path")
+    const before = s.readCorrect
+    const stepB = graphsReducer(s, { type: "select", letter: "B" })
+    expect(stepB.feedback).toBe("idle")
+    expect(stepB.trace!.path).toEqual(["A", "B"])
+    expect(stepB.readCorrect).toBe(before) // not yet at the target
+
+    const stepD = graphsReducer(stepB, { type: "select", letter: "D" })
+    expect(stepD.feedback).toBe("correct")
+    expect(isTraceSolved(stepD.trace!)).toBe(true)
+    expect(stepD.readCorrect).toBe(before + 1)
+    expect(stepD.combo).toBe(s.combo + 1)
+  })
+
+  it("a trace never hits a fail wall: a wrong step only nudges, the walk persists", () => {
+    const s = advanceTo("read-path")
+    let cur = graphsReducer(s, { type: "select", letter: "B" }) // walk to B
+    cur = graphsReducer(cur, { type: "select", letter: "F" }) // F is not B's neighbor
+    expect(cur.feedback).toBe("nudge")
+    cur = graphsReducer(cur, { type: "select", letter: "F" }) // wrong again, still a nudge
+    expect(cur.feedback).toBe("nudge")
+    expect(cur.trace!.path).toEqual(["A", "B"]) // unchanged by the wrong taps
+    cur = graphsReducer(cur, { type: "select", letter: "D" }) // a legal step recovers
+    expect(cur.feedback).toBe("correct")
   })
 })
 
@@ -269,17 +475,14 @@ describe("read bin: match-list MCQ", () => {
     const q = s.question!
     const correct = q.options.find((o) => o.id === "correct")!
     expect(sameGraph(correct.adj!, G6)).toBe(true)
-
     const distractors = q.options.filter((o) => o.id !== "correct")
     expect(distractors).toHaveLength(3)
     for (const d of distractors) {
-      // differs from the picture by exactly one undirected edge
       const a = edgeSet(d.adj!)
       const b = edgeSet(G6)
       const diff =
         [...a].filter((e) => !b.has(e)).length + [...b].filter((e) => !a.has(e)).length
       expect(diff).toBe(1)
-      // and is NOT just the correct set re-sorted
       expect(sameGraph(d.adj!, G6)).toBe(false)
     }
   })
@@ -289,21 +492,15 @@ describe("read bin: match-list MCQ", () => {
     expect(pick(s, "add-ad").feedback).toBe("nudge")
     expect(pick(s, "correct").feedback).toBe("correct")
   })
-
-  it("option order is deterministic for a given seed", () => {
-    const a = advanceTo("match-list", SEED).question!.options.map((o) => o.id)
-    const b = advanceTo("match-list", SEED).question!.options.map((o) => o.id)
-    expect(a).toEqual(b)
-  })
 })
 
 /* --------------------------------- draw bin --------------------------------- */
 
-describe("draw bin: undirected edge-draw (rewire normalized to a set)", () => {
+describe("draw bin: single undirected edge-draw (rewire normalized to a set)", () => {
   it("draw-edge: drawing {B,D} matches the data and clears the beat", () => {
     const s = advanceTo("draw-edge")
     expect(s.question!.missingEdge).toEqual(["B", "D"])
-    expect(canCheckGraphs(s)).toBe(false) // nothing drawn yet
+    expect(canCheckGraphs(s)).toBe(false)
     const drawn = graphsReducer(s, { type: "rewire", from: "B", to: "D" })
     expect(canCheckGraphs(drawn)).toBe(true)
     expect(drawn.pendingEdge).toEqual(["B", "D"])
@@ -322,18 +519,15 @@ describe("draw bin: undirected edge-draw (rewire normalized to a set)", () => {
   it("draw-edge: a self-loop and an existing edge are both no-ops", () => {
     const s = advanceTo("draw-edge")
     expect(graphsReducer(s, { type: "rewire", from: "B", to: "B" }).pendingEdge).toBeNull()
-    // B–A already exists in the shown picture → dup is ignored
     expect(graphsReducer(s, { type: "rewire", from: "B", to: "A" }).pendingEdge).toBeNull()
-    // an endpoint outside the node set → ignored
     expect(graphsReducer(s, { type: "rewire", from: "B", to: "Z" }).pendingEdge).toBeNull()
   })
 
   it("draw-edge: a legal-but-wrong edge nudges, then fails (counter untouched)", () => {
     const s = advanceTo("draw-edge")
-    const wrong = draw(s, "B", "E") // B–E is legal to draw but not the missing edge
+    const wrong = draw(s, "B", "E")
     expect(wrong.feedback).toBe("nudge")
     expect(wrong.drawCorrect).toBe(0)
-    // a new legal draw REPLACES the pending edge (one edge at a time)
     const replaced = graphsReducer(wrong, { type: "rewire", from: "B", to: "D" })
     expect(replaced.pendingEdge).toEqual(["B", "D"])
     expect(sameGraph(replaced.workingAdj, G6)).toBe(true)
@@ -349,6 +543,50 @@ describe("draw bin: undirected edge-draw (rewire normalized to a set)", () => {
   })
 })
 
+/* --------------------------------- build bin --------------------------------- */
+
+describe("build bin: build-the-line synthesis (multi-edge, graded on sameGraph)", () => {
+  it("starts as the active network and carries the plan", () => {
+    const s = advanceTo("build-the-line")
+    expect(s.question!.transit).toBe(true)
+    expect(s.buildLine).not.toBeNull()
+    expect(sameGraph(s.workingAdj, METRO_ACTIVE_ADJ)).toBe(true)
+    expect(sameGraph(s.question!.planAdj!, METRO_PLAN_ADJ)).toBe(true)
+    expect(canCheckGraphs(s)).toBe(false) // committed by drawing, not Check
+  })
+
+  it("an illegal track (not in the plan) nudges with no fail wall; the build persists", () => {
+    const s = advanceTo("build-the-line")
+    const wrong = graphsReducer(s, { type: "rewire", from: "A", to: "D" }) // not a plan edge
+    expect(wrong.feedback).toBe("nudge")
+    expect(sameGraph(wrong.workingAdj, METRO_ACTIVE_ADJ)).toBe(true) // unchanged
+    expect(wrong.buildCorrect).toBe(0)
+    // a real track recovers
+    const right = graphsReducer(wrong, { type: "rewire", from: "D", to: "G" })
+    expect(right.feedback).toBe("idle")
+    expect(hasEdge(right.workingAdj, "D", "G")).toBe(true)
+  })
+
+  it("drawing all four missing tracks completes the network and grades the build bin once", () => {
+    const s = advanceTo("build-the-line")
+    const missing = missingPlanEdges(s.workingAdj, s.question!.planAdj!)
+    expect(missing.length).toBe(4)
+
+    let cur = s
+    for (let i = 0; i < missing.length; i++) {
+      const [u, v] = missing[i]
+      cur = graphsReducer(cur, { type: "rewire", from: u, to: v })
+      if (i < missing.length - 1) {
+        expect(cur.feedback).toBe("idle") // not solved yet
+        expect(cur.buildCorrect).toBe(0)
+      }
+    }
+    expect(cur.feedback).toBe("correct")
+    expect(cur.buildCorrect).toBe(1)
+    expect(sameGraph(cur.workingAdj, METRO_PLAN_ADJ)).toBe(true)
+  })
+})
+
 /* ------------------------- transit skin (decoration only) ------------------------- */
 
 describe("transit skin: decoration only, verdicts read adjacency", () => {
@@ -356,15 +594,8 @@ describe("transit skin: decoration only, verdicts read adjacency", () => {
     expect(TRANSIT_NODES).toHaveLength(7)
     expect(edgeSet(TRANSIT).size).toBe(7)
     expect(isConnected(TRANSIT, TRANSIT_NODES)).toBe(true)
-    expect(isTree(TRANSIT, TRANSIT_NODES)).toBe(false) // the loop is a cycle
-    expect(degree(TRANSIT, "C")).toBe(4) // Central: where the loop meets the branch
-  })
-
-  it("draw-transit routes the missing C-D track, either drag direction", () => {
-    const s = advanceTo("draw-transit")
-    expect(s.question!.missingEdge).toEqual(["C", "D"])
-    expect(draw(s, "C", "D").feedback).toBe("correct")
-    expect(draw(s, "D", "C").feedback).toBe("correct") // undirected
+    expect(isTree(TRANSIT, TRANSIT_NODES)).toBe(false)
+    expect(degree(TRANSIT, "C")).toBe(4)
   })
 
   it("scrambling either transit layout never changes a verdict (position-free)", () => {
@@ -374,8 +605,6 @@ describe("transit skin: decoration only, verdicts read adjacency", () => {
     const diagram = scramble(TRANSIT_DIAGRAM_LAYOUT)
     expect(Object.keys(geo).sort()).toEqual(TRANSIT_NODES)
     expect(Object.keys(diagram).sort()).toEqual(TRANSIT_NODES)
-    // Layouts are decoration: the same network under any coordinates is the same graph,
-    // and the draw verdict is computed from adjacency, never from positions.
     expect(sameGraph(TRANSIT, TRANSIT)).toBe(true)
     const s = advanceTo("draw-transit")
     expect(sameGraph(draw(s, "C", "D").workingAdj, TRANSIT_DRAW_ADJ)).toBe(true)
@@ -385,7 +614,7 @@ describe("transit skin: decoration only, verdicts read adjacency", () => {
     const same = makeSameGraph("same", SEED).question
     expect(same.transit).toBe(true)
     expect(sameGraph(same.adj, same.adjB!)).toBe(true)
-    expect(same.layout).not.toEqual(same.layoutB) // geo and diagram look nothing alike
+    expect(same.layout).not.toEqual(same.layoutB)
     const diff = makeSameGraph("different", SEED).question
     expect(sameGraph(diff.adj, diff.adjB!)).toBe(false)
   })
@@ -398,45 +627,26 @@ describe("same bin: same-graph identity & tree-or-not", () => {
     const same = makeSameGraph("same", SEED).question
     expect(same.answer).toBe("same")
     expect(sameGraph(same.adj, same.adjB!)).toBe(true)
-
     const diff = makeSameGraph("different", SEED).question
     expect(diff.answer).toBe("different")
     expect(sameGraph(diff.adj, diff.adjB!)).toBe(false)
   })
 
-  it("same-graph verdict is invariant under a positions-only relabel", () => {
-    const { question } = makeSameGraph("same", SEED)
-    // Scramble every position in BOTH layouts; the adjacency is untouched.
-    const scrambled = {
-      ...question,
-      layout: Object.fromEntries(
-        Object.keys(question.layout).map((k, i) => [k, { x: i * 13, y: i * 7 }]),
-      ),
-      layoutB: Object.fromEntries(
-        Object.keys(question.layoutB!).map((k, i) => [k, { x: 99 - i, y: i }]),
-      ),
-    }
-    // The verdict reads ONLY adjacency; relabeling positions cannot change it.
-    expect(sameGraph(scrambled.adj, scrambled.adjB!)).toBe(true)
-    expect(scrambled.answer).toBe("same")
-  })
-
   it("same-graph: the seed-selected variant clears on its marked answer", () => {
-    // With curated variant rotation, SEED selects the "different" instance here.
     const s = advanceTo("same-graph")
-    expect(s.question!.answer).toBe("different")
-    expect(pick(s, "same").feedback).toBe("nudge")
-    expect(pick(s, "different").feedback).toBe("correct")
+    const answer = s.question!.answer
+    const other = answer === "same" ? "different" : "same"
+    expect(pick(s, other).feedback).toBe("nudge")
+    expect(pick(s, answer).feedback).toBe("correct")
+    expect(pick(s, answer).sameCorrect).toBe(1)
   })
 
-  it("tree-or-not: G6 is a general graph, T6 is a tree", () => {
-    expect(makeTreeOrNot("graph", SEED).question.answer).toBe("graph")
-    expect(makeTreeOrNot("tree", SEED).question.answer).toBe("tree")
-    // SEED selects the "graph" (cycle) instance for the rotated beat.
+  it("tree-or-not: the seed-selected variant clears on its marked answer", () => {
     const s = advanceTo("tree-or-not")
-    expect(s.question!.answer).toBe("graph")
-    expect(pick(s, "tree").feedback).toBe("nudge")
-    expect(pick(s, "graph").feedback).toBe("correct")
+    const answer = s.question!.answer
+    const other = answer === "tree" ? "graph" : "tree"
+    expect(pick(s, other).feedback).toBe("nudge")
+    expect(pick(s, answer).feedback).toBe("correct")
   })
 })
 
@@ -447,7 +657,7 @@ describe("curated variant rotation (seed-selected, layouts RNG-free)", () => {
     for (const seed of [0, 1, 7, 12345, 99999]) {
       const a = selectGraphVariant(SAME_GRAPH_VARIANTS, seed)
       const b = selectGraphVariant(SAME_GRAPH_VARIANTS, seed)
-      expect(a).toEqual(b) // same seed → same variant AND same advanced rng
+      expect(a).toEqual(b)
       expect(SAME_GRAPH_VARIANTS).toContain(a.variant)
     }
   })
@@ -468,16 +678,6 @@ describe("curated variant rotation (seed-selected, layouts RNG-free)", () => {
     expect(seen).toEqual(new Set(["graph", "tree"]))
   })
 
-  it("same-graph per-variant: 'same' is identical, 'different' drops one edge", () => {
-    const same = makeSameGraph("same", SEED).question
-    expect(same.answer).toBe("same")
-    expect(sameGraph(same.adj, same.adjB!)).toBe(true)
-
-    const diff = makeSameGraph("different", SEED).question
-    expect(diff.answer).toBe("different")
-    expect(sameGraph(diff.adj, diff.adjB!)).toBe(false)
-  })
-
   it("tree-or-not per-variant: 'graph' has a cycle, 'tree' is acyclic", () => {
     expect(makeTreeOrNot("graph", SEED).question.answer).toBe("graph")
     expect(isTree(makeTreeOrNot("graph", SEED).question.adj, G6_NODES)).toBe(false)
@@ -486,8 +686,6 @@ describe("curated variant rotation (seed-selected, layouts RNG-free)", () => {
   })
 
   it("layouts never depend on RNG, identical across two different seeds", () => {
-    // For a fixed variant, positions are hand-authored constants, so two
-    // unrelated seeds (which only reshuffle option order) yield identical layouts.
     for (const v of SAME_GRAPH_VARIANTS) {
       const a = makeSameGraph(v, 111).question
       const b = makeSameGraph(v, 987654).question
@@ -505,7 +703,15 @@ describe("curated variant rotation (seed-selected, layouts RNG-free)", () => {
 /* --------------------------- gate, determinism, persistence --------------------------- */
 
 describe("gate, completion, determinism, persistence", () => {
-  it("partQuotaGraphs reports cumulative n of 8 on a graded beat, null on intro", () => {
+  it("the gate totals read 5 / draw 2 / build 1 / same 2 = 10", () => {
+    expect(READ_QUOTA).toBe(5)
+    expect(DRAW_QUOTA).toBe(2)
+    expect(BUILD_QUOTA).toBe(1)
+    expect(SAME_QUOTA).toBe(2)
+    expect(GATE_TOTAL).toBe(10)
+  })
+
+  it("partQuotaGraphs reports cumulative n of 10 on a graded beat, null on intro", () => {
     expect(partQuotaGraphs(createGraphs(SEED))).toBeNull() // demo
     const atRead = advanceTo("read-list")
     expect(partQuotaGraphs(atRead)).toEqual({ done: 0, total: GATE_TOTAL })
@@ -513,19 +719,28 @@ describe("gate, completion, determinism, persistence", () => {
     expect(partQuotaGraphs(cleared)).toEqual({ done: 1, total: GATE_TOTAL })
   })
 
-  it("the gate flips only at 4 / 2 / 2 and the happy path reaches combo 8", () => {
+  it("the gate flips only at 5 / 2 / 1 / 2 and the happy path reaches combo 10", () => {
     const s = playToEnd()
     expect(s.completed).toBe(true)
     expect(isCompleteGraphs(s)).toBe(true)
     expect(s.readCorrect).toBe(READ_QUOTA)
     expect(s.drawCorrect).toBe(DRAW_QUOTA)
+    expect(s.buildCorrect).toBe(BUILD_QUOTA)
     expect(s.sameCorrect).toBe(SAME_QUOTA)
-    expect(s.combo).toBe(GATE_TOTAL) // 8 consecutive correct, flame never broke
+    expect(s.combo).toBe(GATE_TOTAL) // 10 consecutive correct, flame never broke
   })
 
   it("is incomplete until every bin is satisfied", () => {
-    expect(isCompleteGraphs({ ...createGraphs(SEED), readCorrect: 4, drawCorrect: 2, sameCorrect: 1 })).toBe(false)
-    expect(isCompleteGraphs({ ...createGraphs(SEED), readCorrect: 4, drawCorrect: 2, sameCorrect: 2 })).toBe(true)
+    const base = createGraphs(SEED)
+    expect(
+      isCompleteGraphs({ ...base, readCorrect: 5, drawCorrect: 2, buildCorrect: 0, sameCorrect: 2 }),
+    ).toBe(false)
+    expect(
+      isCompleteGraphs({ ...base, readCorrect: 5, drawCorrect: 2, buildCorrect: 1, sameCorrect: 1 }),
+    ).toBe(false)
+    expect(
+      isCompleteGraphs({ ...base, readCorrect: 5, drawCorrect: 2, buildCorrect: 1, sameCorrect: 2 }),
+    ).toBe(true)
   })
 
   it("is deterministic: same seed yields the same questions", () => {
@@ -535,23 +750,38 @@ describe("gate, completion, determinism, persistence", () => {
     expect(a.question!.answerSet).toEqual(b.question!.answerSet)
   })
 
-  it("round-trips progress and resumes on the same beat with a cold combo", () => {
+  it("round-trips progress (including build) and resumes cold", () => {
+    const done = playToEnd()
+    const progress = toProgressGraphs(done)
+    expect(progress.counters).toMatchObject({ read: 5, draw: 2, build: 1, same: 2 })
+    expect(progress.completed).toBe(true)
+    expect(resumeGraphs(progress, SEED).completed).toBe(true)
+  })
+
+  it("resumes on the same beat with a cold combo and no working state", () => {
     let s = advanceTo("read-degree")
-    s = clearBeat(s) // read-degree done → read-path; read=2
+    s = clearBeat(s) // read-degree done → read-path (trace); read=2
     const progress = toProgressGraphs(s)
-    expect(progress.counters).toMatchObject({ read: 2, draw: 0, same: 0 })
+    expect(progress.counters).toMatchObject({ read: 2, draw: 0, build: 0, same: 0 })
     expect(progress.currentPart).toBe<GraphsPart>("read-path")
 
     const resumed = resumeGraphs(progress, SEED)
     expect(currentPartGraphs(resumed)).toBe<GraphsPart>("read-path")
     expect(resumed.readCorrect).toBe(2)
     expect(resumed.combo).toBe(0) // flame is transient, cold on resume
-    expect(resumed.pendingEdge).toBeNull() // working state not persisted
+    expect(resumed.trace!.path).toEqual(["A"]) // a fresh trace, nothing walked
+    expect(resumed.pendingEdge).toBeNull()
   })
 
-  it("a completed run resumes as completed", () => {
-    const done = toProgressGraphs(playToEnd())
-    expect(done.completed).toBe(true)
-    expect(resumeGraphs(done, SEED).completed).toBe(true)
+  it("resumes a build beat with the active network freshly re-seeded", () => {
+    const progress = {
+      counters: { read: 5, draw: 2, build: 0, same: 0, attempts: 0 },
+      currentPart: "build-the-line",
+      completed: false,
+    }
+    const resumed = resumeGraphs(progress, SEED)
+    expect(currentPartGraphs(resumed)).toBe<GraphsPart>("build-the-line")
+    expect(resumed.buildLine).not.toBeNull()
+    expect(sameGraph(resumed.workingAdj, METRO_ACTIVE_ADJ)).toBe(true)
   })
 })

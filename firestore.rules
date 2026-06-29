@@ -49,7 +49,7 @@ service cloud.firestore {
         && d.counters is map && d.counters.size() <= 50
         && d.currentPart is string && d.currentPart.size() <= 100
         && d.completed is bool
-        && (d.completedAt == null || d.completedAt is timestamp)
+        && (!('completedAt' in d) || d.completedAt == null || d.completedAt is timestamp)
         && d.updatedAt is timestamp;
     }
 
@@ -66,6 +66,50 @@ service cloud.firestore {
         && d.dueAt is number && d.dueAt >= 0
         && d.graduated is bool
         && d.updatedAt is timestamp;
+    }
+
+    // Per-Trial durable design slice: the chosen structures/mappings, verdicts,
+    // and the revision/nudge history, plus completion flags. Maps and lists are
+    // size-capped and strings bounded so a self-owned doc can't be inflated; the
+    // mission artifacts are optional (omitted until a mission is locked in).
+    function isValidTrialProgress() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['missionId', 'segmentId', 'unlockedSegments', 'chosenStructures', 'operationMappings', 'policyChoices', 'verdicts', 'revisionHistory', 'nudgesShown', 'stressTestsRun', 'missionAArtifact', 'missionBArtifact', 'completed', 'cleanPass', 'completedAt', 'updatedAt'])
+        && d.missionId is string && d.missionId.size() <= 100
+        && d.segmentId is string && d.segmentId.size() <= 100
+        && d.unlockedSegments is list && d.unlockedSegments.size() <= 50
+        && d.chosenStructures is map && d.chosenStructures.size() <= 50
+        && d.operationMappings is map && d.operationMappings.size() <= 100
+        && d.policyChoices is map && d.policyChoices.size() <= 50
+        && d.verdicts is map && d.verdicts.size() <= 50
+        && d.revisionHistory is list && d.revisionHistory.size() <= 200
+        && d.nudgesShown is list && d.nudgesShown.size() <= 100
+        && d.stressTestsRun is list && d.stressTestsRun.size() <= 100
+        && (!('missionAArtifact' in d) || (d.missionAArtifact is map && d.missionAArtifact.size() <= 10))
+        && (!('missionBArtifact' in d) || (d.missionBArtifact is map && d.missionBArtifact.size() <= 10))
+        && d.completed is bool
+        && d.cleanPass is bool
+        && (!('completedAt' in d) || d.completedAt == null || d.completedAt is timestamp)
+        && d.updatedAt is timestamp;
+    }
+
+    // Public create-only inbox for office playtest notes. No reads, updates, or
+    // deletes are allowed from clients; every string is capped to avoid payload
+    // abuse, and createdAt must be a timestamp.
+    function isValidPlaytestFeedback() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['lessonId', 'notes', 'path', 'userAgent', 'source', 'createdAt'])
+        && d.keys().hasAll(['lessonId', 'notes', 'path', 'userAgent', 'source', 'createdAt'])
+        && d.lessonId in ['intro', 'stacks-and-queues', 'arrays', 'linked-lists', 'hash-tables', 'trees', 'heaps', 'graphs']
+        && d.notes is string && d.notes.size() > 0 && d.notes.size() <= 3000
+        && d.path is string && d.path.size() <= 500
+        && d.userAgent is string && d.userAgent.size() <= 500
+        && d.source == 'playtest'
+        && d.createdAt is timestamp;
+    }
+
+    match /playtestFeedback/{feedbackId} {
+      allow create: if isValidPlaytestFeedback();
     }
 
     // A learner can read and write only their own data. Subcollections are
@@ -93,6 +137,11 @@ service cloud.firestore {
       match /conceptReviews/{conceptId} {
         allow read: if isOwner(uid);
         allow write: if isOwner(uid) && isValidConceptReview();
+      }
+
+      match /trialProgress/{trialId} {
+        allow read: if isOwner(uid);
+        allow write: if isOwner(uid) && isValidTrialProgress();
       }
     }
   }

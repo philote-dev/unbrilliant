@@ -47,10 +47,13 @@ async function createEmulatorUser(email: string, password: string): Promise<stri
 }
 
 /**
- * Seed the docs LessonHost reads to gate the warm-up: a *completed* Stacks &
- * Queues, the user's current course, and a classify ConceptReview whose dueAt is
- * far in the past (due now). Written as the authenticated owner (rules allow it),
- * exactly like the FirestoreProgressRepository emulator tests.
+ * Seed the docs LessonHost reads to gate the warm-up: the user's current course,
+ * a *completed* Introduction and Stacks & Queues (so "Continue learning" advances
+ * past the new intro gate to Arrays, which the warm-up fronts), and a classify
+ * ConceptReview whose dueAt is far in the past (due now). Written as the
+ * authenticated owner, in the exact shape the rules require: lessonProgress and
+ * conceptReviews each need `updatedAt is timestamp`, like the
+ * FirestoreProgressRepository emulator tests.
  */
 async function seedDueConcept(uid: string): Promise<void> {
   const testEnv: RulesTestEnvironment = await initializeTestEnvironment({
@@ -67,10 +70,20 @@ async function seedDueConcept(uid: string): Promise<void> {
       displayName: NAME,
       currentCourseId: "data-structures",
     })
+    // The redesign prepends an Introduction lesson, so it must be complete too;
+    // otherwise "Continue learning" resumes into the intro, not Arrays. Each
+    // lessonProgress doc carries `updatedAt` (the rules now require a timestamp).
+    await setDoc(doc(db, "users", uid, "lessonProgress", "intro"), {
+      counters: {},
+      currentPart: "done",
+      completed: true,
+      updatedAt: new Date(),
+    })
     await setDoc(doc(db, "users", uid, "lessonProgress", "stacks-and-queues"), {
       counters: { classify: 1 },
       currentPart: "compare",
       completed: true,
+      updatedAt: new Date(),
     })
     await setDoc(
       doc(db, "users", uid, "conceptReviews", "stacks-and-queues:classify"),
@@ -82,6 +95,7 @@ async function seedDueConcept(uid: string): Promise<void> {
         lastSeenAt: 0,
         dueAt: 1,
         graduated: false,
+        updatedAt: new Date(),
       },
     )
   } finally {

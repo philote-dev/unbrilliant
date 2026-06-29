@@ -16,7 +16,7 @@ export const SCENARIO_POOL: Scenario[] = [
   {
     id: "printer",
     prompt:
-      "Three files are sent to a printer: the report, then the essay, then the photo. Which prints first?",
+      "Three files are sent to a printer. First the report, then the essay, then the photo. Which prints first?",
     options: [
       { id: "report", label: "The report (sent first)" },
       { id: "photo", label: "The photo (sent last)" },
@@ -40,7 +40,7 @@ export const SCENARIO_POOL: Scenario[] = [
   {
     id: "cafeteria",
     prompt:
-      "Students line up for lunch: Ana, then Ben, then Cara. Who is served first?",
+      "Students line up for lunch. First Ana, then Ben, then Cara. Who is served first?",
     options: [
       { id: "ana", label: "Ana (joined first)" },
       { id: "cara", label: "Cara (joined last)" },
@@ -52,7 +52,7 @@ export const SCENARIO_POOL: Scenario[] = [
   {
     id: "plates",
     prompt:
-      "Plates are stacked: blue, then red, then green on top. Which do you take first?",
+      "Plates are stacked with blue first, then red, then green on top. Which do you take first?",
     options: [
       { id: "green", label: "Green (on top)" },
       { id: "blue", label: "Blue (at the bottom)" },

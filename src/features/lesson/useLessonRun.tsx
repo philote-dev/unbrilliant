@@ -22,6 +22,10 @@ import { dayKeyToUTCDate, localDayKey } from "@/features/progress/activityDate"
 import { useConceptReviews } from "@/features/progress/ConceptReviewProvider"
 import { risenConcepts } from "@/features/progress/concepts"
 import { getLessonModule } from "@/features/lesson/lessons"
+import {
+  lessonRunKeyForScreen,
+  screenHasLessonRun,
+} from "@/features/lesson/lessonRunRoute"
 import { reconcileModule, type LessonModule } from "@/features/lesson/lessonModule"
 import type { LessonAction } from "@/features/lesson/engine"
 import type { ActivityDay } from "@/features/progress/ProgressRepository"
@@ -55,28 +59,33 @@ export function LessonRunProvider({ children }: { children: ReactNode }) {
   // The active lesson follows navigation; on non-lesson screens (the sign-in
   // detour) we keep the last lesson so its in-run state survives the round trip.
   const activeLessonRef = useRef<string>(LIVE_LESSON_ID)
-  if (screen.name === "lesson" || screen.name === "complete") {
+  const activeRunKeyRef = useRef<string>(LIVE_LESSON_ID)
+  if (screenHasLessonRun(screen)) {
     activeLessonRef.current = screen.lessonId
+    activeRunKeyRef.current = lessonRunKeyForScreen(screen) ?? screen.lessonId
   }
   const lessonId = activeLessonRef.current
+  const runKey = activeRunKeyRef.current
+  const persistenceEnabled = !runKey.startsWith("playtest:")
   const module = getLessonModule(lessonId) as LessonModule<unknown>
 
-  // One in-memory run per lesson id. A ref-backed map + a render bump keeps the
-  // manual reducer synchronous (no flash when switching lessons mid-render).
+  // One in-memory run per run key. Playtests use a separate key so they never
+  // mutate the normal in-memory lesson run or any persisted progress.
   const runsRef = useRef<Record<string, unknown>>({})
-  if (!(lessonId in runsRef.current)) {
-    runsRef.current[lessonId] = module.create()
+  if (!(runKey in runsRef.current)) {
+    runsRef.current[runKey] = module.create()
   }
   const [, bump] = useReducer((n: number) => n + 1, 0)
-  const state = runsRef.current[lessonId]
+  const state = runsRef.current[runKey]
 
   const dispatch = useCallback<RunDispatch>((action) => {
     const id = activeLessonRef.current
+    const key = activeRunKeyRef.current
     const mod = getLessonModule(id)
     if (action.type === "hydrate") {
-      runsRef.current[id] = action.state
+      runsRef.current[key] = action.state
     } else {
-      runsRef.current[id] = mod.reducer(runsRef.current[id], action)
+      runsRef.current[key] = mod.reducer(runsRef.current[key], action)
     }
     bump()
   }, [])
@@ -105,7 +114,7 @@ export function LessonRunProvider({ children }: { children: ReactNode }) {
   // key (not a "started" flag) stays correct under React StrictMode's double
   // mount: a cancelled first pass leaves it unreconciled so the second runs.
   useEffect(() => {
-    if (!user) {
+    if (!persistenceEnabled || !user) {
       reconciledKey.current = null
       return
     }
@@ -118,7 +127,7 @@ export function LessonRunProvider({ children }: { children: ReactNode }) {
         const plan = await reconcileRun(
           repo,
           { uid: user.uid, displayName: user.displayName || "Learner", lessonId },
-          () => runsRef.current[lessonId],
+          () => runsRef.current[runKey],
           (local, server) => reconcileModule(module, local, server),
           () => cancelled,
         )
@@ -136,17 +145,23 @@ export function LessonRunProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true
     }
-  }, [user, lessonId, repo, module, dispatch])
+  }, [user, lessonId, runKey, persistenceEnabled, repo, module, dispatch])
 
   // Persist durable changes once reconciled (optimistic, off the hot path). The
   // serialized progress signature drives when to write. Lesson-agnostic.
   const progressSig = JSON.stringify(module.toProgress(state))
   useEffect(() => {
-    if (!user || reconciledKey.current !== `${user.uid}:${lessonId}`) return
+    if (
+      !persistenceEnabled ||
+      !user ||
+      reconciledKey.current !== `${user.uid}:${lessonId}`
+    ) {
+      return
+    }
     void repo
-      .saveProgress(user.uid, lessonId, module.toProgress(runsRef.current[lessonId]))
+      .saveProgress(user.uid, lessonId, module.toProgress(runsRef.current[runKey]))
       .catch(() => {})
-  }, [user, lessonId, repo, module, progressSig])
+  }, [user, lessonId, runKey, persistenceEnabled, repo, module, progressSig])
 
   // Record per-day answer activity (the contribution calendar / trends source).
   // The delta is the change in cumulative answer tallies since the last record,
@@ -155,20 +170,21 @@ export function LessonRunProvider({ children }: { children: ReactNode }) {
   // in-memory overlay always accrues (so anonymous runs show this session); only
   // a signed-in, reconciled run persists (history starts at sign-in, no backfill).
   useEffect(() => {
+    if (!persistenceEnabled) return
     const current = answerTallies(
-      module.toProgress(runsRef.current[lessonId]).counters,
+      module.toProgress(runsRef.current[runKey]).counters,
     )
     if (user && reconciledKey.current !== `${user.uid}:${lessonId}`) {
-      activityBaseRef.current[lessonId] = current
+      activityBaseRef.current[runKey] = current
       return
     }
-    const base = activityBaseRef.current[lessonId]
+    const base = activityBaseRef.current[runKey]
     if (!base) {
-      activityBaseRef.current[lessonId] = current
+      activityBaseRef.current[runKey] = current
       return
     }
     const delta = activityDelta(base, current)
-    activityBaseRef.current[lessonId] = current
+    activityBaseRef.current[runKey] = current
     if (delta.attempted <= 0) return
     const dayKey = localDayKey(Date.now())
     setSessionActivityMap((prev) => {
@@ -182,41 +198,48 @@ export function LessonRunProvider({ children }: { children: ReactNode }) {
       }
     })
     if (user) void repo.recordActivity(user.uid, dayKey, delta).catch(() => {})
-  }, [user, lessonId, repo, module, progressSig])
+  }, [user, lessonId, runKey, persistenceEnabled, repo, module, progressSig])
 
   // Feed the concept-memory substrate from normal play: each rise in a lesson's
   // durable correct-count records a correct rep for that concept. Baseline while
   // signed-in-but-unreconciled (so a resume-hydrate jump never back-fills), then
   // diff. Anonymous runs no-op inside recordReview (signed-in only).
   useEffect(() => {
-    const counters = module.toProgress(runsRef.current[lessonId]).counters
+    if (!persistenceEnabled) return
+    const counters = module.toProgress(runsRef.current[runKey]).counters
     if (user && reconciledKey.current !== `${user.uid}:${lessonId}`) {
-      reviewBaseRef.current[lessonId] = counters
+      reviewBaseRef.current[runKey] = counters
       return
     }
-    const base = reviewBaseRef.current[lessonId]
+    const base = reviewBaseRef.current[runKey]
     if (!base) {
-      reviewBaseRef.current[lessonId] = counters
+      reviewBaseRef.current[runKey] = counters
       return
     }
     for (const id of risenConcepts(lessonId, base, counters)) {
       recordReview(id, true)
     }
-    reviewBaseRef.current[lessonId] = counters
-  }, [user, lessonId, module, recordReview, progressSig])
+    reviewBaseRef.current[runKey] = counters
+  }, [user, lessonId, runKey, persistenceEnabled, module, recordReview, progressSig])
 
   // Persist the on-fire streak from the run's combo: current tracks the live
   // combo; longest is preserved as the all-time best (carries across sessions
   // and up on sign-in). The transient combo itself is unchanged.
   const combo = module.combo(state)
   useEffect(() => {
-    if (!user || reconciledKey.current !== `${user.uid}:${lessonId}`) return
+    if (
+      !persistenceEnabled ||
+      !user ||
+      reconciledKey.current !== `${user.uid}:${lessonId}`
+    ) {
+      return
+    }
     const prev = streakRef.current
     const longest = Math.max(prev.longest, combo)
     if (prev.current === combo && prev.longest === longest) return
     streakRef.current = { current: combo, longest }
     void repo.updateUser(user.uid, { streak: streakRef.current }).catch(() => {})
-  }, [user, lessonId, repo, combo])
+  }, [user, lessonId, persistenceEnabled, repo, combo])
 
   const sessionActivity = useMemo<ActivityDay[]>(
     () =>

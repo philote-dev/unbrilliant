@@ -57,14 +57,14 @@ export function ContrastRace({
     >
       <div className="flex flex-col items-center gap-1.5">
         <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-          Sorted list: every hop counts
+          Sorted list where every hop counts
         </span>
         <SortedChain keys={chain} cursor={cursor} targetIndex={chainTargetIndex} />
       </div>
 
       <div className="flex flex-col items-center gap-1.5">
         <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-          Balanced tree: half drops each step
+          Balanced tree where half drops each step
         </span>
         <DisplayTree tree={tree} highlightIds={litPath} droppedIds={dropped} variant={variant} />
       </div>

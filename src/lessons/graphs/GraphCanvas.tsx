@@ -41,7 +41,7 @@ const NODE_D = NODE_R * 2
  */
 const nodeSize = (scale: number) => Math.max(44, NODE_D * scale)
 
-type CanvasMode = "display" | "demo" | "multiselect" | "draw"
+type CanvasMode = "display" | "demo" | "multiselect" | "draw" | "trace"
 
 export interface GraphCanvasProps {
   mode: CanvasMode
@@ -60,8 +60,18 @@ export interface GraphCanvasProps {
   pendingEdge?: Edge | null
   /** Draw: the correct missing edge (DEV-only e2e hook on its source node). */
   missingEdge?: Edge
-  /** Edges to emphasise (sync highlight / Why-replay). */
+  /** Edges to emphasise (sync highlight / Why-replay / trace trail). */
   litEdges?: Edge[]
+  /** Trace: where the walk currently sits (the "you are here" node). */
+  currentNode?: NodeId
+  /** Trace: the nodes already walked (the trail). */
+  visitedNodes?: NodeId[]
+  /** Trace: the nodes the learner may step to next (the current node's neighbors). */
+  legalNext?: NodeId[]
+  /** Trace: the goal node (success-ringed "destination"). */
+  targetNode?: NodeId
+  /** Trace: walk to a legal neighbour. */
+  onStep?: (n: NodeId) => void
   terminal?: boolean
   reducedMotion?: boolean
 }
@@ -159,11 +169,11 @@ export function LiveEdgeStretch({ from, to, color }: { from: Pt; to: Pt; color: 
         x2={to.x}
         y2={to.y}
         stroke="currentColor"
-        strokeWidth={3}
+        strokeWidth={4}
         strokeLinecap="round"
-        strokeDasharray="1 7"
+        strokeDasharray="0.5 8"
       />
-      <circle cx={to.x} cy={to.y} r={4.5} fill="currentColor" />
+      <circle cx={to.x} cy={to.y} r={5.5} fill="currentColor" />
     </g>
   )
 }
@@ -182,6 +192,11 @@ function StaticCanvas({
   pendingEdge,
   missingEdge,
   litEdges,
+  currentNode,
+  visitedNodes,
+  legalNext,
+  targetNode,
+  onStep,
   terminal,
   reduced,
 }: GraphCanvasProps & { reduced: boolean }) {
@@ -193,6 +208,8 @@ function StaticCanvas({
   const marked = new Set(markedNodes ?? [])
   const selected = new Set(selectedNodes ?? [])
   const answers = new Set(answerSet ?? [])
+  const visited = new Set(visitedNodes ?? [])
+  const legal = new Set(legalNext ?? [])
   const lit = new Set((litEdges ?? []).map((e) => edgeKey(e[0], e[1])))
   const pendingKey = pendingEdge ? edgeKey(pendingEdge[0], pendingEdge[1]) : null
 
@@ -235,9 +252,9 @@ function StaticCanvas({
                   y2={b.y}
                   initial={reduced ? false : { pathLength: 0, opacity: 0 }}
                   animate={{ pathLength: 1, opacity: 1 }}
-                  transition={reduced ? { duration: 0 } : { duration: 0.5, ease: "easeOut" }}
+                  transition={reduced ? { duration: 0 } : { duration: 0.32, ease: "easeOut" }}
                   stroke="var(--lilac-strong)"
-                  strokeWidth={4}
+                  strokeWidth={4.5}
                   strokeLinecap="round"
                 />
               )
@@ -282,6 +299,17 @@ function StaticCanvas({
                 />
               ) : mode === "draw" ? (
                 <DrawNode n={n} missingEdge={missingEdge} terminal={terminal} />
+              ) : mode === "trace" ? (
+                <TraceNode
+                  n={n}
+                  isCurrent={currentNode === n}
+                  isVisited={visited.has(n)}
+                  isLegal={legal.has(n)}
+                  isTarget={targetNode === n}
+                  reached={currentNode != null && currentNode === targetNode}
+                  terminal={terminal}
+                  onStep={onStep}
+                />
               ) : (
                 <DisplayNode n={n} marked={marked.has(n)} />
               )}
@@ -398,16 +426,87 @@ function DrawNode({
         FOCUSABLE,
         "touch-none select-none",
         armed
-          ? "cursor-grabbing border-lilac-strong bg-lilac-soft text-lilac-strong ring-4 ring-lilac-strong/20"
+          ? "scale-105 cursor-grabbing border-lilac-strong bg-lilac-soft text-lilac-strong shadow-md ring-4 ring-lilac-strong/30"
           : showLegal
-            ? "cursor-pointer border-dashed border-lilac-strong bg-lilac-soft text-lilac-strong"
-            : "cursor-grab border-border bg-card text-foreground hover:border-lilac-strong/45",
-        hovered && "border-solid ring-4 ring-lilac-strong/25",
-        terminal && "cursor-default",
+            ? "cursor-pointer border-dashed border-lilac-strong bg-lilac-soft text-lilac-strong hover:bg-lilac"
+            : "cursor-grab border-border bg-card text-foreground shadow-sm hover:border-lilac-strong/55 hover:ring-2 hover:ring-lilac-strong/15",
+        hovered && "scale-110 border-solid border-lilac-strong ring-4 ring-lilac-strong/40",
+        terminal && "cursor-default shadow-none hover:ring-0",
       )}
     >
       {n}
     </button>
+  )
+}
+
+/* ----------------------------------- trace node ----------------------------------- */
+
+/**
+ * A trace step node. While the learner walks A→target, the current node's
+ * neighbors are the only tappable steps (dashed lilac "available" buttons); the
+ * current node carries the strong "you are here" ring (success once the goal is
+ * reached); already-walked nodes show a soft trail; the goal carries a success
+ * "destination" ring; everything else is dimmed and inert. Only neighbors are
+ * tappable, so the walk is gated to legal moves (the engine still validates).
+ */
+function TraceNode({
+  n,
+  isCurrent,
+  isVisited,
+  isLegal,
+  isTarget,
+  reached,
+  terminal,
+  onStep,
+}: {
+  n: NodeId
+  isCurrent: boolean
+  isVisited: boolean
+  isLegal: boolean
+  isTarget: boolean
+  reached: boolean
+  terminal?: boolean
+  onStep?: (n: NodeId) => void
+}) {
+  const goalRing = isTarget && !reached && "ring-2 ring-success/65 ring-offset-2 ring-offset-background"
+
+  if (isLegal && !isCurrent && !terminal) {
+    return (
+      <button
+        type="button"
+        aria-label={`node ${n}`}
+        onClick={() => onStep?.(n)}
+        className={cn(
+          CIRCLE,
+          FOCUSABLE,
+          "cursor-pointer touch-none border-dashed border-lilac-strong bg-lilac-soft/70 text-lilac-strong",
+          "hover:scale-105 hover:bg-lilac-soft hover:ring-4 hover:ring-lilac-strong/25",
+          goalRing,
+        )}
+      >
+        {n}
+      </button>
+    )
+  }
+
+  const tone = isCurrent
+    ? reached
+      ? "border-success bg-success-soft text-success ring-4 ring-success/30"
+      : "border-lilac-strong bg-lilac-soft text-lilac-strong ring-4 ring-lilac-strong/30"
+    : isVisited
+      ? "border-lilac-strong/45 bg-lilac-soft/45 text-foreground"
+      : "border-border bg-card text-muted-foreground opacity-70"
+
+  return (
+    <span
+      aria-label={
+        isCurrent ? `node ${n}, you are here` : isTarget ? `node ${n}, destination` : `node ${n}`
+      }
+      aria-current={isCurrent ? "location" : undefined}
+      className={cn(CIRCLE, tone, goalRing)}
+    >
+      {n}
+    </span>
   )
 }
 

@@ -353,13 +353,13 @@ function TeachPart({
           {isStack ? (
             <>
               <span className="font-semibold text-foreground">Last in, first out.</span>{" "}
-              One opening: cards go in and come out the same end, the{" "}
+              Cards go in and come out the same end, the{" "}
               <span className="font-semibold text-lilac-strong">top</span>.
             </>
           ) : (
             <>
               <span className="font-semibold text-foreground">First in, first out.</span>{" "}
-              Two ends: items enter the{" "}
+              Items enter at the{" "}
               <span className="font-semibold text-lilac-strong">back</span> and leave from
               the <span className="font-semibold text-lilac-strong">front</span>.
             </>
@@ -417,6 +417,11 @@ function PredictPart({
   // predicts the k-th; on reveal it replays all k pops (snapping if reduced).
   const [previewStep, setPreviewStep] = useState(0)
   const [playing, setPlaying] = useState(false)
+  // A transient hint shown when the learner taps Play again after the preview
+  // has already scrubbed to the predict point. From there a replay could only
+  // surface the k-th pop (the answer), so we nudge them to commit instead of
+  // leaving Play as a silent dead button.
+  const [commitNudge, setCommitNudge] = useState(false)
 
   useEffect(() => {
     if (!isAfterK || !revealing) return
@@ -461,6 +466,21 @@ function PredictPart({
     const id = setTimeout(() => setPopping(true), LEAVE_BEAT_MS)
     return () => clearTimeout(id)
   }, [isAfterK, revealing, reduce])
+
+  // The commit nudge reads as a brief, friendly hint: auto-dismiss it so it
+  // never lingers as a persistent error.
+  useEffect(() => {
+    if (!commitNudge) return
+    const id = setTimeout(() => setCommitNudge(false), 2600)
+    return () => clearTimeout(id)
+  }, [commitNudge])
+
+  // Consecutive predicts can reuse this component instance, so a fresh question
+  // must start without a stale nudge.
+  const questionKey = q.arrival.join(",")
+  useEffect(() => {
+    setCommitNudge(false)
+  }, [questionKey])
 
   // after-k: the answer turns green only once the pops finish, so it is never
   // styled correct while still buried under the cells leaving above it.
@@ -535,24 +555,50 @@ function PredictPart({
           answerId={q.answer}
         />
         {!terminal && (
-          <StepTransport
-            index={Math.min(previewStep, k - 1)}
-            total={k}
-            playing={playing}
-            onPlayToggle={() => setPlaying((p) => !p)}
-            onPrev={() => {
-              setPlaying(false)
-              setPreviewStep((p) => Math.max(0, p - 1))
-            }}
-            onNext={() => {
-              setPlaying(false)
-              setPreviewStep((p) => Math.min(k - 1, p + 1))
-            }}
-            onReplay={() => {
-              setPlaying(false)
-              setPreviewStep(0)
-            }}
-          />
+          <div className="flex flex-col items-center gap-2">
+            <StepTransport
+              index={Math.min(previewStep, k - 1)}
+              total={k}
+              playing={playing}
+              onPlayToggle={() => {
+                // Pausing an in-flight preview stays a pause.
+                if (playing) {
+                  setPlaying(false)
+                  return
+                }
+                // The scrub caps at k-1 so the k-th pop (the answer) is never
+                // shown. Parked there, Play can only reveal it, so nudge the
+                // learner to commit instead of dead-clicking a do-nothing button.
+                if (previewStep >= k - 1) {
+                  setCommitNudge(true)
+                  return
+                }
+                setPlaying(true)
+              }}
+              onPrev={() => {
+                setCommitNudge(false)
+                setPlaying(false)
+                setPreviewStep((p) => Math.max(0, p - 1))
+              }}
+              onNext={() => {
+                setPlaying(false)
+                setPreviewStep((p) => Math.min(k - 1, p + 1))
+              }}
+              onReplay={() => {
+                setCommitNudge(false)
+                setPlaying(false)
+                setPreviewStep(0)
+              }}
+            />
+            {commitNudge && (
+              <p
+                aria-live="polite"
+                className="animate-fade-in text-xs font-medium text-faint"
+              >
+                Make your prediction first
+              </p>
+            )}
+          </div>
         )}
       </div>
     )
@@ -1015,5 +1061,5 @@ function contrastSrLabel(q: ContrastQuestion): string {
   const stackStep = targetEmitStep(q.arrival, q.target, "stack")
   const queueStep = targetEmitStep(q.arrival, q.target, "queue")
   const winnerLabel = q.answer === "stack" ? "Stack" : "Queue"
-  return `${winnerLabel} hands you ${q.target} first: ${nth(stackStep)} vs ${nth(queueStep)}.`
+  return `${winnerLabel} hands you ${q.target} first. ${nth(stackStep)} vs ${nth(queueStep)}.`
 }

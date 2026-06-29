@@ -28,7 +28,7 @@ import {
   type Pt,
 } from "./graphLayout"
 
-type Mode = "rewire" | "walk" | "demo"
+type Mode = "rewire" | "walk" | "demo" | "replay"
 export type ChainLayout = "row" | "column" | "wrap"
 
 const clamp01 = (n: number) => Math.min(1, Math.max(0, n))
@@ -39,15 +39,18 @@ const HOP_FILL_MS = 60
 
 /**
  * The literal-arrow figure, in three modes:
- *  - **demo**: drag a node anywhere inside a roomy, device-sized play area —
+ *  - **demo**: drag a node anywhere inside a roomy, device-sized play area.
  *    arrows re-route, the list is unchanged (position is meaningless; the arrow
  *    is identity). Nodes are clamped to the area so they can't be lost.
- *  - **walk**: tap the next node to walk from the head — each hop lights up; the
+ *  - **walk**: tap the next node to walk from the head. Each hop lights up; the
  *    hop count is the cost (no jumping).
  *  - **rewire**: grab a node's arrow and drag it onto another node. It detaches
  *    on grab, stretches to the cursor, and snaps onto a glowing legal node. Doing
  *    the writes in the unsafe order orphans the tail (it floats away, greys out,
  *    and can't be grabbed). Rides on <RewireSurface> for drag/tap/keyboard/SR.
+ *  - **replay**: a read-only render of a pointer map (`workingNext` + `orphaned`),
+ *    used by the FrameSequence reveals to animate the save-first writes and the
+ *    tail orphaning. No <RewireSurface>, no interaction.
  *
  * Nodes are circles; every arrow is anchored on the rim along its travel
  * direction and the shaft meets the arrowhead flush (one continuous stroke).
@@ -64,6 +67,7 @@ export function NodeGraph({
   cursor = 0,
   cursorTone = "active",
   answerIndex,
+  frontier,
   onTapNode,
   reducedMotion,
   layout = "row",
@@ -80,8 +84,10 @@ export function NodeGraph({
   cursor?: number
   /** Colour of the walked path's end node: selecting (active), right, or wrong. */
   cursorTone?: NodeTone
-  /** Index of the correct node (walk) — stamps a dev-only answer hook for the tracer. */
+  /** Index of the correct node (walk). Stamps a dev-only answer hook for the tracer. */
   answerIndex?: number
+  /** Forced walk: the ONLY tappable node index (the next hop). Others are inert. */
+  frontier?: number
   onTapNode?: (index: number) => void
   reducedMotion?: boolean
   /** How the chain is laid out: a row (default), a vertical column, or wrapped. */
@@ -102,6 +108,7 @@ export function NodeGraph({
         cursor={cursor}
         cursorTone={cursorTone}
         answerIndex={answerIndex}
+        frontier={frontier}
         onTapNode={onTapNode}
         layout={layout}
         spotlight={spotlight}
@@ -112,7 +119,7 @@ export function NodeGraph({
 
   return (
     <StructuredGraph
-      mode={mode}
+      mode={mode === "replay" ? "replay" : mode}
       nodes={nodes}
       newNode={newNode}
       prev={prev}
@@ -188,7 +195,7 @@ function DemoGraph({ nodes, reduced }: { nodes: string[]; reduced: boolean }) {
     try {
       e.currentTarget.setPointerCapture?.(ptr)
     } catch {
-      // jsdom / unsupported — window listeners cover the gesture.
+      // jsdom / unsupported. Window listeners cover the gesture.
     }
     const onMove = (ev: PointerEvent) => {
       const d = dragRef.current
@@ -265,6 +272,7 @@ function LayoutWalkGraph({
   cursor,
   cursorTone,
   answerIndex,
+  frontier,
   onTapNode,
   layout,
   spotlight = false,
@@ -274,6 +282,8 @@ function LayoutWalkGraph({
   cursor: number
   cursorTone: NodeTone
   answerIndex?: number
+  /** Forced walk: the ONLY tappable node index (the next hop). */
+  frontier?: number
   onTapNode?: (index: number) => void
   layout: "column" | "wrap"
   /** Highlight only the `cursor` node, with no lit path (insert contrast). */
@@ -340,20 +350,25 @@ function LayoutWalkGraph({
             })}
           </svg>
 
-          {nodes.map((node, i) => (
-            <Positioned key={node} box={boxes.get(node)!}>
-              <ChainNode
-                node={node}
-                visited={spotlight ? true : i <= cursor}
-                isCurrent={i === cursor}
-                isNext={spotlight ? false : i === cursor + 1}
-                clickable={!!onTapNode}
-                tone={cursorTone}
-                isAnswer={answerIndex === i}
-                onTap={onTapNode ? () => onTapNode(i) : undefined}
-              />
-            </Positioned>
-          ))}
+          {nodes.map((node, i) => {
+            // Forced walk: only the frontier (next hop) is tappable; if no
+            // frontier is given, every node is tappable (legacy behaviour).
+            const gated = onTapNode != null && (frontier == null || i === frontier)
+            return (
+              <Positioned key={node} box={boxes.get(node)!}>
+                <ChainNode
+                  node={node}
+                  visited={spotlight ? true : i <= cursor}
+                  isCurrent={i === cursor}
+                  isNext={spotlight ? false : frontier != null ? i === frontier : i === cursor + 1}
+                  clickable={gated}
+                  tone={cursorTone}
+                  isAnswer={answerIndex === i}
+                  onTap={gated ? () => onTapNode!(i) : undefined}
+                />
+              </Positioned>
+            )
+          })}
 
           <Positioned box={boxes.get(NIL)!}>
             <span className="flex size-full items-center justify-center rounded-full border-2 border-dashed border-border/60 font-mono text-base text-muted-foreground">
@@ -383,7 +398,7 @@ function StructuredGraph({
   onTapNode,
   reduced,
 }: {
-  mode: "rewire" | "walk"
+  mode: "rewire" | "walk" | "replay"
   nodes: string[]
   newNode?: string | null
   prev?: string | null
@@ -400,6 +415,8 @@ function StructuredGraph({
   const ctx = useContext(RewireContext)
   const armedSource = mode === "rewire" ? ctx?.armedSource ?? null : null
   const hoveredTarget = mode === "rewire" ? ctx?.hoveredTarget ?? null : null
+  // Both rewire and the read-only replay draw arrows live from the pointer map.
+  const fromWorking = mode === "rewire" || mode === "replay"
 
   const outerRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -412,7 +429,10 @@ function StructuredGraph({
   const boxes = new Map<string, Box>(rowBoxes(nodes))
   const nilBox: Box = { x: MARGIN_X + n * (NODE_W + GAP_X), y: ROW_Y, w: NODE_W, h: NODE_H }
   boxes.set(NIL, nilBox)
-  if (mode === "rewire" && newNode) {
+  // The loose new node ("X") is positioned for BOTH the interactive rewire and the
+  // read-only replay: the insert post-correct replay and the predict break reveal
+  // run in `replay` mode and draw X's arrows + node, so its box must exist there too.
+  if ((mode === "rewire" || mode === "replay") && newNode) {
     const pb = prev ? boxes.get(prev) : undefined
     const ab = at ? boxes.get(at) : undefined
     const looseCenter = pb && ab ? (center(pb).x + center(ab).x) / 2 : nilBox.x
@@ -465,9 +485,12 @@ function StructuredGraph({
   }, [armedSource])
 
   const arrows: { key: string; from: Box; to: Box; tone: "muted" | "active" | "faint" }[] = []
-  if (mode === "rewire") {
+  if (fromWorking) {
     for (const node of [...nodes, ...(newNode ? [newNode] : [])]) {
       const target = live[pointerId(node)]
+      // Guard the SOURCE box the same way the target is guarded: a node with no box
+      // (e.g. a loose node not positioned for this mode) can never draw an arrow.
+      if (!boxes.has(node)) continue
       if (!target || !boxes.has(target)) continue
       if (armedSource === pointerId(node)) continue // detached → drawn as live stretch
       const faded = orphanSet.has(node) || orphanSet.has(target)
@@ -515,7 +538,7 @@ function StructuredGraph({
             )}
           </svg>
 
-          {/* nodes — in rewire mode each node is BOTH the drag handle for its own
+          {/* In rewire mode, each node is BOTH the drag handle for its own
               arrow AND a drop target (grab a node, drag onto another). */}
           {nodes.map((node, i) => {
             const box = boxes.get(node)!
@@ -524,6 +547,14 @@ function StructuredGraph({
               return (
                 <Positioned key={node} box={box}>
                   <RewireNode node={node} orderHint={orderHintFor(rewires, node)} scale={scale} />
+                </Positioned>
+              )
+            }
+            if (mode === "replay") {
+              if (orphanSet.has(node)) return <OrphanNode key={node} node={node} box={box} reduced={reduced} />
+              return (
+                <Positioned key={node} box={box}>
+                  <PlainNode node={node} />
                 </Positioned>
               )
             }
@@ -543,10 +574,17 @@ function StructuredGraph({
             )
           })}
 
-          {/* the new node — rewire only (also a grab handle + drop target) */}
+          {/* The new node, rewire only (also a grab handle + drop target). */}
           {mode === "rewire" && newNode && !orphanSet.has(newNode) && (
             <Positioned box={boxes.get(newNode)!}>
               <RewireNode node={newNode} isNew orderHint={orderHintFor(rewires, newNode)} scale={scale} />
+            </Positioned>
+          )}
+
+          {/* The new node, replay (read-only). */}
+          {mode === "replay" && newNode && !orphanSet.has(newNode) && (
+            <Positioned box={boxes.get(newNode)!}>
+              <PlainNode node={newNode} isNew />
             </Positioned>
           )}
 
@@ -652,7 +690,7 @@ function orderHintFor(
 /**
  * A rewire node: simultaneously the **grab handle for its own arrow** (drag/tap/
  * keyboard arms `p:node`) and a **drop target** (id `node`). Grab a node and drag
- * onto another to re-aim its `next` — no separate connector dots. Talks straight
+ * onto another to re-aim its `next`. No separate connector dots. Talks straight
  * to the shared <RewireSurface> context so drag, tap, and keyboard emit the same
  * `from → to` intent (and the E2E tracer hooks survive on the node itself).
  */
@@ -687,7 +725,7 @@ function RewireNode({
       {...rootProps}
       aria-label={
         armed
-          ? `${node} arrow grabbed — choose a target`
+          ? `${node} arrow grabbed. Choose a target`
           : showLegal
             ? `node ${node}, available target`
             : `node ${node}, drag its arrow to connect`
@@ -725,6 +763,27 @@ function RewireNode({
         style={{ width: hitPx, height: hitPx }}
       />
     </button>
+  )
+}
+
+/** A static, non-interactive node for the read-only replay reveals. */
+function PlainNode({ node, isNew }: { node: string; isNew?: boolean }) {
+  return (
+    <span
+      className={cn(
+        "flex size-full items-center justify-center rounded-full border-2 text-base font-bold text-foreground",
+        isNew ? "border-lilac-strong bg-lilac-soft" : "border-border bg-card",
+      )}
+    >
+      {isNew ? (
+        <span className="flex flex-col items-center leading-none">
+          <span className="text-base font-bold text-lilac-strong">{node}</span>
+          <span className="text-[8px] font-semibold uppercase tracking-wide text-lilac-strong">new</span>
+        </span>
+      ) : (
+        node
+      )}
+    </span>
   )
 }
 

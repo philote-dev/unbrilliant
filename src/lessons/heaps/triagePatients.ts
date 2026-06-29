@@ -86,3 +86,30 @@ export function patientFor(severity: number, heap: number[]): Patient {
     accent: LEVEL_ACCENT[Math.min(level - 1, LEVEL_ACCENT.length - 1)],
   }
 }
+
+/* -------------------------------- triage tiers ------------------------------ */
+
+export type TriageTierId = "critical" | "serious" | "stable"
+
+export interface TriageTier {
+  id: TriageTierId
+  /** The board label (real-world triage category). */
+  label: string
+}
+
+/**
+ * The triage TIER for an urgency level (1 = most urgent). The tier presentation
+ * shows a patient by their category (Critical / Serious / Stable) instead of by a
+ * name+icon derived from the severity number. That sidesteps the skin's one quirk:
+ * because a name/icon is a pure function of the key, re-triaging a patient (changing
+ * their severity) would otherwise swap their identity. A tier is the right grain
+ * anyway (it IS what the severity key means), so a re-triage simply re-tiers them.
+ *
+ * Bands mirror real-world triage: the most urgent is Critical, the next couple are
+ * Serious, the rest are Stable. Presentational only; the engine never sees a tier.
+ */
+export function triageTier(level: number): TriageTier {
+  if (level <= 1) return { id: "critical", label: "Critical" }
+  if (level <= 3) return { id: "serious", label: "Serious" }
+  return { id: "stable", label: "Stable" }
+}

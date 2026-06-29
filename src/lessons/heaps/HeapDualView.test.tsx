@@ -95,28 +95,58 @@ describe("HeapDualView", () => {
     ).toBeInTheDocument()
   })
 
-  it("liftPair lifts BOTH nodes and BOTH cells together, snapping under reduced motion", () => {
-    const lifted = () => ({
-      nodes: screen
-        .getAllByTestId("heap-node")
-        .filter((n) => n.getAttribute("data-lifted") === "1")
-        .map((n) => n.getAttribute("data-slot"))
-        .sort(),
-      cells: screen
-        .getAllByTestId("heap-cell")
-        .filter((c) => c.getAttribute("data-lifted") === "1")
-        .map((c) => c.getAttribute("data-slot"))
-        .sort(),
-    })
+  it("a swap travels each value to its new slot, keeping its identity across both panels", () => {
+    // Each node is keyed by VALUE, so when the heap reorders the same node (cell +
+    // tree node) carries its value to the new slot rather than flipping in place.
+    const { rerender } = render(<HeapDualView heap={[9, 7, 6, 3, 2]} />)
+    expect(screen.getByLabelText("slot 0, value 9")).toBeInTheDocument()
+    expect(screen.getByLabelText("slot 1, value 7")).toBeInTheDocument()
 
-    const { rerender } = render(<HeapDualView heap={HEAP} liftPair={{ a: 0, b: 1 }} />)
-    expect(lifted().nodes).toEqual(["0", "1"])
-    expect(lifted().cells).toEqual(["0", "1"])
+    // 9 and 7 trade slots: the SAME value lands at the new address in both panels.
+    rerender(<HeapDualView heap={[7, 9, 6, 3, 2]} />)
+    expect(screen.getByLabelText("slot 1, value 9")).toBeInTheDocument()
+    expect(screen.getByLabelText("slot 0, value 7")).toBeInTheDocument()
+    const node9 = screen
+      .getAllByTestId("heap-node")
+      .find((g) => within(g).queryByText("9"))
+    expect(node9).toHaveAttribute("data-slot", "1") // the tree node moved in sync
+  })
 
-    // Reduced motion: still the same pair on both panels, just snapped (no animation).
-    rerender(<HeapDualView heap={HEAP} liftPair={{ a: 0, b: 1 }} reducedMotion />)
-    expect(lifted().nodes).toEqual(["0", "1"])
-    expect(lifted().cells).toEqual(["0", "1"])
+  it("the extract hand-off lands the last leaf at the root (root leaves, last arrives)", () => {
+    // [9,7,6,3,2] -> extract: 9 leaves, the last leaf (2) rises to fill the root.
+    const { rerender } = render(<HeapDualView heap={[9, 7, 6, 3, 2]} />)
+    expect(screen.getByLabelText("slot 4, value 2")).toBeInTheDocument()
+    rerender(<HeapDualView heap={[2, 7, 6, 3]} />)
+    // the filler (2) has travelled up to the root slot, keeping its identity.
+    expect(screen.getByLabelText("slot 0, value 2")).toBeInTheDocument()
+  })
+
+  it("snaps to the final arrangement under reduced motion (no travel)", () => {
+    const { rerender } = render(<HeapDualView heap={[9, 7, 6, 3, 2]} reducedMotion />)
+    rerender(<HeapDualView heap={[7, 9, 6, 3, 2]} reducedMotion />)
+    expect(screen.getByLabelText("slot 1, value 9")).toBeInTheDocument()
     expect(screen.getByTestId("heap-dual-view")).toHaveAttribute("data-reduced-motion", "1")
+  })
+
+  it("taps a TREE node only when onTapNode is set (do-the-sift), never on slot beats", () => {
+    const onTapNode = vi.fn()
+    const { rerender } = render(<HeapDualView heap={HEAP} onTapNode={onTapNode} />)
+    const node7 = screen.getAllByTestId("heap-node").find((g) => within(g).queryByText("7"))!
+    fireEvent.click(node7)
+    expect(onTapNode).toHaveBeenCalledWith(1)
+
+    // Without onTapNode (a mapping slot beat) the tree node is inert.
+    onTapNode.mockClear()
+    rerender(<HeapDualView heap={HEAP} onTapSlot={() => {}} />)
+    const inert = screen.getAllByTestId("heap-node").find((g) => within(g).queryByText("7"))!
+    fireEvent.click(inert)
+    expect(onTapNode).not.toHaveBeenCalled()
+  })
+
+  it("exposes the next-swap DEV hook on the two cells of the proposed move", () => {
+    render(<HeapDualView heap={[7, 5, 6, 3, 2, 8]} onTapSlot={() => {}} siftPair={{ a: 5, b: 2 }} />)
+    expect(screen.getByLabelText("slot 5, value 8")).toHaveAttribute("data-sift-from", "1")
+    expect(screen.getByLabelText("slot 2, value 6")).toHaveAttribute("data-sift-to", "1")
+    expect(screen.getByLabelText("slot 0, value 7")).not.toHaveAttribute("data-sift-from")
   })
 })

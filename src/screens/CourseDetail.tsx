@@ -17,11 +17,14 @@ import {
   lessonStructure,
 } from "@/lessons/catalog"
 import { courseArt } from "@/lessons/icons"
+import { withTrialNodes } from "@/trials/coursePath"
+import { getTrial } from "@/trials/registry"
 
 export function CourseDetail({ courseId }: { courseId: string }) {
   const { navigate, back } = useNavigation()
   const isDesktop = useIsDesktop()
-  const { progressByLesson, courseProgress, enterCourse } = useCourseProgress()
+  const { progressByLesson, courseProgress, enterCourse, completedTrials } =
+    useCourseProgress()
   const course = getCourse(courseId)
   const art = course ? courseArt(course.icon) : null
 
@@ -31,7 +34,11 @@ export function CourseDetail({ courseId }: { courseId: string }) {
     enterCourse(courseId)
   }, [courseId, enterCourse])
 
-  const nodes = derivePathNodes(progressByLesson)
+  const nodes = withTrialNodes(
+    derivePathNodes(progressByLesson),
+    progressByLesson,
+    completedTrials,
+  )
   const pct = courseProgress(courseId)
   const startId = currentLessonId(progressByLesson)
   const started = Object.values(progressByLesson).some((p) => p != null)
@@ -44,7 +51,11 @@ export function CourseDetail({ courseId }: { courseId: string }) {
 
   const onSelectNode = (node: PathNode) => {
     if (node.state === "locked") return
-    navigate({ name: "lesson", lessonId: node.id })
+    if (getTrial(node.id)) {
+      navigate({ name: "trial", trialId: node.id })
+    } else {
+      navigate({ name: "lesson", lessonId: node.id })
+    }
   }
 
   if (isDesktop) {

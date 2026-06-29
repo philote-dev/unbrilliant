@@ -8,9 +8,11 @@ import { ChooseCourse } from "@/screens/ChooseCourse"
 import { CourseDetail } from "@/screens/CourseDetail"
 import { SignIn } from "@/screens/SignIn"
 import { LessonHost } from "@/lessons/LessonHost"
+import { TrialHost } from "@/trials/TrialHost"
 import { Completion } from "@/screens/Completion"
 import { Progress } from "@/screens/Progress"
 import { Settings } from "@/screens/Settings"
+import { PlaytestScreen } from "@/screens/PlaytestScreen"
 
 // Poly Lab is a dev-only diagnostics screen. Gating its import behind
 // import.meta.env.DEV lets the production build tree-shake the whole screen
@@ -39,6 +41,10 @@ function renderScreen(screen: Screen) {
       return <SignIn intent={screen.intent} />
     case "lesson":
       return <LessonHost key={screen.lessonId} lessonId={screen.lessonId} />
+    case "playtest":
+      return <PlaytestScreen key={screen.lessonId} lessonId={screen.lessonId} />
+    case "trial":
+      return <TrialHost trialId={screen.trialId} />
     case "complete":
       return <Completion lessonId={screen.lessonId} />
     case "progress":

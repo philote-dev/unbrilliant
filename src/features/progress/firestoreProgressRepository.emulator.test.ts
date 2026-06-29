@@ -13,6 +13,7 @@ import { doc, setDoc, type Firestore as FirestoreClient } from "firebase/firesto
 import { createFirestoreProgressRepository } from "@/features/progress/firestoreProgressRepository"
 import { dayKeyToUTCDate } from "@/features/progress/activityDate"
 import type { LessonProgress } from "@/features/progress/ProgressRepository"
+import { emptySave, type TrialSaveState } from "@/features/trials/saveState"
 import {
   DATA_STRUCTURES_LESSONS,
   deriveCourseProgress,
@@ -42,6 +43,7 @@ async function progressMapFor(
  */
 const PROJECT_ID = "demo-willow"
 const LESSON = "stacks-and-queues"
+const TRIAL = "trial-1-linear"
 
 let testEnv: RulesTestEnvironment
 
@@ -282,7 +284,12 @@ describe("FirestoreProgressRepository (emulator)", () => {
         (n) => n.id === "arrays",
       )?.state,
     ).toBe("locked")
-    // Complete S&Q...
+    // Complete Intro (the first path node) and S&Q...
+    await repo.saveProgress("grace", "intro", {
+      counters: {},
+      currentPart: "done",
+      completed: true,
+    })
     await repo.saveProgress("grace", LESSON, {
       counters: { pops: 3, dequeues: 3, scenarios: 4 },
       currentPart: "scenario",
@@ -467,6 +474,118 @@ describe("FirestoreProgressRepository (emulator)", () => {
   it("rejects a user write with an injected field", async () => {
     await assertFails(
       setDoc(userDoc("pat"), { displayName: "Pat", isAdmin: true, updatedAt: new Date() }),
+    )
+  })
+
+  // --- Trial durable slice (users/{uid}/trialProgress/{trialId}) ---
+
+  it("returns null before any Trial progress is saved", async () => {
+    const repo = repoFor("tara")
+    expect(await repo.getTrialProgress("tara", TRIAL)).toBeNull()
+  })
+
+  it("round-trips a Trial design slice and resumes there", async () => {
+    const repo = repoFor("tara")
+    await repo.ensureUser("tara", { displayName: "Tara" })
+    const slice: TrialSaveState = {
+      trialId: TRIAL,
+      missionId: "mission-a",
+      segmentId: "seg-2",
+      unlockedSegments: ["seg-1", "seg-2"],
+      chosenStructures: { "seg-1": "stack", "seg-2": "queue" },
+      operationMappings: { enqueue: "back", dequeue: "front" },
+      policyChoices: { eviction: "lru" },
+      verdicts: { "seg-1": "viable" },
+      revisionHistory: [
+        {
+          segmentId: "seg-1",
+          at: 1234,
+          from: { structure: "array", mapping: { enqueue: "back" } },
+          to: { structure: "stack", mapping: { enqueue: "top" } },
+        },
+      ],
+      nudgesShown: ["nudge-1"],
+      stressTestsRun: ["burst"],
+      missionAArtifact: {
+        structure: "stack",
+        mapping: { enqueue: "top" },
+        policy: { eviction: "lru" },
+      },
+      completed: false,
+      cleanPass: true,
+    }
+    await repo.saveTrialProgress("tara", TRIAL, slice)
+    expect(await repo.getTrialProgress("tara", TRIAL)).toEqual(slice)
+    // A fresh handle (page reload) resumes on the same segment with the same slice.
+    const resumed = await repoFor("tara").getTrialProgress("tara", TRIAL)
+    expect(resumed?.segmentId).toBe("seg-2")
+    expect(resumed?.chosenStructures["seg-2"]).toBe("queue")
+  })
+
+  it("lists only the Trials marked completed", async () => {
+    const repo = repoFor("vic")
+    await repo.ensureUser("vic", { displayName: "Vic" })
+    await repo.saveTrialProgress("vic", "trial-1-linear", {
+      ...emptySave("trial-1-linear", "mission-a", "seg-1"),
+      completed: true,
+    })
+    await repo.saveTrialProgress("vic", "trial-2-extra", {
+      ...emptySave("trial-2-extra", "mission-a", "seg-1"),
+      completed: true,
+    })
+    await repo.saveTrialProgress("vic", "trial-3-wip", {
+      ...emptySave("trial-3-wip", "mission-a", "seg-1"),
+      completed: false,
+    })
+    expect((await repo.listCompletedTrials("vic")).sort()).toEqual([
+      "trial-1-linear",
+      "trial-2-extra",
+    ])
+  })
+
+  it("denies reading or writing another learner's Trial progress", async () => {
+    await repoFor("alice").saveTrialProgress(
+      "alice",
+      TRIAL,
+      emptySave(TRIAL, "mission-a", "seg-1"),
+    )
+    const mallory = createFirestoreProgressRepository(
+      testEnv.authenticatedContext("mallory").firestore() as unknown as Firestore,
+    )
+    await assertFails(mallory.getTrialProgress("alice", TRIAL))
+    await assertFails(
+      mallory.saveTrialProgress("alice", TRIAL, emptySave(TRIAL, "mission-a", "seg-1")),
+    )
+  })
+
+  // Raw write (bypassing the repo) proving the rules reject a malformed trial
+  // slice, not just that the repo happens to send a well-formed payload.
+  function trialProgressDoc(uid: string, trialId: string) {
+    const db = testEnv
+      .authenticatedContext(uid)
+      .firestore() as unknown as FirestoreClient
+    return doc(db, "users", uid, "trialProgress", trialId)
+  }
+
+  it("rejects a trialProgress write with an unexpected field", async () => {
+    await assertFails(
+      setDoc(trialProgressDoc("pat", TRIAL), {
+        missionId: "mission-a",
+        segmentId: "seg-1",
+        unlockedSegments: ["seg-1"],
+        chosenStructures: {},
+        operationMappings: {},
+        policyChoices: {},
+        verdicts: {},
+        revisionHistory: [],
+        nudgesShown: [],
+        stressTestsRun: [],
+        completed: false,
+        cleanPass: true,
+        completedAt: null,
+        updatedAt: new Date(),
+        hacked: true,
+      }),
     )
   })
 })

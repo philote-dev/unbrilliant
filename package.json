@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port 5173 --strictPort",
+    "dev:playtest": "VITE_FIREBASE_DEMO_PROJECT_ID=demo-willow-playtest VITE_FIREBASE_AUTH_EMULATOR_URL=http://127.0.0.1:9197 VITE_FIRESTORE_EMULATOR_HOST=127.0.0.1 VITE_FIRESTORE_EMULATOR_PORT=8197 VITE_FUNCTIONS_EMULATOR_HOST=127.0.0.1 VITE_FUNCTIONS_EMULATOR_PORT=5297 vite --port 5197 --strictPort",
     "dev:e2e": "vite --port 5273 --strictPort",
+    "emulators:playtest": "PATH=\"$(/usr/libexec/java_home -v 21+ 2>/dev/null)/bin:$PATH\" npx -y firebase-tools@latest emulators:start --config firebase.playtest.json --only auth,firestore --project demo-willow-playtest",
     "gallery": "vite --mode frozen --port 5174 --strictPort --open /gallery.html",
     "build": "tsc -b && vite build",
     "lint": "oxlint",

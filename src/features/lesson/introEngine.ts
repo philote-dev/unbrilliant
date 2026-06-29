@@ -122,7 +122,7 @@ const CHECK_STORE: IntroCheck = {
   answer: "store",
   prompt:
     "You save a Wi-Fi password so your phone reconnects on its own. Which job is that?",
-  hint: "Think about what you want to happen later: get the exact thing back.",
+  hint: "Think about wanting the exact thing back later.",
   nudge: "You are tucking something away to fetch it again, not ordering or grouping.",
   correct: "Right. Tucking it away to fetch later is storing.",
   why: "Storing is about keeping a thing so you can retrieve it on demand, like a saved password or a locker.",
@@ -139,7 +139,7 @@ const CHECK_SORT: IntroCheck = {
   hint: "A to Z is a sequence. Which job arranges things in a sequence?",
   nudge: "You are arranging into one ordered line, not making groups.",
   correct: "Right. A to Z is an order, so that is sorting.",
-  why: "Sorting arranges items along some order: alphabetical, biggest first, newest first.",
+  why: "Sorting arranges items along some order, like alphabetical, biggest first, or newest first.",
 }
 
 const CHECK_CATEGORIZE: IntroCheck = {
@@ -167,10 +167,10 @@ const CHECK_WHY: IntroCheck = {
   ],
   answer: "book",
   prompt: "You need one business card, fast. Which one finds it faster?",
-  hint: "Which one lets you skip straight to the right card?",
+  hint: "Which setup makes the search feel less like checking every card?",
   nudge: "With a loose pile you check cards one by one. The order saves that.",
   correct: "Right. The order lets you jump straight to it.",
-  why: "Same cards, different effort: the organized set lets you skip straight to the card instead of checking every one.",
+  why: "The same cards take different effort. The organized set lets you skip straight to the card instead of checking every one.",
 }
 
 export const INTRO_CHECKS: IntroCheck[] = [
@@ -217,7 +217,7 @@ const PAGE_LOOK: ReadBeat = {
   title: "Look at your phone",
   figure: "phone",
   body: [
-    "Behind every one of these is a data structure: a deliberate way to arrange information so it is easy to use.",
+    "Behind every one of these is a data structure, a deliberate way to arrange information so it is easy to use.",
   ],
   highlights: ["data structure"],
 }
@@ -230,11 +230,11 @@ const PAGE_WHY: ReadBeat = {
   examples: [
     {
       icon: "package",
-      text: "A shoebox of loose cards: to find one, you check them one by one.",
+      text: "With a shoebox of loose cards, you find one by checking them one by one.",
     },
     {
       icon: "book",
-      text: "The same cards alphabetized: you flip straight to the letter.",
+      text: "With the same cards alphabetized, you flip straight to the letter.",
     },
   ],
   body: ["Same information, wildly different effort. That gap is what organizing buys you."],

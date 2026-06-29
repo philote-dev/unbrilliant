@@ -43,6 +43,7 @@ export function Block({
   frameDelay = 0,
   dot = false,
   cols,
+  freeDrop = false,
 }: {
   slots: number
   fill: string[] // labels in the first fill.length slots
@@ -57,9 +58,19 @@ export function Block({
   frameDelay?: number // hold before the frame (label + empty outline) appears
   dot?: boolean // render each item as a centered dot (no letter), for big blocks
   cols?: number // wrap cells into rows of this many (a 16-block at cols=8 stacks 2 rows of 8)
+  freeDrop?: boolean // existing items are already present (with the frame); only the
+  // new gold item animates in. Used when an append fits without a copy.
 }) {
   const perRow = cols ?? slots
   const rowCount = Math.max(1, Math.ceil(slots / perRow))
+  // When the block has room (freeDrop), its existing items are already there: they
+  // appear with the frame and don't re-stagger as if copied; only the gold arrival
+  // springs in at baseDelay (the single "drop one more in" moment).
+  const cellDelay = (i: number, isNew: boolean) => {
+    if (reduced) return 0
+    if (freeDrop) return isNew ? baseDelay : frameDelay
+    return baseDelay + (copying ? i * stagger : 0)
+  }
   const renderCell = (i: number) => {
     const value = i < fill.length ? fill[i] : undefined
     const isNew = newAt === i
@@ -81,11 +92,11 @@ export function Block({
                 transition={
                   reduced
                     ? { duration: 0 }
-                    : { delay: baseDelay + (copying ? i * stagger : 0), type: "spring", stiffness: 340, damping: 17 }
+                    : { delay: cellDelay(i, isNew), type: "spring", stiffness: 340, damping: 17 }
                 }
                 className={cn(
                   "block rounded-full",
-                  isNew ? "bg-amber-400" : "bg-lilac-strong",
+                  isNew ? (freeDrop ? "bg-success" : "bg-amber-400") : "bg-lilac-strong",
                 )}
                 style={{ width: dotSize(slot), height: dotSize(slot) }}
               />
@@ -96,7 +107,7 @@ export function Block({
                 transition={
                   reduced
                     ? { duration: 0 }
-                    : { delay: baseDelay + (copying ? i * stagger : 0), type: "spring", stiffness: 360 }
+                    : { delay: cellDelay(i, isNew), type: "spring", stiffness: 360 }
                 }
                 style={{ fontSize: cellFont(slot) }}
                 className={cn(
@@ -412,7 +423,7 @@ export function GrowByOneLoop({
         stagger={stagger}
       />
       <p className="mt-1 max-w-xs text-center text-xs text-muted-foreground">
-        One bigger only delays it: the next item makes you copy it all again. And again.
+        One bigger only delays it. The next item makes you copy it all again. And again.
       </p>
     </div>
   )

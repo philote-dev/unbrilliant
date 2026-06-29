@@ -22,11 +22,18 @@ import type {
   ProgressRepository,
   UserProfile,
 } from "@/features/progress/ProgressRepository"
+import type {
+  DesignArtifact,
+  RevisionRecord,
+  TrialSaveState,
+} from "@/features/trials/saveState"
+import type { Position, StructureKind, Verdict } from "@/features/trials/types"
 
 /**
  * Firestore-backed persistence. Schema (signed-in only) — see CONTEXT.md:
  *   users/{uid}                                  displayName, createdAt, updatedAt
  *   users/{uid}/lessonProgress/{lessonId}        counts, currentPart, completed, …
+ *   users/{uid}/trialProgress/{trialId}          design slice, verdicts, completed, …
  */
 /**
  * Upper bound on activity docs read in one call. A little over a year so the
@@ -48,6 +55,10 @@ export function createFirestoreProgressRepository(
     collection(db, "users", uid, "conceptReviews")
   const conceptReviewRef = (uid: string, conceptId: string) =>
     doc(db, "users", uid, "conceptReviews", conceptId)
+  const trialProgressCol = (uid: string) =>
+    collection(db, "users", uid, "trialProgress")
+  const trialProgressRef = (uid: string, trialId: string) =>
+    doc(db, "users", uid, "trialProgress", trialId)
 
   return {
     async ensureUser(uid, profile: UserProfile) {
@@ -187,6 +198,76 @@ export function createFirestoreProgressRepository(
         },
         { merge: true },
       )
+    },
+
+    async getTrialProgress(uid, trialId): Promise<TrialSaveState | null> {
+      const snap = await getDoc(trialProgressRef(uid, trialId))
+      if (!snap.exists()) return null
+      const d = snap.data()
+      // Self-owned doc: coerce defensively so a hand-edited value degrades to a
+      // sane default rather than poisoning the run on resume. The doc id is the
+      // source of truth for the trial id.
+      return {
+        trialId,
+        missionId: typeof d.missionId === "string" ? d.missionId : "",
+        segmentId: typeof d.segmentId === "string" ? d.segmentId : "",
+        unlockedSegments: Array.isArray(d.unlockedSegments) ? d.unlockedSegments : [],
+        chosenStructures: (d.chosenStructures ?? {}) as Record<string, StructureKind>,
+        operationMappings: (d.operationMappings ?? {}) as Record<string, Position>,
+        policyChoices: (d.policyChoices ?? {}) as Record<string, string>,
+        verdicts: (d.verdicts ?? {}) as Record<string, Verdict>,
+        revisionHistory: Array.isArray(d.revisionHistory)
+          ? (d.revisionHistory as RevisionRecord[])
+          : [],
+        nudgesShown: Array.isArray(d.nudgesShown) ? d.nudgesShown : [],
+        stressTestsRun: Array.isArray(d.stressTestsRun) ? d.stressTestsRun : [],
+        ...(d.missionAArtifact
+          ? { missionAArtifact: d.missionAArtifact as DesignArtifact }
+          : {}),
+        ...(d.missionBArtifact
+          ? { missionBArtifact: d.missionBArtifact as DesignArtifact }
+          : {}),
+        completed: d.completed === true,
+        // Default a missing flag to clean (matches emptySave) rather than to false.
+        cleanPass: d.cleanPass !== false,
+      }
+    },
+
+    async saveTrialProgress(uid, trialId, slice: TrialSaveState) {
+      await setDoc(
+        trialProgressRef(uid, trialId),
+        {
+          missionId: slice.missionId,
+          segmentId: slice.segmentId,
+          unlockedSegments: slice.unlockedSegments,
+          chosenStructures: slice.chosenStructures,
+          operationMappings: slice.operationMappings,
+          policyChoices: slice.policyChoices,
+          verdicts: slice.verdicts,
+          revisionHistory: slice.revisionHistory,
+          nudgesShown: slice.nudgesShown,
+          stressTestsRun: slice.stressTestsRun,
+          // Omit the optional artifacts when absent: Firestore rejects undefined.
+          ...(slice.missionAArtifact
+            ? { missionAArtifact: slice.missionAArtifact }
+            : {}),
+          ...(slice.missionBArtifact
+            ? { missionBArtifact: slice.missionBArtifact }
+            : {}),
+          completed: slice.completed,
+          cleanPass: slice.cleanPass,
+          completedAt: slice.completed ? serverTimestamp() : null,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      )
+    },
+
+    async listCompletedTrials(uid): Promise<string[]> {
+      const snap = await getDocs(
+        query(trialProgressCol(uid), where("completed", "==", true)),
+      )
+      return snap.docs.map((d) => d.id)
     },
   }
 }

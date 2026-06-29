@@ -16,7 +16,7 @@ const ART = 40
 /**
  * The playlist beat rendered as a vertical Spotify-style queue: each track is a
  * row (album art + title + artist), and the linked-list `next` pointers run as
- * elbow arrows down a right-side gutter — each stems from the bottom-right of a
+ * elbow arrows down a right-side gutter. Each stems from the bottom-right of a
  * track, drops down the gutter, and turns back into the top-right of the next.
  * Before the splice the previous track's arrow visibly skips PAST the new track
  * to the one after it; the learner re-aims it (grab a row, drag onto another) in
@@ -192,7 +192,7 @@ function SongRow({
       {...rootProps}
       aria-label={
         armed
-          ? `${song.title} grabbed — choose where it plays next`
+          ? `${song.title} grabbed. Choose where it plays next`
           : showLegal
             ? `${song.title}, drop here`
             : `${song.title} by ${song.artist}${isNew ? ", new track to queue" : ""}`
