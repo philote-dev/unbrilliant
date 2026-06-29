@@ -190,8 +190,13 @@ export function PredictionReview() {
       transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
       className="rounded-3xl border-2 border-border bg-card p-5 shadow-card"
     >
-      <div className="overflow-hidden rounded-2xl border border-border/70 bg-muted/30 px-3 py-5">
-        <FrameSequence frames={replayFrames(script)} controls reduced={reduce}>
+      <div className="overflow-hidden rounded-2xl border border-border bg-background px-3 py-5">
+        <FrameSequence
+          frames={replayFrames(script)}
+          autoPlayMs={(i) => (i === 0 ? 600 : 1000)}
+          controls
+          reduced={reduce}
+        >
           {(frame) => (
             <div className="flex flex-col items-center gap-2">
               <LineRow line={frame.line} />

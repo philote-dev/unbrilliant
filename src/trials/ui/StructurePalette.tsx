@@ -1,27 +1,16 @@
 import { cn } from "@/lib/utils"
 import type { StructureKind } from "@/features/trials/types"
 
-/** Learner-facing name + one-line meaning for each structure. */
-export const STRUCTURE_META: Record<
-  StructureKind,
-  { label: string; blurb: string }
-> = {
-  queue: {
-    label: "Queue",
-    blurb: "First in line is served first; newcomers join the back.",
-  },
-  stack: {
-    label: "Stack",
-    blurb: "The newest item sits on top and is lifted off first.",
-  },
-  array: {
-    label: "Array",
-    blurb: "Numbered slots in a row; a middle edit shifts the rest.",
-  },
-  "linked-list": {
-    label: "Linked list",
-    blurb: "A connected chain; neighbors relink around an edit.",
-  },
+/**
+ * Learner-facing name for each structure. The card deliberately shows only the
+ * name and a neutral glyph: spelling out what each structure does would hand over
+ * the answer the Trial is asking the learner to reason out.
+ */
+export const STRUCTURE_META: Record<StructureKind, { label: string }> = {
+  queue: { label: "Queue" },
+  stack: { label: "Stack" },
+  array: { label: "Array" },
+  "linked-list": { label: "Linked list" },
 }
 
 /**
@@ -56,42 +45,37 @@ export function StructurePalette({
               aria-pressed={selected}
               onClick={() => onChoose(kind)}
               className={cn(
-                "flex flex-col gap-1.5 rounded-2xl border p-3 text-left outline-none transition-[transform,border-color,background-color,box-shadow] focus-visible:ring-2 focus-visible:ring-ring/70 focus-visible:ring-offset-2 focus-visible:ring-offset-background active:translate-y-px",
+                "flex items-center gap-2 rounded-2xl border p-3 text-left outline-none transition-[transform,border-color,background-color,box-shadow] focus-visible:ring-2 focus-visible:ring-ring/70 focus-visible:ring-offset-2 focus-visible:ring-offset-background active:translate-y-px",
                 selected
                   ? "border-lilac-strong bg-lilac-soft shadow-soft"
                   : "border-border bg-card hover:border-lilac-strong/50 hover:bg-lilac-soft/60",
               )}
             >
-              <span className="flex items-center gap-2">
-                <span
-                  className={cn(
-                    "flex size-7 shrink-0 items-center justify-center rounded-lg text-lilac-strong",
-                    selected ? "bg-card" : "bg-lilac-soft",
-                  )}
-                >
-                  <StructureGlyph kind={kind} />
-                </span>
-                <span className="text-sm font-semibold text-foreground">
-                  {meta.label}
-                </span>
-                {selected && (
-                  <svg
-                    viewBox="0 0 24 24"
-                    className="ml-auto size-4 text-lilac-strong"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={2.6}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                  >
-                    <path d="M5 12.5 10 17l9-10" />
-                  </svg>
+              <span
+                className={cn(
+                  "flex size-7 shrink-0 items-center justify-center rounded-lg text-lilac-strong",
+                  selected ? "bg-card" : "bg-lilac-soft",
                 )}
+              >
+                <StructureGlyph kind={kind} />
               </span>
-              <span className="text-xs leading-relaxed text-muted-foreground">
-                {meta.blurb}
+              <span className="text-sm font-semibold text-foreground">
+                {meta.label}
               </span>
+              {selected && (
+                <svg
+                  viewBox="0 0 24 24"
+                  className="ml-auto size-4 text-lilac-strong"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2.6}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M5 12.5 10 17l9-10" />
+                </svg>
+              )}
             </button>
           )
         })}

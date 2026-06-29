@@ -36,7 +36,7 @@ describe("StressTestPanel controls per verdict", () => {
     expect(
       screen.getByText(a2Cancellation.explanations.broken),
     ).toBeInTheDocument()
-    expect(screen.getByText(/stress test: broken/i)).toBeInTheDocument()
+    expect(screen.getByText(/your design breaks/i)).toBeInTheDocument()
 
     const revise = screen.getByRole("button", { name: /revise/i })
     expect(revise).toBeInTheDocument()
@@ -54,7 +54,7 @@ describe("StressTestPanel controls per verdict", () => {
     expect(
       screen.getByText(a2Cancellation.explanations.strained),
     ).toBeInTheDocument()
-    expect(screen.getByText(/stress test: strained/i)).toBeInTheDocument()
+    expect(screen.getByText(/your design holds, but strains/i)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: /continue/i }))
     fireEvent.click(screen.getByRole("button", { name: /revise/i }))
@@ -68,7 +68,7 @@ describe("StressTestPanel controls per verdict", () => {
     expect(
       screen.getByText(a2Cancellation.explanations.viable),
     ).toBeInTheDocument()
-    expect(screen.getByText(/stress test: viable/i)).toBeInTheDocument()
+    expect(screen.getByText(/your design holds up/i)).toBeInTheDocument()
 
     const cont = screen.getByRole("button", { name: /continue/i })
     expect(cont).toBeInTheDocument()
@@ -117,13 +117,16 @@ describe("StressTestPanel controls per verdict", () => {
 // per-structure consequence figures (queue serve, stack pop, array shift, list relink).
 describe("StressTestPanel renders every structure/verdict figure", () => {
   const structures: StructureKind[] = ["queue", "stack", "array", "linked-list"]
+  const verdictText: Record<Verdict, RegExp> = {
+    viable: /your design holds up/i,
+    strained: /your design holds, but strains/i,
+    broken: /your design breaks/i,
+  }
   for (const structure of structures) {
     for (const status of ["viable", "broken"] as Verdict[]) {
       it(`${structure} / ${status} renders without crashing`, () => {
         renderPanel(status, structure)
-        expect(
-          screen.getByText(new RegExp(`stress test: ${status}`, "i")),
-        ).toBeInTheDocument()
+        expect(screen.getByText(verdictText[status])).toBeInTheDocument()
       })
     }
   }
@@ -138,6 +141,6 @@ describe("StressTestPanel renders every structure/verdict figure", () => {
         onRevise={vi.fn()}
       />,
     )
-    expect(screen.getByText(/stress test: viable/i)).toBeInTheDocument()
+    expect(screen.getByText(/your design holds up/i)).toBeInTheDocument()
   })
 })

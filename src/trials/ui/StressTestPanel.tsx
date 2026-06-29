@@ -11,19 +11,19 @@ const VERDICT_TONE: Record<
   { label: string; edge: string; panel: string; accent: string }
 > = {
   viable: {
-    label: "Viable",
+    label: "Your design holds up",
     edge: "border-success/50",
     panel: "border-success/50 bg-success-soft",
     accent: "text-success-foreground",
   },
   strained: {
-    label: "Strained",
+    label: "Your design holds, but strains",
     edge: "border-warning/60",
     panel: "border-warning/60 bg-warning-soft",
     accent: "text-warning-foreground",
   },
   broken: {
-    label: "Broken",
+    label: "Your design breaks",
     edge: "border-danger/60",
     panel: "border-danger/60 bg-danger-soft",
     accent: "text-danger-foreground",
@@ -84,7 +84,7 @@ export function StressTestPanel({
       transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
       className={cn("rounded-3xl border-2 bg-card p-5 shadow-card", tone.edge)}
     >
-      <div className="overflow-hidden rounded-2xl border border-border/70 bg-muted/30 px-3 py-6">
+      <div className="overflow-hidden rounded-2xl border border-border bg-background px-3 py-6">
         <ConsequenceFigure
           structure={structure}
           segmentId={segment.id}
@@ -97,14 +97,7 @@ export function StressTestPanel({
       </div>
 
       <div className={cn("mt-4 rounded-2xl border p-4", tone.panel)}>
-        <p
-          className={cn(
-            "text-xs font-semibold uppercase tracking-wide",
-            tone.accent,
-          )}
-        >
-          Stress test: {tone.label}
-        </p>
+        <p className={cn("text-base font-bold", tone.accent)}>{tone.label}</p>
         <p className="mt-2 text-base leading-relaxed text-foreground">
           {segment.explanations[status]}
         </p>

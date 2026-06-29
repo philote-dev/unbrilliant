@@ -40,7 +40,7 @@ export const a1Intake: SegmentSpec = {
       "This structure can't serve the longest-waiting student from the front, so the order the client asked for falls apart.",
   },
   nudges: {
-    ends: "Which student should leave first: the newest, or the one who waited longest?",
+    ends: "Which student should leave first, the newest or the one who waited longest?",
   },
   brokenNudgeId: "ends",
   strainedNudgeId: "ends",
@@ -135,7 +135,7 @@ const a4Script: LineOp[] = [
 export const a4Review: SegmentSpec = {
   id: "a4-review",
   clientPrompt:
-    "One busy stretch, all at once: five students arrive, the middle one cancels, two are served, you undo your most recent action, then one more student arrives. Who is at the front of the line now?",
+    "One busy stretch happens all at once. Five students arrive, the middle one cancels, two are served, you undo your most recent action, then one more arrives. Who is at the front of the line now?",
   offeredStructures: [],
   operations: [],
   required: [],
@@ -147,10 +147,10 @@ export const a4Review: SegmentSpec = {
     strained:
       "Close. Most of the moves line up, but the serve-then-undo near the end is easy to misread.",
     broken:
-      "Not quite. Re-trace it slowly: the line handles arrivals and serving, while undo reverses only the one newest action, not the whole line.",
+      "Not quite. Re-trace it slowly. The line handles arrivals and serving, while undo reverses only the one newest action, not the whole line.",
   },
   nudges: {
-    separate: "One structure owns the line; another owns the history. Keep those jobs separate.",
+    separate: "One structure owns the line while another owns the history. Keep those two jobs separate.",
   },
   brokenNudgeId: "separate",
   strainedNudgeId: "separate",
@@ -159,6 +159,6 @@ export const a4Review: SegmentSpec = {
 export const missionA: MissionSpec = {
   id: "mission-a-line",
   clientSkin:
-    "A school event check-in desk: students line up to check in, a few cancel, and the desk worker needs an undo button for mistakes.",
+    "A school event check-in desk. Students line up to check in, a few cancel, and the desk worker needs an undo button for mistakes.",
   segments: [a1Intake, a2Cancellation, a3Undo, a4Review],
 }

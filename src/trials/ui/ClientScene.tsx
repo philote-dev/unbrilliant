@@ -52,7 +52,7 @@ export function ClientScene({ prompt, skin }: { prompt: string; skin: string }) 
           initial={reduce ? false : { opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-          className="mt-4 rounded-2xl border border-border/70 bg-muted/30 px-3 py-5"
+          className="mt-4 rounded-2xl border border-border bg-background px-3 py-5"
         >
           <p className="mb-3 text-center text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
             Your {STRUCTURE_META[structure].label.toLowerCase()}

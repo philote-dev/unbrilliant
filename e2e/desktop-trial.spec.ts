@@ -138,7 +138,7 @@ async function placeOp(page: Page, chip: string, zone: string): Promise<void> {
 /** Run the stress test and wait for the all-clear verdict (animation plays). */
 async function runStress(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Run the stress test" }).click()
-  await expect(page.getByText(/Stress test: Viable/)).toBeVisible({
+  await expect(page.getByText(/Your design holds up/)).toBeVisible({
     timeout: 15_000,
   })
 }

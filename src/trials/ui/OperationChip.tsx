@@ -30,7 +30,7 @@ export function OperationChip({
       className={cn(
         "inline-flex select-none items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium outline-none transition-[transform,background-color,box-shadow,border-color] focus-visible:ring-2 focus-visible:ring-ring/70 focus-visible:ring-offset-2 focus-visible:ring-offset-background active:translate-y-px disabled:pointer-events-none disabled:opacity-50",
         placed
-          ? "border-transparent bg-lilac-strong text-white shadow-soft"
+          ? "border-transparent bg-primary text-primary-foreground shadow-soft"
           : armed
             ? "border-lilac-strong bg-lilac text-lilac-foreground shadow-[0_0_0_3px_color-mix(in_srgb,var(--lilac-strong)_30%,transparent)]"
             : "border-border bg-card text-foreground hover:border-lilac-strong/50 hover:bg-lilac-soft",

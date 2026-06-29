@@ -4,4 +4,4 @@
  * taught them, never a score.
  */
 export const trialOneRetrospective =
-  "You discovered: front/back systems are not the same as current-item systems; undo needs newest-first history; middle edits require reconnecting neighbors or shifting positions; a design can work at first and become strained later."
+  "Front-and-back systems work differently from ones built around a current item. Undo needs a newest-first history. Closing a gap in the middle means reconnecting neighbors or shifting everyone over. And a design that looks fine at first can still strain under load later."
