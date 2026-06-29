@@ -9,10 +9,15 @@ import {
 export interface UsePolyHintArgs {
   stageId: string
   skill: string
-  discipline: "stack" | "queue" | "array"
+  discipline: "stack" | "queue" | "array" | "linked-list"
   /** Non-null when a wrong build just happened. `id` is a monotonically rising
    * attempt marker so each new wrong attempt triggers at most one fetch. */
   wrongAttempt: { id: number; learnerOrder: string[] } | null
+  /** Optional structural diagnosis carried on the wrong attempt (complex beats). */
+  diagnosis?: { kind: string; stepNumber: number }
+  attempt?: string[]
+  boundary?: boolean
+  configKey?: string
   maxHints?: number
   requestHint?: (req: HintRequest) => Promise<HintResponse>
 }
@@ -27,6 +32,10 @@ export function usePolyHint({
   skill,
   discipline,
   wrongAttempt,
+  diagnosis,
+  attempt,
+  boundary,
+  configKey,
   maxHints = 2,
   requestHint = defaultRequestHint,
 }: UsePolyHintArgs): PolyHintState {
@@ -65,6 +74,12 @@ export function usePolyHint({
           discipline,
           learnerOrder: wrongAttempt.learnerOrder,
           priorHint: priorRef.current,
+          diagnosis,
+          attempt,
+          boundary,
+          configKey,
+          mode: "hint",
+          attemptIndex: countRef.current,
         })
         if (cancelled) return
         countRef.current += 1
@@ -78,8 +93,9 @@ export function usePolyHint({
     return () => {
       cancelled = true
     }
-    // Fire once per new wrong attempt. stageId/skill/discipline/requestHint are
-    // read fresh inside and must NOT be deps, or a re-render would refetch.
+    // Fire once per new wrong attempt. stageId/skill/discipline/diagnosis/
+    // attempt/boundary/configKey/requestHint are read fresh inside and must NOT
+    // be deps, or a re-render would refetch.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attemptId])
 

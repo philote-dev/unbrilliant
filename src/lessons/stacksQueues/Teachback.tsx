@@ -27,7 +27,7 @@ import { db } from "@/lib/firebase"
 
 type TranscriptUpdate = { finalText: string; interimText: string }
 
-export interface PolyCheckpointProps {
+export interface TeachbackProps {
   conceptId: string
   conceptName: string
   uid: string | null
@@ -85,7 +85,7 @@ function PolyOrb({ phase, reduce }: { phase: VoicePhase; reduce: boolean | null 
   )
 }
 
-export function PolyCheckpoint({
+export function Teachback({
   conceptId,
   conceptName,
   uid,
@@ -98,13 +98,15 @@ export function PolyCheckpoint({
   speakText = defaultSpeakText,
   createTranscriber = (opts) =>
     createRealtimeTranscriber({ ...opts, getToken: defaultRealtimeToken }),
-}: PolyCheckpointProps) {
+}: TeachbackProps) {
   const reduce = useReducedMotion()
 
   const [phase, setPhase] = useState<Phase>("answering")
   const [mode, setMode] = useState<Mode>(voice ? "voice" : "keyboard")
   const [voicePhase, setVoicePhase] = useState<VoicePhase>("speaking")
-  const [question, setQuestion] = useState(`In your own words, explain ${conceptName}.`)
+  const [question, setQuestion] = useState(
+    `Teach it back: explain ${conceptName} in your own words.`,
+  )
   const [finalText, setFinalText] = useState("")
   const [interimText, setInterimText] = useState("")
   const [typed, setTyped] = useState("")
@@ -237,7 +239,7 @@ export function PolyCheckpoint({
           </span>
           <span className="text-sm font-semibold text-foreground">Poly</span>
           <span className="text-[11px] font-semibold uppercase tracking-wide text-faint">
-            Quick check
+            Teach-back
           </span>
         </div>
         <h2 className="mx-auto mt-3 max-w-sm text-xl font-bold text-foreground lg:text-2xl">

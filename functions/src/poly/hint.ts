@@ -6,6 +6,11 @@ import { targetsForSkill } from "./skillMap"
 import { rubricFor, propositionsByIds } from "./rubrics"
 import { findGiveaway } from "./verifier"
 import { Proposition } from "./types"
+import { HintCache, hintCacheKey } from "./hintCache"
+import { applyPhrasing } from "./phrasing"
+import { getAdminDb } from "../firebaseAdmin"
+import { firestoreHintCache } from "./firestoreHintCache"
+import { BOUNDARY_SHAPES } from "./boundaryShapes"
 
 export interface HintDiagnosis {
   // Structural failure kind from the client-side diagnose engine. Concept-
@@ -18,7 +23,7 @@ export interface HintDiagnosis {
 export interface HintArgs {
   stageId: string
   skill: string
-  discipline: "stack" | "queue" | "array"
+  discipline: "stack" | "queue" | "array" | "linked-list"
   learnerOrder: string[]
   priorHint?: string
   // Multi-step (complex) beats: the learner's operation trace as readable steps
@@ -26,6 +31,12 @@ export interface HintArgs {
   // model cannot leak it.
   attempt?: string[]
   diagnosis?: HintDiagnosis
+  // Edge-case caching + stall nudge (all client-computed, giveaway-free):
+  boundary?: boolean
+  configKey?: string
+  mode?: "hint" | "nudge"
+  // Phrasing variety (no extra model call):
+  attemptIndex?: number
 }
 
 export interface HintResult {
@@ -42,6 +53,16 @@ const BASE_SYSTEM =
 const STRICTER =
   "Your previous attempt revealed too much. Be more indirect: do not name the concept, " +
   "do not use its key terms, and do not state any ordering. "
+
+const NUDGE_SYSTEM =
+  "The learner has been stuck for a while on a data-structures problem. Give ONE short " +
+  "metacognitive nudge about where to think next, never the step itself. Ask a single " +
+  "orienting question. NEVER state the correct move, the order, or name the concept. " +
+  "Use plain punctuation; never use an em dash."
+
+function systemFor(args: HintArgs): string {
+  return args.mode === "nudge" ? NUDGE_SYSTEM : BASE_SYSTEM
+}
 
 // Defensive caps: these callables are public and unauthenticated, so a hostile
 // caller could pass huge payloads to run up model cost and latency. The real
@@ -80,6 +101,17 @@ function buildUser(args: HintArgs, withheld: Proposition[]): string {
   const prior = args.priorHint
     ? `\nYour previous hint was: "${args.priorHint}". Take a different angle.`
     : ""
+  if (args.mode === "nudge") {
+    const where = args.diagnosis
+      ? ` They look stuck around move ${args.diagnosis.stepNumber}.`
+      : ""
+    return (
+      `Structure: ${args.discipline}\n` +
+      `The learner is stuck and has not acted for a while.${where}\n` +
+      `Ask one short orienting question about where to focus next. ` +
+      `Do NOT state any move or the order.`
+    )
+  }
   if (args.discipline === "array") {
     return (
       `Structure: a fixed-size memory block that is full.\n` +
@@ -109,10 +141,27 @@ function buildUser(args: HintArgs, withheld: Proposition[]): string {
   )
 }
 
+async function generateVerified(
+  completer: Completer,
+  model: string,
+  system: string,
+  user: string,
+  withheld: Proposition[],
+): Promise<string | null> {
+  const first = (await completer.complete({ system, user, model })).trim()
+  if (findGiveaway(first, withheld).ok) return first || null
+  const second = (
+    await completer.complete({ system: STRICTER + system, user, model })
+  ).trim()
+  if (findGiveaway(second, withheld).ok) return second || null
+  return null
+}
+
 export async function generateHint(
   completer: Completer,
   model: string,
   rawArgs: HintArgs,
+  cache?: HintCache,
 ): Promise<HintResult> {
   const args = sanitizeHintArgs(rawArgs)
   const target = targetsForSkill(args.skill)
@@ -120,17 +169,30 @@ export async function generateHint(
   const rubric = rubricFor(target.conceptId)
   if (!rubric) return { hint: null }
   const withheld = propositionsByIds(rubric, target.propositionIds)
+
+  // Cache is enabled ONLY for boundary-condition edge cases.
+  const key = cache && args.boundary === true ? hintCacheKey(args) : null
+  if (key && cache) {
+    const hit = await cache.get(key)
+    if (hit) return { hint: applyPhrasing(hit, args) }
+  }
+
   const user = buildUser(args, withheld)
+  const base = await generateVerified(completer, model, systemFor(args), user, withheld)
+  if (base && key && cache) await cache.set(key, base)
+  return { hint: base ? applyPhrasing(base, args) : null }
+}
 
-  const first = (await completer.complete({ system: BASE_SYSTEM, user, model })).trim()
-  if (findGiveaway(first, withheld).ok) return { hint: first || null }
-
-  const second = (
-    await completer.complete({ system: STRICTER + BASE_SYSTEM, user, model })
-  ).trim()
-  if (findGiveaway(second, withheld).ok) return { hint: second || null }
-
-  return { hint: null }
+let cacheSingleton: HintCache | undefined
+function hintCache(): HintCache {
+  if (!cacheSingleton) {
+    // Persist ONLY authored boundary keys. polyHint is public + unauthenticated
+    // and casts request.data, so this allowlist stops a hostile caller from
+    // poisoning or growing the shared cache with attacker-chosen keys.
+    const allowlist = new Set(BOUNDARY_SHAPES.map(hintCacheKey))
+    cacheSingleton = firestoreHintCache(getAdminDb(), { allowlist })
+  }
+  return cacheSingleton
 }
 
 export const polyHint = onCall(
@@ -138,7 +200,12 @@ export const polyHint = onCall(
   async (request): Promise<HintResult> => {
     try {
       const completer = openAICompleter(createClient(OPENAI_API_KEY.value()))
-      return await generateHint(completer, resolveModel(), request.data as HintArgs)
+      return await generateHint(
+        completer,
+        resolveModel(),
+        request.data as HintArgs,
+        hintCache(),
+      )
     } catch (err) {
       logger.error("polyHint failed", err)
       return { hint: null }

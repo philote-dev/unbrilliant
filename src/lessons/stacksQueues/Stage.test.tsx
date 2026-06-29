@@ -16,10 +16,10 @@ import { StacksQueuesStage } from "./Stage"
 // them); stub auth and auto-dismiss the checkpoint, which has its own tests, to
 // keep these focused on the beats.
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: null }) }))
-vi.mock("./PolyCheckpoint", async () => {
+vi.mock("./Teachback", async () => {
   const { useLayoutEffect } = await import("react")
   return {
-    PolyCheckpoint: ({
+    Teachback: ({
       onDone,
       conceptId,
     }: {

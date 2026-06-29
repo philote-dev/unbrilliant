@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from "vitest"
 import { render, screen, waitFor, act } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { PolyCheckpoint } from "./PolyCheckpoint"
+import { Teachback } from "./Teachback"
 
-function deps(over: Partial<Parameters<typeof PolyCheckpoint>[0]> = {}) {
+function deps(over: Partial<Parameters<typeof Teachback>[0]> = {}) {
   return {
     conceptId: "stacks",
     conceptName: "stacks",
@@ -34,10 +34,10 @@ function makeFakeTranscriber() {
   }
 }
 
-describe("PolyCheckpoint (keyboard mode)", () => {
+describe("Teachback (keyboard mode)", () => {
   it("affirms and continues when the explanation covers everything", async () => {
     const props = deps()
-    render(<PolyCheckpoint {...props} />)
+    render(<Teachback {...props} />)
     expect(screen.getByRole("textbox", { name: /your explanation/i })).toBeInTheDocument()
     await userEvent.type(screen.getByRole("textbox"), "last in first out")
     await userEvent.click(screen.getByRole("button", { name: /submit/i }))
@@ -56,7 +56,7 @@ describe("PolyCheckpoint (keyboard mode)", () => {
         weakest: "P1",
       }),
     })
-    render(<PolyCheckpoint {...props} />)
+    render(<Teachback {...props} />)
     await userEvent.type(screen.getByRole("textbox"), "first answer")
     await userEvent.click(screen.getByRole("button", { name: /submit/i }))
     await waitFor(() => expect(screen.getByText("probe?")).toBeInTheDocument())
@@ -70,7 +70,7 @@ describe("PolyCheckpoint (keyboard mode)", () => {
 
   it("stores the raw explanation when a uid is present", async () => {
     const props = deps({ uid: "alice" })
-    render(<PolyCheckpoint {...props} />)
+    render(<Teachback {...props} />)
     await userEvent.type(screen.getByRole("textbox"), "my explanation")
     await userEvent.click(screen.getByRole("button", { name: /submit/i }))
     await waitFor(() =>
@@ -83,7 +83,7 @@ describe("PolyCheckpoint (keyboard mode)", () => {
 
   it("skips to continue when scoring fails", async () => {
     const props = deps({ scoreExplanation: vi.fn().mockRejectedValue(new Error("down")) })
-    render(<PolyCheckpoint {...props} />)
+    render(<Teachback {...props} />)
     await userEvent.type(screen.getByRole("textbox"), "x")
     await userEvent.click(screen.getByRole("button", { name: /submit/i }))
     await waitFor(() =>
@@ -92,16 +92,16 @@ describe("PolyCheckpoint (keyboard mode)", () => {
   })
 })
 
-describe("PolyCheckpoint (voice mode)", () => {
+describe("Teachback (voice mode)", () => {
   it("speaks the question, then opens the mic", async () => {
     const speakText = vi.fn().mockResolvedValue(undefined)
     const fake = makeFakeTranscriber()
     render(
-      <PolyCheckpoint {...deps({ voice: true, speakText, createTranscriber: fake.create })} />,
+      <Teachback {...deps({ voice: true, speakText, createTranscriber: fake.create })} />,
     )
     await waitFor(() =>
       expect(speakText).toHaveBeenCalledWith(
-        "In your own words, explain stacks.",
+        "Teach it back: explain stacks in your own words.",
         expect.any(AbortSignal),
       ),
     )
@@ -120,7 +120,7 @@ describe("PolyCheckpoint (voice mode)", () => {
     })
     const fake = makeFakeTranscriber()
     const { unmount } = render(
-      <PolyCheckpoint
+      <Teachback
         {...deps({ voice: true, speakText, createTranscriber: fake.create })}
       />,
     )
@@ -137,7 +137,7 @@ describe("PolyCheckpoint (voice mode)", () => {
       speakText: vi.fn().mockResolvedValue(undefined),
       createTranscriber: fake.create,
     })
-    render(<PolyCheckpoint {...props} />)
+    render(<Teachback {...props} />)
     await waitFor(() => expect(fake.transcriber.start).toHaveBeenCalled())
     await act(async () => {
       fake.emit("last in first out", "only the top")
@@ -158,7 +158,7 @@ describe("PolyCheckpoint (voice mode)", () => {
       stop: vi.fn(),
     })
     render(
-      <PolyCheckpoint
+      <Teachback
         {...deps({
           voice: true,
           speakText: vi.fn().mockResolvedValue(undefined),
@@ -178,7 +178,7 @@ describe("PolyCheckpoint (voice mode)", () => {
       speakText: vi.fn().mockResolvedValue(undefined),
       createTranscriber: fake.create,
     })
-    render(<PolyCheckpoint {...props} />)
+    render(<Teachback {...props} />)
     await waitFor(() => expect(fake.transcriber.start).toHaveBeenCalled())
     await userEvent.click(screen.getByRole("button", { name: /type instead/i }))
     expect(fake.transcriber.stop).toHaveBeenCalled()

@@ -41,7 +41,7 @@ describe("explanation storage (emulator)", () => {
     await assertSucceeds(
       saveExplanation(db, "alice", { conceptId: "stacks", explanation: "last in first out" }),
     )
-    const snap = await getDocs(collection(db, "users", "alice", "checkpointExplanations"))
+    const snap = await getDocs(collection(db, "users", "alice", "teachbackExplanations"))
     expect(snap.size).toBe(1)
     expect(snap.docs[0].data().explanation).toBe("last in first out")
   })
@@ -56,7 +56,7 @@ describe("explanation storage (emulator)", () => {
   it("rejects an explanation write with an unexpected field", async () => {
     const db = dbFor("alice")
     await assertFails(
-      setDoc(doc(db, "users", "alice", "checkpointExplanations", "x"), {
+      setDoc(doc(db, "users", "alice", "teachbackExplanations", "x"), {
         conceptId: "stacks",
         explanation: "x",
         createdAt: new Date(),

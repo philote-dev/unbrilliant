@@ -9,7 +9,7 @@
     {
       "source": "functions",
       "codebase": "default",
-      "ignore": ["node_modules", ".git", "*.local", "**/*.test.ts"],
+      "ignore": ["node_modules", ".git", "*.local", "scripts", "**/*.test.ts"],
       "predeploy": ["npm --prefix \"$RESOURCE_DIR\" run build"]
     }
   ],

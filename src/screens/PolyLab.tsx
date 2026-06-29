@@ -17,7 +17,7 @@ import { useNavigation } from "@/lib/navigation"
 import { useAuth } from "@/lib/auth"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { PolyCheckpoint } from "@/lessons/stacksQueues/PolyCheckpoint"
+import { Teachback } from "@/lessons/stacksQueues/Teachback"
 import { diagnoseBufferTrace, type Step } from "@/features/poly/diagnose"
 import {
   polyHealthCheck,
@@ -140,7 +140,7 @@ const HINT_SCENARIOS: HintScenario[] = [
 
 // A stateful mock for the checkpoint: the first explanation has a gap (so a probe
 // fires), the second covers everything (so it affirms and continues).
-function makeMockCheckpoint() {
+function makeMockTeachback() {
   let calls = 0
   return {
     score: async (): Promise<ScoreResponse> => {
@@ -198,7 +198,7 @@ export function PolyLab() {
       </div>
       <p className="mt-2 text-center text-sm text-muted-foreground">
         Try the Phase 2 AI features in isolation, including the health check, action-grounded hints,
-        and self-explanation checkpoints.
+        and self-explanation teach-backs.
       </p>
 
       <ModeToggle mode={mode} setMode={setMode} />
@@ -208,7 +208,7 @@ export function PolyLab() {
         <HealthPanel mode={mode} />
         <HintPanel mode={mode} />
         <StuckSystemPanel mode={mode} />
-        <CheckpointPanel mode={mode} uid={user?.uid ?? null} />
+        <TeachbackPanel mode={mode} uid={user?.uid ?? null} />
       </div>
     </div>
   )
@@ -835,7 +835,7 @@ function StuckSystemPanel({ mode }: { mode: Mode }) {
   )
 }
 
-function CheckpointPanel({ mode, uid }: { mode: Mode; uid: string | null }) {
+function TeachbackPanel({ mode, uid }: { mode: Mode; uid: string | null }) {
   const [concept, setConcept] = useState<Discipline>("stack")
   const [runId, setRunId] = useState(0)
   const [completed, setCompleted] = useState(false)
@@ -847,7 +847,7 @@ function CheckpointPanel({ mode, uid }: { mode: Mode; uid: string | null }) {
   // session changes, so each replay, concept switch, or mode switch starts the
   // loop fresh. The factory reads no reactive values, so deps are reset keys.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const mock = useMemo(() => makeMockCheckpoint(), [runId, mode, conceptId])
+  const mock = useMemo(() => makeMockTeachback(), [runId, mode, conceptId])
   const injected =
     mode === "mock"
       ? {
@@ -865,7 +865,7 @@ function CheckpointPanel({ mode, uid }: { mode: Mode; uid: string | null }) {
   return (
     <DemoCard
       icon={<MessageSquareText className="size-5" />}
-      title="3 · Self-explanation checkpoint"
+      title="3 · Teach-back"
       desc="At a concept boundary, Poly asks you to explain it, scores each idea (the dots), probes the weakest gap, then affirms. Non-gating."
     >
       <div className="flex flex-wrap items-center gap-2">
@@ -892,13 +892,13 @@ function CheckpointPanel({ mode, uid }: { mode: Mode; uid: string | null }) {
       <div className="mt-4 flex min-h-[380px] flex-col rounded-2xl border border-dashed border-border bg-background/40 p-4">
         {completed ? (
           <div className="m-auto text-center">
-            <p className="text-sm font-medium text-foreground">Checkpoint complete.</p>
+            <p className="text-sm font-medium text-foreground">Teach-back complete.</p>
             <p className="mt-1 text-xs text-muted-foreground">
               In a lesson this returns the learner to the next beat.
             </p>
           </div>
         ) : (
-          <PolyCheckpoint
+          <Teachback
             key={`${conceptId}-${mode}-${runId}`}
             conceptId={conceptId}
             conceptName={conceptName}

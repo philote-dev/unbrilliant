@@ -1,6 +1,6 @@
-# Poly Hint Tiers (Deferred) Design Notes
+# Poly Hint Tiers (Superseded) Design Notes
 
-**Status: DEFERRED.** The owner chose to defer the Poly / hint-engine work and limit current scope to the other buckets (animation, de-cuing, wiring dark features, interaction variety, replay variety, repurposing segments). These notes capture the design decisions already reached so the work is not lost when it resumes. This is a design spec, not an implementation plan; do not implement from it without re-confirming the open question below.
+**Status: UN-DEFERRED, SUPERSEDED.** This work is no longer deferred: it was picked up and is shipping. These notes are superseded by [`2026-06-28-poly-hints-and-teachback-design.md`](./2026-06-28-poly-hints-and-teachback-design.md) (the current design of record), implemented via [`../2026-06-28-poly-hint-edge-cache-pipeline.md`](../2026-06-28-poly-hint-edge-cache-pipeline.md). The open personalization question below is **resolved**: personalize to the **mistake** (the structural diagnosis: error-kind + step + wrong configuration, never answer items), which keeps hints fully cacheable; per-learner personalization is deferred. Kept for historical context; design from the superseding spec, not this one.
 
 ## One job
 
@@ -27,14 +27,16 @@ Extend Poly's contextual help across the five newer lessons (pilot: Linked Lists
 - **Scalability:** an **AI-enhanced lookup table** (cache) so repeats are lookups, not fresh model calls. Because the diagnosis is a finite set of structural shapes per skill, the distinct hints are few and cacheable.
 - **Out of scope for this bucket:** self-explanation checkpoints and voice (the backend exists, but the owner scoped this effort to tiered hints + the stall nudge only).
 
-## Open question (must resolve before implementing)
+## Open question (RESOLVED)
 
-Personalization vs scalability was not settled. The recommendation on the table (not yet approved):
+**Resolved:** personalize to the **mistake**, not the learner. The recommendation below was adopted: condition the hint on the structural diagnosis (error-kind + step + the specific wrong configuration, never answer items), which is "personalized to the mistake" AND fully cacheable; per-learner personalization (history / streak beyond a cheap phrasing layer) is **deferred**.
+
+The recommendation, now adopted:
 - Condition the hint on the **structural diagnosis** (error-kind + step + the specific wrong configuration, never answer items): "personalized to the mistake" AND fully cacheable.
 - Populate the table **hybrid**: AI-author + verify the common mistake shapes offline (instant for most learners), lazy-generate the long tail once then cache.
 - Add a cheap phrasing/tone layer on top later (vary wording by streak/attempt) with no extra model call, if richer personalization is wanted.
 
-The owner said "it should be more personalized" but was unsure how to weigh this against cost, then deferred. Resume here: decide how rich the conditioning state is, which sets cacheability.
+The owner originally said "it should be more personalized" but was unsure how to weigh this against cost, then deferred. That is now resolved as above, and the shipped design lives in the superseding spec.
 
 ## Rough shape when resumed (not a commitment)
 

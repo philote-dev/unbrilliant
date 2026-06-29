@@ -63,7 +63,7 @@ const ScoreRow: React.FC<{ text: string; verdict: Verdict; appear: number; highl
   );
 };
 
-/** Desktop checkpoint ("Poly Guide"): explain back, three-way scoring, then
+/** Desktop teach-back ("Poly Guide"): explain back, three-way scoring, then
  * Poly streams a nudge at the weakest gap. The chat auto-scrolls. */
 export const CheckpointWeb: React.FC = () => {
   const frame = useDesignFrame();

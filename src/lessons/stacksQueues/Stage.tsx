@@ -33,7 +33,7 @@ import { ContrastReplay } from "./ContrastReplay"
 import { ClassifyReplay } from "./ClassifyReplay"
 import { BrowserShowpiece } from "./BrowserShowpiece"
 import { PrinterShowpiece } from "./PrinterShowpiece"
-import { PolyCheckpoint } from "./PolyCheckpoint"
+import { Teachback } from "./Teachback"
 
 /**
  * How long the resolved "correct" state (green + check) is held before the
@@ -42,17 +42,17 @@ import { PolyCheckpoint } from "./PolyCheckpoint"
  */
 const LEAVE_BEAT_MS = 700
 
-// Renderer-layer checkpoints at the concept boundaries. `afterIndex` is the last
+// Renderer-layer teach-backs at the concept boundaries. `afterIndex` is the last
 // beat of a section; the checkpoint is due once partIndex has moved past it. This
 // is non-gating and keeps the pure engine unaware of checkpoints.
-const CHECKPOINTS: { id: string; afterIndex: number; conceptId: string; conceptName: string }[] = [
-  { id: "cp-stacks", afterIndex: 4, conceptId: "stacks", conceptName: "stacks" },
-  { id: "cp-queues", afterIndex: 9, conceptId: "queues", conceptName: "queues" },
+const TEACHBACKS: { id: string; afterIndex: number; conceptId: string; conceptName: string }[] = [
+  { id: "tb-stacks", afterIndex: 4, conceptId: "stacks", conceptName: "stacks" },
+  { id: "tb-queues", afterIndex: 9, conceptId: "queues", conceptName: "queues" },
 ]
 
-// Poly voice on the S&Q checkpoints (the Friday demo target). Fails soft to the
-// text loop if TTS, the mic, or transcription is unavailable.
-const CHECKPOINT_VOICE = true
+// Poly voice on the S&Q teach-backs. Fails soft to the text loop if TTS, the mic,
+// or transcription is unavailable.
+const TEACHBACK_VOICE = true
 
 export function StacksQueuesStage({
   state,
@@ -62,23 +62,23 @@ export function StacksQueuesStage({
   dispatch: Dispatch<LessonAction>
 }) {
   const { user } = useAuth()
-  const [doneCheckpoints, setDoneCheckpoints] = useState<string[]>([])
+  const [doneTeachbacks, setDoneTeachbacks] = useState<string[]>([])
 
   // Once the lesson is complete the player navigates away to the completion
   // screen; never surface a checkpoint (and its voice) on that final render.
   const due = state.completed
     ? undefined
-    : CHECKPOINTS.find(
-        (c) => state.partIndex > c.afterIndex && !doneCheckpoints.includes(c.id),
+    : TEACHBACKS.find(
+        (c) => state.partIndex > c.afterIndex && !doneTeachbacks.includes(c.id),
       )
   if (due) {
     return (
-      <PolyCheckpoint
+      <Teachback
         conceptId={due.conceptId}
         conceptName={due.conceptName}
         uid={user?.uid ?? null}
-        voice={CHECKPOINT_VOICE}
-        onDone={() => setDoneCheckpoints((prev) => [...prev, due.id])}
+        voice={TEACHBACK_VOICE}
+        onDone={() => setDoneTeachbacks((prev) => [...prev, due.id])}
       />
     )
   }

@@ -16,21 +16,41 @@ saves a thin durable **progress** slice.
 The deterministic core never calls a model. Phase 2 layers an *optional* Poly
 tutor on top through Firebase callable functions, the single AI seam, keeping the
 OpenAI key in a server-side secret. Poly scores a learner's typed self-explanation
-at each concept checkpoint (the text loop) and gives action-grounded hints; every
+at each concept teach-back (the text loop) and gives action-grounded hints; every
 call is non-gating and falls back to the deterministic lesson on any failure.
 
 - **Poly voice (Chunk 5):** two more callables, `polySpeak` (OpenAI TTS, returns
   base64 mp3) and `polyTranscribe` (OpenAI STT from base64 audio), let Poly speak
-  its checkpoint questions and accept spoken answers. The transcript feeds the
+  its teach-back questions and accept spoken answers. The transcript feeds the
   same scorer as typed text; the OpenAI key stays server-side (same secret). All
   voice paths fall back to the text loop on any failure.
-- **Live voice (Realtime):** the checkpoint is a spoken conversation. Poly speaks
+- **Live voice (Realtime):** the teach-back is a spoken conversation. Poly speaks
   the question, then the mic opens and the learner's words stream in live. The
   browser connects straight to OpenAI over WebRTC for streaming transcription
   using a short-lived token minted by `polyRealtimeToken` (the real key never
   reaches the client); the rolling transcript feeds the same scorer. Typing stays
   available as a pull-up keyboard sheet, and any failure (no token, mic denied,
   connection error) falls back to it.
+
+### Hints: the boundary-condition cache seam
+
+Complex-segment hints are all-AI behind the same callable seam, with a server-side
+cache enabled **only** for boundary-condition edge cases. The client `diagnose()`
+for a complex mechanic emits a giveaway-free `ErrorShape` (`kind` + step) plus a
+`boundary` flag and a short structural `configKey` (for example `full-block` or
+`head-insert`); these ride along on the hint request and never contain answer
+items. The `polyHint` callable branches on `boundary`: boundary cases are
+cache-first (look up by a deterministic, sanitized key, otherwise generate,
+giveaway-verify, then store), while interior mistakes generate live and never
+touch the cache. A cheap phrasing layer varies wording by attempt with no extra
+model call, and a finite boundary set is precomputed offline into the same store.
+Any failure falls back to the static authored hint, so hints stay non-gating.
+
+The `hintCache` Firestore collection is **server-only**: it is read and written
+through the admin SDK (which bypasses security rules), and no client rule is added,
+so default-deny keeps it unreadable from the browser. The public callable persists
+only keys on an authored boundary allowlist, so a hostile caller cannot poison or
+grow the shared cache.
 
 ## Tech stack
 

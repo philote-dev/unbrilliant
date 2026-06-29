@@ -13,6 +13,10 @@ export const skillTargets: Record<string, SkillTarget> = {
   // and implicates P3 (a proportionally bigger block keeps copies rare). Both are
   // withheld so the model nudges without naming "double".
   grow: { conceptId: "arrays", propositionIds: ["P2", "P3"] },
+  // Linked Lists insert: a wrong splice violates P1 (save the tail before
+  // repointing) and implicates P2 (repointing first orphans the tail). Both are
+  // withheld so the hint nudges without naming the save-first order.
+  llInsert: { conceptId: "linked-lists", propositionIds: ["P1", "P2"] },
 }
 
 export function targetsForSkill(skill: string): SkillTarget | undefined {

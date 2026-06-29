@@ -26,7 +26,7 @@ vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: null }) }))
 vi.mock("@/lib/ai/polyClient", () => ({
   scoreExplanation: vi.fn().mockResolvedValue({ scores: [{ id: "P1", verdict: "covered" }], weakest: null }),
   requestProbe: vi.fn().mockResolvedValue({ question: null }),
-  // Checkpoint voice is on in the live Stage now, so the real PolyCheckpoint
+  // Checkpoint voice is on in the live Stage now, so the real Teachback
   // speaks the question and tries to open a realtime mic on mount. Stub the
   // audio callables to no-op and return no realtime token, so the component
   // fails soft to the keyboard sheet and this stays a pure renderer check.
@@ -45,12 +45,12 @@ function atQueuesStart(): SQState {
 describe("S&Q checkpoint insertion", () => {
   it("shows the stacks checkpoint when entering the queues section, then the beat after Continue", async () => {
     render(<StacksQueuesStage state={atQueuesStart()} dispatch={vi.fn()} />)
-    expect(screen.getByText(/Quick check/i)).toBeInTheDocument()
+    expect(screen.getByText(/Teach-back/i)).toBeInTheDocument()
     // Voice fails soft (no realtime token), so the keyboard sheet appears.
     await userEvent.type(await screen.findByRole("textbox"), "last in first out")
     await userEvent.click(screen.getByRole("button", { name: /^submit$/i }))
     await userEvent.click(await screen.findByRole("button", { name: /continue/i }))
     // After the checkpoint is dismissed, the normal queue beat renders.
-    await waitFor(() => expect(screen.queryByText(/Quick check/i)).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByText(/Teach-back/i)).not.toBeInTheDocument())
   })
 })
