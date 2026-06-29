@@ -21,13 +21,18 @@ export async function polyHealthCheck(): Promise<HealthResult> {
 export interface HintRequest {
   stageId: string
   skill: string
-  discipline: "stack" | "queue" | "array"
+  discipline: "stack" | "queue" | "array" | "linked-list"
   learnerOrder: string[]
   priorHint?: string
   /** Multi-step beats: the learner's operation trace as readable steps. */
   attempt?: string[]
   /** Structural read from the client diagnose engine (kind + 1-based step). */
   diagnosis?: { kind: string; stepNumber: number }
+  /** Edge-case caching + stall nudge + phrasing. */
+  boundary?: boolean
+  configKey?: string
+  mode?: "hint" | "nudge"
+  attemptIndex?: number
 }
 
 export interface HintResponse {

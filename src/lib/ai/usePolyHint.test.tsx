@@ -124,4 +124,36 @@ describe("usePolyHint", () => {
       learnerOrder: ["grow the block by one slot"],
     })
   })
+
+  it("forwards diagnosis/attempt/boundary/configKey plus mode and attemptIndex", async () => {
+    const requestHint = vi
+      .fn<(r: HintRequest) => Promise<HintResponse>>()
+      .mockResolvedValue({ hint: "mind the tail" })
+    const { result } = renderHook(() =>
+      usePolyHint({
+        stageId: "linked-lists",
+        skill: "llInsert",
+        discipline: "linked-list",
+        wrongAttempt: { id: 1, learnerOrder: ["A", "B"] },
+        diagnosis: { kind: "repointed-before-saving", stepNumber: 1 },
+        attempt: ["aim p:A -> X"],
+        boundary: true,
+        configKey: "head-insert",
+        requestHint,
+      }),
+    )
+    await waitFor(() => expect(result.current.text).toBe("mind the tail"))
+    expect(requestHint.mock.calls[0][0]).toMatchObject({
+      stageId: "linked-lists",
+      skill: "llInsert",
+      discipline: "linked-list",
+      learnerOrder: ["A", "B"],
+      diagnosis: { kind: "repointed-before-saving", stepNumber: 1 },
+      attempt: ["aim p:A -> X"],
+      boundary: true,
+      configKey: "head-insert",
+      mode: "hint",
+      attemptIndex: 0,
+    })
+  })
 })
