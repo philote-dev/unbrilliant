@@ -600,7 +600,9 @@ git commit -m "feat(hint): add stall thinking-nudge (server prompt + client time
 - Modify: `functions/package.json` (add `firebase-admin`)
 - Create: `functions/src/firebaseAdmin.ts`
 - Create: `functions/src/poly/firestoreHintCache.ts` + `functions/src/poly/firestoreHintCache.test.ts`
-- Modify: `functions/src/poly/hint.ts` (wire the cache into the `polyHint` callable)
+- Modify: `functions/src/poly/hint.ts` (wire the cache into the `polyHint` callable, with the boundary-allowlist write-guard)
+
+**Security note (cache-poisoning guard).** `polyHint` is a public, unauthenticated callable that casts `request.data as HintArgs`, so `skill`/`configKey`/`diagnosis.kind`/`mode` are attacker-controllable and feed the cache key. To stop a hostile caller from poisoning the shared cache or growing it without bound, the Firestore cache only PERSISTS keys on an authored allowlist derived from `BOUNDARY_SHAPES`; `set()` is a silent no-op for any other key. Reads are unrestricted (harmless: a non-authored key simply misses). Unit tests and the offline precompute runner construct the cache WITHOUT an allowlist, so they still write freely (the precompute runner is the trusted authoring path). Residual, out-of-scope risk: a mapped-skill request still triggers a live model generation (same surface as interior hints today); rate-limiting/auth is a separate future hardening.
 
 - [ ] **Step 1: Add the dependency**
 
@@ -644,22 +646,36 @@ function fakeDb(existing?: string) {
     set: vi.fn().mockResolvedValue(undefined),
   }
   const db = { collection: vi.fn(() => ({ doc: vi.fn(() => docRef) })) }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return { cache: firestoreHintCache(db as any), docRef }
+  return { db, docRef }
 }
 
 describe("firestoreHintCache", () => {
   it("returns the stored hint when the doc exists", async () => {
-    const { cache } = fakeDb("cached nudge")
+    const { db } = fakeDb("cached nudge")
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cache = firestoreHintCache(db as any)
     expect(await cache.get("k")).toBe("cached nudge")
   })
   it("returns null when the doc is missing", async () => {
-    const { cache } = fakeDb(undefined)
+    const { db } = fakeDb(undefined)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cache = firestoreHintCache(db as any)
     expect(await cache.get("k")).toBeNull()
   })
-  it("writes the hint on set", async () => {
-    const { cache, docRef } = fakeDb()
+  it("writes the hint on set when no allowlist is configured", async () => {
+    const { db, docRef } = fakeDb()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cache = firestoreHintCache(db as any)
     await cache.set("k", "h")
+    expect(docRef.set).toHaveBeenCalledWith(expect.objectContaining({ hint: "h" }))
+  })
+  it("writes an allowlisted key but silently ignores a non-allowlisted key", async () => {
+    const { db, docRef } = fakeDb()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cache = firestoreHintCache(db as any, { allowlist: new Set(["ok"]) })
+    await cache.set("nope", "h")
+    expect(docRef.set).not.toHaveBeenCalled()
+    await cache.set("ok", "h")
     expect(docRef.set).toHaveBeenCalledWith(expect.objectContaining({ hint: "h" }))
   })
 })
@@ -676,15 +692,31 @@ Expected: FAIL (module not found).
 import type { Firestore } from "firebase-admin/firestore"
 import type { HintCache } from "./hintCache"
 
+export interface FirestoreHintCacheOptions {
+  collection?: string
+  /** When provided, set() persists ONLY keys in this set; any other key is a
+   * silent no-op. The public callable passes an allowlist derived from the
+   * authored BOUNDARY_SHAPES so a hostile caller cannot poison or grow the
+   * cache with attacker-chosen keys. Omit it for trusted writers (the offline
+   * precompute runner, unit tests). */
+  allowlist?: Set<string>
+}
+
 /** Server-only hint cache. Read/written via the admin SDK, which bypasses
  * security rules; no client rule is added, so the browser cannot read it. */
-export function firestoreHintCache(db: Firestore, collection = "hintCache"): HintCache {
+export function firestoreHintCache(
+  db: Firestore,
+  options: FirestoreHintCacheOptions = {},
+): HintCache {
+  const collection = options.collection ?? "hintCache"
+  const { allowlist } = options
   return {
     async get(key) {
       const snap = await db.collection(collection).doc(key).get()
       return snap.exists ? ((snap.get("hint") as string) ?? null) : null
     },
     async set(key, hint) {
+      if (allowlist && !allowlist.has(key)) return // cache-poisoning guard
       await db.collection(collection).doc(key).set({ hint, updatedAt: Date.now() })
     },
   }
@@ -702,13 +734,17 @@ Add imports:
 ```ts
 import { getAdminDb } from "../firebaseAdmin"
 import { firestoreHintCache } from "./firestoreHintCache"
-import { HintCache } from "./hintCache"
+import { HintCache, hintCacheKey } from "./hintCache"
+import { BOUNDARY_SHAPES } from "./boundaryShapes"
 ```
-Add a lazily-built singleton and pass it into `generateHint` (replace the existing `polyHint` export):
+Add a lazily-built singleton and pass it into `generateHint` (replace the existing `polyHint` export). The cache is built with the authored boundary allowlist so the public callable can only persist authored boundary keys:
 ```ts
 let cacheSingleton: HintCache | undefined
 function hintCache(): HintCache {
-  if (!cacheSingleton) cacheSingleton = firestoreHintCache(getAdminDb())
+  if (!cacheSingleton) {
+    const allowlist = new Set(BOUNDARY_SHAPES.map(hintCacheKey))
+    cacheSingleton = firestoreHintCache(getAdminDb(), { allowlist })
+  }
   return cacheSingleton
 }
 
